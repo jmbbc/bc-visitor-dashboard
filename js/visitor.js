@@ -31,10 +31,15 @@ function validatePhone(phone){
   return p.length >= 7 && p.length <= 15;
 }
 
-function isoFromInput(val){
+// parse date-only input (yyyy-mm-dd) to Date at local midnight
+function dateFromInputDateOnly(val){
   if (!val) return null;
-  // input datetime-local gives a string like "2025-11-11T15:30"
-  const d = new Date(val);
+  const parts = val.split('-');
+  if (parts.length !== 3) return null;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1; // zero-based month
+  const day = parseInt(parts[2], 10);
+  const d = new Date(year, month, day, 0, 0, 0, 0);
   return isNaN(d.getTime()) ? null : d;
 }
 
@@ -83,10 +88,10 @@ function isoFromInput(val){
       return;
     }
 
-    const etaDate = isoFromInput(etaVal);
-    const etdDate = isoFromInput(etdVal);
-    if (!etaDate) { show('Tarikh/Masa ETA tidak sah', false); return; }
-    if (etdVal && !etdDate) { show('Tarikh/Masa ETD tidak sah', false); return; }
+    const etaDate = dateFromInputDateOnly(etaVal);
+    const etdDate = dateFromInputDateOnly(etdVal);
+    if (!etaDate) { show('Tarikh ETA tidak sah', false); return; }
+    if (etdVal && !etdDate) { show('Tarikh ETD tidak sah', false); return; }
 
     // build payload
     const payload = {
