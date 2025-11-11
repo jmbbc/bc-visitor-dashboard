@@ -21,8 +21,6 @@ function waitForFirestore(timeout = 3000){
   }
 })();
 
-
-
 import { collection, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 const form = document.getElementById('visitorForm');
