@@ -1,12 +1,10 @@
-// js/visitor.js (module)
-// Pastikan js/firebase-init.js di-load dahulu (type="module") sehingga window.__FIRESTORE tersedia.
-
+// js/visitor.js (module) - lengkap untuk sokong Pelawat Khas & tarikh sahaja
 import {
   collection, addDoc, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-// utility: tunggu Firestore inisialisasi (behaviour robust untuk loading)
-function waitForFirestore(timeout = 3000){
+/* ---------- util ---------- */
+function waitForFirestore(timeout = 5000){
   return new Promise((resolve, reject) => {
     const start = Date.now();
     (function check(){
@@ -17,11 +15,9 @@ function waitForFirestore(timeout = 3000){
   });
 }
 
-const form = document.getElementById('visitorForm');
-const statusEl = document.getElementById('statusMsg');
-const clearBtn = document.getElementById('clearBtn');
-
 function show(msg, ok=true){
+  const statusEl = document.getElementById('statusMsg');
+  if (!statusEl) return console.warn('statusMsg element missing');
   statusEl.innerHTML = `<div class="${ok ? 'msg' : 'small'}">${msg}</div>`;
 }
 
@@ -31,104 +27,238 @@ function validatePhone(phone){
   return p.length >= 7 && p.length <= 15;
 }
 
-// parse date-only input (yyyy-mm-dd) to Date at local midnight
 function dateFromInputDateOnly(val){
   if (!val) return null;
   const parts = val.split('-');
   if (parts.length !== 3) return null;
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1; // zero-based month
-  const day = parseInt(parts[2], 10);
-  const d = new Date(year, month, day, 0, 0, 0, 0);
-  return isNaN(d.getTime()) ? null : d;
+  const y = parseInt(parts[0],10);
+  const m = parseInt(parts[1],10)-1;
+  const d = parseInt(parts[2],10);
+  const dt = new Date(y,m,d,0,0,0,0);
+  return isNaN(dt.getTime()) ? null : dt;
 }
 
+/* ---------- dynamic vehicle helpers ---------- */
+function createVehicleRow(value=''){
+  const wrapper = document.createElement('div');
+  wrapper.className = 'vehicle-row row';
+  wrapper.style.marginTop = '8px';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'vehicle-input';
+  input.placeholder = 'ABC1234';
+  input.value = value;
+  input.style.flex = '1';
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn btn-ghost';
+  removeBtn.textContent = '−';
+  removeBtn.style.marginLeft = '8px';
+  removeBtn.addEventListener('click', () => wrapper.remove());
+  wrapper.appendChild(input);
+  wrapper.appendChild(removeBtn);
+  return wrapper;
+}
+
+function getVehicleNumbersFromList(){
+  const list = document.querySelectorAll('#vehicleList .vehicle-input');
+  const out = [];
+  list.forEach(i => {
+    const v = i.value.trim();
+    if (v) out.push(v);
+  });
+  return out;
+}
+
+/* ---------- main ---------- */
 (async ()=>{
   try {
     await waitForFirestore();
   } catch (err) {
     console.error('Firestore init failed', err);
-    show('Initialisasi gagal. Sila hubungi pentadbir.', false);
+    show('Initialisasi Firestore gagal. Hubungi pentadbir.', false);
     return;
   }
 
+  // element refs
+  const form = document.getElementById('visitorForm');
+  const clearBtn = document.getElementById('clearBtn');
+  const categoryEl = document.getElementById('category');
+  const stayOverEl = document.getElementById('stayOver');
+  const etaEl = document.getElementById('eta');
+  const etdEl = document.getElementById('etd');
+
+  const vehicleSingleWrap = document.getElementById('vehicleSingleWrap');
+  const vehicleMultiWrap = document.getElementById('vehicleMultiWrap');
+  const vehicleList = document.getElementById('vehicleList');
+  const addVehicleBtn = document.getElementById('addVehicleBtn');
+
+  // safety checks for required DOM nodes
+  if (!form) { console.error('visitorForm missing'); return; }
+
+  // initial UI state
+  if (stayOverEl) stayOverEl.disabled = true;
+  if (vehicleMultiWrap) vehicleMultiWrap.style.display = 'none';
+  if (vehicleSingleWrap) vehicleSingleWrap.style.display = 'block';
+
+  // category change: toggle stayOver and vehicle inputs
+  if (categoryEl) {
+    categoryEl.addEventListener('change', () => {
+      const v = categoryEl.value;
+      if (stayOverEl) {
+        if (v === 'Pelawat') {
+          stayOverEl.disabled = false;
+          if (!stayOverEl.value) stayOverEl.value = 'No';
+        } else {
+          stayOverEl.value = 'No';
+          stayOverEl.disabled = true;
+        }
+      }
+
+      if (v === 'Pelawat Khas') {
+        if (vehicleSingleWrap) vehicleSingleWrap.style.display = 'none';
+        if (vehicleMultiWrap) {
+          vehicleMultiWrap.style.display = 'block';
+          if (!vehicleList.querySelector('.vehicle-row')) vehicleList.appendChild(createVehicleRow(''));
+        }
+      } else {
+        if (vehicleSingleWrap) vehicleSingleWrap.style.display = 'block';
+        if (vehicleMultiWrap) {
+          vehicleMultiWrap.style.display = 'none';
+          vehicleList.innerHTML = '';
+        }
+      }
+    });
+  }
+
+  // add vehicle row handler
+  if (addVehicleBtn) {
+    addVehicleBtn.addEventListener('click', () => {
+      vehicleList.appendChild(createVehicleRow(''));
+    });
+  }
+
+  // ETA -> set ETD min/max (ETA + 3 days)
+  if (etaEl) {
+    etaEl.addEventListener('change', () => {
+      const etaVal = etaEl.value;
+      if (!etaVal) {
+        if (etdEl) { etdEl.value = ''; etdEl.min = ''; etdEl.max = ''; }
+        return;
+      }
+      const etaDate = dateFromInputDateOnly(etaVal);
+      if (!etaDate) return;
+      const maxDate = new Date(etaDate);
+      maxDate.setDate(maxDate.getDate() + 3);
+      const toIso = d => d.toISOString().slice(0,10);
+      if (etdEl) {
+        etdEl.min = toIso(etaDate);
+        etdEl.max = toIso(maxDate);
+        if (etdEl.value) {
+          const cur = dateFromInputDateOnly(etdEl.value);
+          if (!cur || cur < etaDate || cur > maxDate) etdEl.value = '';
+        }
+      }
+    });
+  }
+
+  // submit handler
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    show('Memproses...', true);
 
-    // visitor values
-    const name = document.getElementById('name').value.trim();
-    const phone = document.getElementById('phone').value.trim();
-    const vehicle = document.getElementById('vehicle').value.trim();
-    const category = document.getElementById('category').value;
-    const etaVal = document.getElementById('eta').value;
-    const etdVal = document.getElementById('etd').value;
-    const note = document.getElementById('note').value.trim();
-    const parking = document.getElementById('parking').value;
+    // gather fields (IDs per visitor.html)
+    const hostUnit = document.getElementById('hostUnit') ? document.getElementById('hostUnit').value.trim() : '';
+    const hostName = document.getElementById('hostName') ? document.getElementById('hostName').value.trim() : '';
+    const hostPhone = document.getElementById('hostPhone') ? document.getElementById('hostPhone').value.trim() : '';
 
-    // host values
-    const hostUnitVal = document.getElementById('hostUnit').value.trim();
-    const hostNameVal = document.getElementById('hostName').value.trim();
-    const hostPhoneVal = document.getElementById('hostPhone').value.trim();
+    const category = categoryEl ? categoryEl.value : '';
+    const entryDetails = document.getElementById('entryDetails') ? document.getElementById('entryDetails').value.trim() : '';
+    const visitorName = document.getElementById('visitorName') ? document.getElementById('visitorName').value.trim() : '';
+    const visitorPhone = document.getElementById('visitorPhone') ? document.getElementById('visitorPhone').value.trim() : '';
+    const stayOver = document.getElementById('stayOver') ? document.getElementById('stayOver').value : 'No';
+    const etaVal = etaEl ? etaEl.value : '';
+    const etdVal = etdEl ? etdEl.value : '';
 
-    // client validation
-    if (!hostUnitVal || !hostNameVal) {
-      show('Sila lengkapkan maklumat Penghuni (Unit dan Nama).', false);
-      return;
-    }
-    if (!name || !category || !etaVal) {
-      show('Sila lengkapkan semua medan bertanda *', false);
-      return;
-    }
-    if (!validatePhone(phone)) {
-      show('Nombor telefon pengunjung tidak sah. Sila semak.', false);
-      return;
-    }
-    if (!validatePhone(hostPhoneVal)) {
-      show('Nombor telefon penghuni tidak sah. Sila semak.', false);
-      return;
-    }
+    const vehicleType = document.getElementById('vehicleType') ? document.getElementById('vehicleType').value : '';
+
+    // validation
+    if (!hostUnit || !hostName) { show('Sila lengkapkan Butiran Penghuni (Unit & Nama).', false); return; }
+    if (!category) { show('Sila pilih Kategori.', false); return; }
+    if (!visitorName) { show('Sila masukkan Nama Pelawat.', false); return; }
+    if (!etaVal) { show('Sila pilih Tarikh ETA.', false); return; }
+    if (!validatePhone(visitorPhone)) { show('Nombor telefon pelawat tidak sah.', false); return; }
+    if (hostPhone && !validatePhone(hostPhone)) { show('Nombor telefon penghuni tidak sah.', false); return; }
 
     const etaDate = dateFromInputDateOnly(etaVal);
-    const etdDate = dateFromInputDateOnly(etdVal);
-    if (!etaDate) { show('Tarikh ETA tidak sah', false); return; }
-    if (etdVal && !etdDate) { show('Tarikh ETD tidak sah', false); return; }
+    const etdDate = etdVal ? dateFromInputDateOnly(etdVal) : null;
+    if (!etaDate) { show('Tarikh ETA tidak sah.', false); return; }
+    if (etdVal && !etdDate) { show('Tarikh ETD tidak sah.', false); return; }
+    if (etdDate) {
+      const max = new Date(etaDate); max.setDate(max.getDate() + 3);
+      if (etdDate < etaDate || etdDate > max) {
+        show('Tarikh ETD mesti antara ETA hingga 3 hari selepas ETA.', false); return;
+      }
+    }
 
-    // build payload
+    // vehicle handling: single or multi
+    let vehicleNo = '';
+    let vehicleNumbers = [];
+    if (category === 'Pelawat Khas') {
+      vehicleNumbers = getVehicleNumbersFromList();
+      if (!vehicleNumbers.length) { show('Sila masukkan sekurang-kurangnya satu nombor kenderaan untuk Pelawat Khas.', false); return; }
+    } else {
+      vehicleNo = document.getElementById('vehicleNo') ? document.getElementById('vehicleNo').value.trim() : '';
+    }
+
+    // payload
     const payload = {
-      // visitor info
-      name,
-      phone: phone || '',
-      vehicle: vehicle || '',
+      hostUnit,
+      hostName,
+      hostPhone: hostPhone || '',
       category,
+      entryDetails: entryDetails || '',
+      visitorName,
+      visitorPhone: visitorPhone || '',
+      stayOver: (category === 'Pelawat') ? (stayOver === 'Yes' ? 'Yes' : 'No') : 'No',
       eta: Timestamp.fromDate(etaDate),
       etd: etdDate ? Timestamp.fromDate(etdDate) : null,
-      note: note || '',
-      parking: parking || 'No',
+      vehicleNo: vehicleNo || '',
+      vehicleNumbers: vehicleNumbers.length ? vehicleNumbers : [],
+      vehicleType: vehicleType || '',
       status: 'Pending',
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-
-      // host info
-      hostUnit: hostUnitVal,
-      hostName: hostNameVal,
-      hostPhone: hostPhoneVal || ''
+      updatedAt: serverTimestamp()
     };
-
-    show('Menghantar — tunggu seketika...', true);
 
     try {
       const col = collection(window.__FIRESTORE, 'responses');
       await addDoc(col, payload);
-      show('Terima kasih — pendaftaran berjaya. Keselamatan akan semak.', true);
+      show('Pendaftaran berjaya. Terima kasih.', true);
       form.reset();
+      // reset UI state
+      if (vehicleMultiWrap) vehicleMultiWrap.style.display = 'none';
+      if (vehicleSingleWrap) vehicleSingleWrap.style.display = 'block';
+      if (vehicleList) vehicleList.innerHTML = '';
+      if (stayOverEl) { stayOverEl.disabled = true; stayOverEl.value = 'No'; }
+      if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; }
     } catch (err) {
       console.error('visitor add error', err);
       show('Gagal hantar. Sila cuba lagi atau hubungi pentadbir.', false);
     }
   });
 
-  clearBtn.addEventListener('click', ()=> {
-    form.reset();
-    statusEl.innerHTML = '';
-  });
+  // clear button
+  if (clearBtn) {
+    clearBtn.addEventListener('click', ()=> {
+      form.reset();
+      const status = document.getElementById('statusMsg');
+      if (status) status.innerHTML = '';
+      if (vehicleMultiWrap) vehicleMultiWrap.style.display = 'none';
+      if (vehicleSingleWrap) vehicleSingleWrap.style.display = 'block';
+      if (vehicleList) vehicleList.innerHTML = '';
+      if (stayOverEl) { stayOverEl.disabled = true; stayOverEl.value = 'No'; }
+      if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; }
+    });
+  }
 })();
