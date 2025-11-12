@@ -20,7 +20,6 @@ function toast(message, ok = true) {
   el.className = `toast ${ok ? 'ok' : 'err'}`;
   el.textContent = message;
   document.body.appendChild(el);
-  // small fade in/out via CSS class toggles (CSS already in page)
   setTimeout(()=> el.classList.add('fade'), 10);
   setTimeout(()=> el.remove(), 3300);
 }
@@ -67,17 +66,15 @@ function createVehicleRow(value=''){
   input.style.borderRadius = '8px';
   input.style.border = '1px solid var(--input-border, #e5e7eb)';
   input.style.background = 'var(--card, #fff)';
-  input.style.color = 'var(--text, #111)';
+  input.style.color = 'var(--form-text, #111)';
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'vehicle-remove';
+  removeBtn.className = 'vehicle-remove btn-ghost';
   removeBtn.textContent = '−';
   removeBtn.title = 'Keluarkan baris';
   removeBtn.style.padding = '8px 10px';
   removeBtn.style.borderRadius = '8px';
-  removeBtn.style.border = '1px solid var(--input-border, #e5e7eb)';
-  removeBtn.style.background = 'transparent';
   removeBtn.style.cursor = 'pointer';
   removeBtn.addEventListener('click', () => wrapper.remove());
 
@@ -213,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // in case addVehicleBtn exists (note: in our HTML earlier it may not exist; safe-check)
+    // add vehicle button hookup
     addVehicleBtn?.addEventListener('click', () => {
       if (!vehicleList) return;
       vehicleList.appendChild(createVehicleRow(''));
