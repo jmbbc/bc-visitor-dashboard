@@ -11,7 +11,7 @@
   <!-- Optional utilities -->
   <script src="https://v1.tailwindcss.com"></script>
 
-  <!-- main site CSS (pastikan path betul: css/style.css atau ubah href jika anda guna folder lain) -->
+  <!-- main site CSS (pastikan path betul: css/style.css) -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -26,7 +26,6 @@
 
         <div style="display:flex;gap:8px;align-items:center">
           <label for="themeToggle" class="small muted">Tema</label>
-          <!-- HTML mula dengan dark, jadi teks butang tunjuk "Light" (JS akan toggle) -->
           <button id="themeToggle" style="padding:6px 10px;border-radius:6px;border:1px solid var(--input-border);background:var(--card);font-weight:600">Light</button>
         </div>
       </header>
@@ -66,6 +65,14 @@
             <option value="Penghantaran Barang">Penghantaran Barang</option>
             <option value="Pindah Rumah">Pindah Rumah</option>
             <option value="Pelawat Khas">Pelawat Khas</option>
+          </select>
+        </div>
+
+        <!-- Subcategory (Masuk/Keluar) populated by JS for certain categories -->
+        <div id="subCategoryWrap" class="form-row span-2 hidden" aria-hidden="true">
+          <label for="subCategory">Pilihan</label>
+          <select id="subCategory" name="subCategory" aria-label="Pilihan Kategori">
+            <option value="">— Pilih —</option>
           </select>
         </div>
 
