@@ -20,3 +20,105 @@ button{cursor:pointer;background:var(--accent);color:#fff;border:0;font-weight:7
 .actions{display:flex;gap:8px}
 .msg{padding:8px;border-radius:6px;background:#ecfccb;color:#064e3b}
 .login-box{max-width:360px}
+/* --- Form justify / field alignment (append to style/style.css) --- */
+.form-row {
+  display: grid;
+  grid-template-columns: 200px 1fr; /* label kolom tetap + input fleksibel */
+  gap: 6px 12px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 640px) {
+  .form-row { grid-template-columns: 1fr; }
+  .form-row label { justify-self: start; margin-bottom: 4px; }
+}
+
+/* label */
+.form-row label {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gray);
+  justify-self: end; /* label di hujung baris, sejajar ke input */
+  padding-right: 6px;
+}
+
+/* required asterisk style */
+.form-row label.required::after {
+  content: " *";
+  color: #ef4444;
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+/* input/select/textarea uniform */
+.form-row input,
+.form-row select,
+.form-row textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: var(--card);
+  color: #111;
+  box-sizing: border-box;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  transition: border-color .12s, box-shadow .12s;
+}
+
+/* dark mode adjustments if you add dark variables later */
+@media (prefers-color-scheme: dark) {
+  .form-row input,
+  .form-row select,
+  .form-row textarea {
+    background: #071024;
+    color: #e6eef8;
+    border-color: #243449;
+  }
+}
+
+/* focus state */
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 6px 18px rgba(37,99,235,0.08);
+}
+
+/* fields that should span full width (e.g., section headers or long notes) */
+.form-row.span-2 {
+  grid-column: 1 / -1;
+  grid-template-columns: 200px 1fr;
+}
+
+/* helper texts under inputs (uses same column alignment) */
+.form-row .field-note {
+  grid-column: 2 / 3;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* action buttons align to inputs */
+.form-actions {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 0 12px;
+  align-items: center;
+}
+.form-actions .actions { justify-self: start; display:flex; gap:8px; }
+
+/* small responsive tweak: two compact fields on a row (kept optional) */
+.inline-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* maintain table styling coherence */
+.table th, .table td { padding: 10px 8px; }
+
+/* minor: make .card padding consistent with inputs */
+.card { padding: 20px; border-radius: 10px; }
