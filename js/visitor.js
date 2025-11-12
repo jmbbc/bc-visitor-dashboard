@@ -1,4 +1,4 @@
-// js/visitor.js (module) - complete, theme-aware, company disable logic, vehicle handling, Firestore submit
+// js/visitor.js (module) - dikemas kini untuk behaviour yang anda minta
 import {
   collection, addDoc, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
@@ -130,7 +130,7 @@ function applyTheme(theme){
 
 /* ---------- main init ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  // theme init (run immediately so CSS variables apply before render)
+  // theme init
   const savedTheme = (localStorage.getItem('visitorTheme') || 'dark');
   applyTheme(savedTheme);
   document.getElementById('themeToggle')?.addEventListener('click', () => {
@@ -166,7 +166,78 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!form) { console.error('visitorForm missing'); return; }
 
-    // ensure initial UI state
+    // helper: update vehicle controls visibility + add button enabled state
+    function updateVehicleControlsForCategory(cat) {
+      if (!vehicleSingleWrap || !vehicleMultiWrap || !addVehicleBtn || !vehicleList) return;
+      if (cat === 'Pelawat Khas') {
+        vehicleSingleWrap.classList.add('hidden');
+        vehicleMultiWrap.classList.remove('hidden');
+        addVehicleBtn.disabled = false;
+        addVehicleBtn.classList.remove('btn-disabled');
+        if (!vehicleList.querySelector('.vehicle-row')) {
+          vehicleList.innerHTML = '';
+          vehicleList.appendChild(createVehicleRow(''));
+        }
+      } else {
+        vehicleSingleWrap.classList.remove('hidden');
+        vehicleMultiWrap.classList.add('hidden');
+        // disable/hide the add button when not Pelawat Khas
+        addVehicleBtn.disabled = true;
+        addVehicleBtn.classList.add('btn-disabled');
+        // clear list to avoid duplicates
+        vehicleList && (vehicleList.innerHTML = '');
+      }
+    }
+
+    // helper: update ETD enabled/disabled based on category and stayOver
+    function updateEtdState(cat) {
+      if (!etdEl || !etaEl) return;
+      if (cat === 'Pelawat') {
+        // for Pelawat, ETD only available if stayOver == 'Yes'
+        const stay = stayOverEl?.value || 'No';
+        if (stay === 'Yes') {
+          etdEl.disabled = false;
+          // set min/max according to eta if available
+          const etaVal = etaEl.value;
+          if (etaVal) {
+            const etaDate = dateFromInputDateOnly(etaVal);
+            if (etaDate) {
+              const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 3);
+              const toIso = d => d.toISOString().slice(0,10);
+              etdEl.min = toIso(etaDate);
+              etdEl.max = toIso(maxDate);
+            }
+          }
+        } else {
+          etdEl.disabled = true;
+          etdEl.value = '';
+          etdEl.min = '';
+          etdEl.max = '';
+        }
+      } else {
+        // other categories: ETD permitted, but still constrained by ETA when set
+        etdEl.disabled = false;
+        const etaVal = etaEl.value;
+        if (etaVal) {
+          const etaDate = dateFromInputDateOnly(etaVal);
+          if (etaDate) {
+            const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 3);
+            const toIso = d => d.toISOString().slice(0,10);
+            etdEl.min = toIso(etaDate);
+            etdEl.max = toIso(maxDate);
+            if (etdEl.value) {
+              const cur = dateFromInputDateOnly(etdEl.value);
+              if (!cur || cur < etaDate || cur > maxDate) etdEl.value = '';
+            }
+          }
+        } else {
+          etdEl.min = '';
+          etdEl.max = '';
+        }
+      }
+    }
+
+    // initial UI state
     if (stayOverEl) stayOverEl.disabled = true;
     if (companyWrap && companyInput) {
       companyWrap.classList.add('hidden');
@@ -176,12 +247,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (vehicleMultiWrap) vehicleMultiWrap.classList.add('hidden');
     if (vehicleSingleWrap) vehicleSingleWrap.classList.remove('hidden');
     if (vehicleList) vehicleList.innerHTML = '';
+    if (addVehicleBtn) {
+      addVehicleBtn.disabled = true;
+      addVehicleBtn.classList.add('btn-disabled');
+    }
 
     // Category change handler
     categoryEl?.addEventListener('change', (ev) => {
       const v = ev.target.value?.trim();
 
-      // stayOver for Pelawat
+      // stayOver for Pelawat: enable the control but default to No
       if (stayOverEl) {
         if (v === 'Pelawat') {
           stayOverEl.disabled = false;
@@ -195,28 +270,27 @@ document.addEventListener('DOMContentLoaded', () => {
       // companyName show/disable
       setCompanyFieldState(companyCategories.has(v));
 
-      // vehicle switch
-      if (v === 'Pelawat Khas') {
-        vehicleSingleWrap?.classList.add('hidden');
-        vehicleMultiWrap?.classList.remove('hidden');
-        if (vehicleList && !vehicleList.querySelector('.vehicle-row')) {
-          vehicleList.innerHTML = '';
-          vehicleList.appendChild(createVehicleRow(''));
-        }
-      } else {
-        vehicleSingleWrap?.classList.remove('hidden');
-        vehicleMultiWrap?.classList.add('hidden');
-        if (vehicleList) vehicleList.innerHTML = '';
-      }
+      // vehicle controls update
+      updateVehicleControlsForCategory(v);
+
+      // ETD state update based on new category & stayOver
+      updateEtdState(v);
     });
 
-    // add vehicle button hookup
+    // stayOver change handler: only relevant when category == Pelawat
+    stayOverEl?.addEventListener('change', () => {
+      const cat = categoryEl?.value?.trim() || '';
+      updateEtdState(cat);
+    });
+
+    // add vehicle button hookup (only active when not disabled)
     addVehicleBtn?.addEventListener('click', () => {
+      if (addVehicleBtn.disabled) return;
       if (!vehicleList) return;
       vehicleList.appendChild(createVehicleRow(''));
     });
 
-    // ETA -> ETD constraints
+    // ETA -> ETD constraints (kept but ETD enabled state controlled by updateEtdState)
     etaEl?.addEventListener('change', () => {
       const etaVal = etaEl.value;
       if (!etaVal) {
@@ -230,25 +304,25 @@ document.addEventListener('DOMContentLoaded', () => {
       if (etdEl) {
         etdEl.min = toIso(etaDate);
         etdEl.max = toIso(maxDate);
-        if (etdEl.value) {
-          const cur = dateFromInputDateOnly(etdEl.value);
-          if (!cur || cur < etaDate || cur > maxDate) etdEl.value = '';
+        // if ETD currently disabled by category/stayOver rules, keep it cleared
+        const cat = categoryEl?.value?.trim() || '';
+        if (cat === 'Pelawat') {
+          // will be set/cleared by updateEtdState
+          updateEtdState(cat);
+        } else {
+          if (etdEl.value) {
+            const cur = dateFromInputDateOnly(etdEl.value);
+            if (!cur || cur < etaDate || cur > maxDate) etdEl.value = '';
+          }
         }
       }
     });
 
-    // initialize company/vehicle state based on current category (if form populated)
+    // initialize company/vehicle/etd state based on current category (if form populated)
     const initCat = categoryEl?.value?.trim() || '';
     setCompanyFieldState(companyCategories.has(initCat));
-    if (initCat === 'Pelawat Khas') {
-      vehicleSingleWrap?.classList.add('hidden');
-      vehicleMultiWrap?.classList.remove('hidden');
-      if (vehicleList && !vehicleList.querySelector('.vehicle-row')) vehicleList.appendChild(createVehicleRow(''));
-    } else {
-      vehicleSingleWrap?.classList.remove('hidden');
-      vehicleMultiWrap?.classList.add('hidden');
-      if (vehicleList) vehicleList.innerHTML = '';
-    }
+    updateVehicleControlsForCategory(initCat);
+    updateEtdState(initCat);
 
     // submit
     form.addEventListener('submit', async (e) => {
@@ -330,8 +404,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (vehicleMultiWrap) vehicleMultiWrap.classList.add('hidden');
         if (vehicleSingleWrap) vehicleSingleWrap.classList.remove('hidden');
         if (vehicleList) vehicleList.innerHTML = '';
+        if (addVehicleBtn) { addVehicleBtn.disabled = true; addVehicleBtn.classList.add('btn-disabled'); }
         if (stayOverEl) { stayOverEl.disabled = true; stayOverEl.value = 'No'; }
-        if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; }
+        if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; etdEl.disabled = true; }
       } catch (err) {
         console.error('visitor add error', err);
         showStatus('Gagal hantar. Sila cuba lagi atau hubungi pentadbir.', false);
@@ -347,8 +422,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (vehicleMultiWrap) vehicleMultiWrap.classList.add('hidden');
       if (vehicleSingleWrap) vehicleSingleWrap.classList.remove('hidden');
       if (vehicleList) vehicleList.innerHTML = '';
+      if (addVehicleBtn) { addVehicleBtn.disabled = true; addVehicleBtn.classList.add('btn-disabled'); }
       if (stayOverEl) { stayOverEl.disabled = true; stayOverEl.value = 'No'; }
-      if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; }
+      if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; etdEl.disabled = true; }
     });
   })();
 });
