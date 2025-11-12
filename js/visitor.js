@@ -1,4 +1,4 @@
-// js/visitor.js (module) - theme toggle + form logic (tailwind-ready)
+// js/visitor.js (module) - Inter font applied + theme toggle + full form logic
 import {
   collection, addDoc, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
@@ -172,7 +172,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!etaDate) return;
       const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 3);
       const toIso = d => d.toISOString().slice(0,10);
-      if (etdEl) { etdEl.min = toIso(etaDate); etdEl.max = toIso(maxDate); if (etdEl.value) { const cur = dateFromInputDateOnly(etdEl.value); if (!cur || cur < etaDate || cur > maxDate) etdEl.value = ''; } }
+      if (etdEl) {
+        etdEl.min = toIso(etaDate);
+        etdEl.max = toIso(maxDate);
+        if (etdEl.value) {
+          const cur = dateFromInputDateOnly(etdEl.value);
+          if (!cur || cur < etaDate || cur > maxDate) etdEl.value = '';
+        }
+      }
     });
 
     // submit
