@@ -120,16 +120,16 @@ const subCategoryMap = {
 
 // help text map for subcategories
 const subCategoryHelpMap = {
-  'Penghantaran Masuk': 'Penghantaran masuk ke premis — nyatakan pihak penghantar dan penerima; pastikan masa muat turun dicatat.',
-  'Penghantaran Keluar': 'Penghantaran keluar dari premis — nyatakan penerima di luar dan butiran kenderaan jika ada.',
-  'Pindah Masuk': 'Kemasukan barangan pindah ke unit; sila nyatakan anggaran jumlah barangan dan nombor lori jika ada.',
-  'Pindah Keluar': 'Pengeluaran barangan pindah dari unit; rekod nombor lori dan masa anggaran.',
-  'Renovasi': 'Kerja-kerja pengubahsuaian (contoh: cat, tukar jubin). Pastikan kontraktor bawa dokumen kelulusan dan senarai pekerja.',
-  'Telekomunikasi': 'Kerja pemasangan/servis telekomunikasi. Sertakan nombor projek/PO dan waktu kerja jangkaan.',
-  'Kerja Servis': 'Servis berkala seperti penyelenggaraan lif, AC, atau sistem mekanikal. Nyatakan alat yang dibawa jika perlu.',
-  'Kawalan Serangga Perosak': 'Rawatan kawalan perosak. Pastikan kawasan yang terlibat dan langkah keselamatan diberi tahu.',
-  'Kerja Pembaikan': 'Pembaikan kecil/struktur. Nyatakan skop kerja ringkas dan akses yang diperlukan.',
-  'Pemeriksaan': 'Pemeriksaan keselamatan/inspeksi; sertakan pihak yang melakukan pemeriksaan dan tujuan pemeriksaan.'
+  'Penghantaran Masuk': 'Penghantaran barang masuk ke Banjaria Court.',
+  'Penghantaran Keluar': 'Penghantaran barang keluar dari Banjaria Court.',
+  'Pindah Masuk': 'Urusan pindah masuk ke Banjaria Court.',
+  'Pindah Keluar': 'Urusan pindah keluar dari Banjaria Court.',
+  'Renovasi': 'Kerja-kerja pengubahsuaian (contoh: cat, tukar jubin). Pastikan kontraktor menerima salinan PTW yang diluluskan oleh Pihak Pengurusan.',
+  'Telekomunikasi': 'Kerja pemasangan baru telekomunikasi bagi Astro, TM, Time, Maxis.',
+  'Kerja Servis': 'Pemasangan baru atau servis berkala seperti COWAY, Cucko, Air-Cond.',
+  'Kawalan Serangga Perosak': 'Rawatan kawalan serangga perosak.',
+  'Kerja Pembaikan': 'Pembaikan melibatkan pendawaian dan perkakasan elektrik.',
+  'Pemeriksaan': 'Pemeriksaan di unit yang melibatkan utiliti seperti TNB,Air Selangor, TM dan TIME.'
 };
 
 function setCompanyFieldState(show) {
