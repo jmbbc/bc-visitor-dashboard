@@ -5,8 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Borang Daftar Pelawat — Banjaria Court</title>
 
+  <!-- Inter font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Optional utilities -->
   <script src="https://v1.tailwindcss.com"></script>
+
+  <!-- main site CSS (pastikan path betul: css/style.css) -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -41,7 +46,7 @@
           </div>
         </div>
 
-        <div class="form-row span-2 stack-mobile">
+        <div class="form-row span-2">
           <label for="hostPhone">Nombor telefon penghuni</label>
           <input id="hostPhone" name="hostPhone" type="tel" inputmode="tel" placeholder="012-3456789" />
         </div>
@@ -63,6 +68,7 @@
           </select>
         </div>
 
+        <!-- Subcategory (Masuk/Keluar/Kontraktor types) populated by JS -->
         <div id="subCategoryWrap" class="form-row span-2 hidden" aria-hidden="true">
           <label for="subCategory">Pilihan</label>
           <select id="subCategory" name="subCategory" aria-label="Pilihan Kategori">
@@ -70,12 +76,18 @@
           </select>
         </div>
 
-        <div class="form-row span-2 stack-mobile">
+        <!-- Subcategory help text -->
+        <div id="subCategoryHelpWrap" class="form-row span-2 hidden" aria-hidden="true">
+          <div style="grid-column: 1 / 2;"></div>
+          <div id="subCategoryHelp" class="field-note" style="grid-column: 2 / 3;"></div>
+        </div>
+
+        <div class="form-row span-2">
           <label for="entryDetails">Butiran kemasukkan</label>
           <input id="entryDetails" name="entryDetails" placeholder="Contoh: Servis penghawa dingin / Hantar barang" />
         </div>
 
-        <div id="companyWrap" class="form-row span-2 hidden stack-mobile">
+        <div id="companyWrap" class="form-row span-2 hidden">
           <label for="companyName">Nama syarikat</label>
           <input id="companyName" name="companyName" placeholder="Nama syarikat" disabled aria-hidden="true" />
         </div>
@@ -85,7 +97,7 @@
           <input id="visitorName" name="visitorName" required placeholder="Contoh: Ahmad bin Ali" />
         </div>
 
-        <div class="form-row stack-mobile">
+        <div class="form-row">
           <label for="visitorPhone">Nombor telefon pelawat</label>
           <input id="visitorPhone" name="visitorPhone" type="tel" inputmode="tel" placeholder="012-3456789" />
         </div>
@@ -98,12 +110,12 @@
           </select>
         </div>
 
-        <div class="form-row stack-mobile">
+        <div class="form-row">
           <label for="eta" class="required">Tarikh ETA</label>
           <input id="eta" name="eta" type="date" required />
         </div>
 
-        <div class="form-row stack-mobile">
+        <div class="form-row">
           <label for="etd">Tarikh ETD</label>
           <input id="etd" name="etd" type="date" disabled />
           <div class="field-note">ETD boleh dipilih sehingga 3 hari selepas ETA</div>
@@ -114,7 +126,7 @@
         <!-- Bahagian 3 -->
         <h3 style="margin:0 0 8px 0">Bahagian 3 — Butiran Kenderaan</h3>
 
-        <div id="vehicleSingleWrap" class="form-row stack-mobile">
+        <div id="vehicleSingleWrap" class="form-row">
           <label for="vehicleNo">Nombor kenderaan</label>
           <input id="vehicleNo" name="vehicleNo" placeholder="ABC1234" />
         </div>
@@ -153,6 +165,7 @@
     </section>
   </main>
 
+  <!-- Firebase init then visitor.js -->
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/visitor.js"></script>
 </body>
