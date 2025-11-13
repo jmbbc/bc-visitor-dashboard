@@ -5,13 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Borang Daftar Pelawat — Banjaria Court</title>
 
-  <!-- Inter font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-
-  <!-- Optional utilities -->
   <script src="https://v1.tailwindcss.com"></script>
-
-  <!-- main site CSS (pastikan path betul: css/style.css) -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -37,7 +32,11 @@
         <div class="inline-two">
           <div class="form-row">
             <label for="hostUnit" class="required">Unit rumah</label>
-            <input id="hostUnit" name="hostUnit" required placeholder="Contoh: A-12-03" />
+            <!-- Strict select: pengguna mesti pilih dari senarai -->
+            <select id="hostUnit" name="hostUnit" required>
+              <option value="">— Pilih Unit —</option>
+              <!-- options populated by JS -->
+            </select>
           </div>
 
           <div class="form-row">
@@ -53,7 +52,7 @@
 
         <hr style="border:none;border-top:1px solid var(--input-border);margin:12px 0" />
 
-        <!-- Bahagian 2 -->
+        <!-- Bahagian 2 (tidak diubah) -->
         <h3 style="margin:0 0 8px 0">Bahagian 2 — Butiran Kemasukkan</h3>
 
         <div class="form-row">
@@ -68,7 +67,6 @@
           </select>
         </div>
 
-        <!-- Subcategory (Masuk/Keluar/Kontraktor types) populated by JS -->
         <div id="subCategoryWrap" class="form-row span-2 hidden" aria-hidden="true">
           <label for="subCategory">Pilihan</label>
           <select id="subCategory" name="subCategory" aria-label="Pilihan Kategori">
@@ -76,7 +74,6 @@
           </select>
         </div>
 
-        <!-- Subcategory help text -->
         <div id="subCategoryHelpWrap" class="form-row span-2 hidden" aria-hidden="true">
           <div style="grid-column: 1 / 2;"></div>
           <div id="subCategoryHelp" class="field-note" style="grid-column: 2 / 3;"></div>
