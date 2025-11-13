@@ -1,4 +1,4 @@
-// js/visitor.js - lengkap, termasuk subCategory (Masuk/Keluar), ETD rules, vehicle multi, company logic
+// js/visitor.js - lengkap, termasuk subCategory help text untuk Kontraktor, ETD rules, vehicle multi, company logic
 import {
   collection, addDoc, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
@@ -107,7 +107,29 @@ const subCategoryMap = {
   'Pindah Rumah': [
     { value: 'Pindah Masuk', label: 'Pindah Masuk' },
     { value: 'Pindah Keluar', label: 'Pindah Keluar' }
+  ],
+  'Kontraktor': [
+    { value: 'Renovasi', label: 'Renovasi' },
+    { value: 'Telekomunikasi', label: 'Telekomunikasi' },
+    { value: 'Kerja Servis', label: 'Kerja Servis' },
+    { value: 'Kawalan Serangga Perosak', label: 'Kawalan Serangga Perosak' },
+    { value: 'Kerja Pembaikan', label: 'Kerja Pembaikan' },
+    { value: 'Pemeriksaan', label: 'Pemeriksaan' }
   ]
+};
+
+// help text map for subcategories
+const subCategoryHelpMap = {
+  'Penghantaran Masuk': 'Penghantaran masuk ke premis — nyatakan pihak penghantar dan penerima; pastikan masa muat turun dicatat.',
+  'Penghantaran Keluar': 'Penghantaran keluar dari premis — nyatakan penerima di luar dan butiran kenderaan jika ada.',
+  'Pindah Masuk': 'Kemasukan barangan pindah ke unit; sila nyatakan anggaran jumlah barangan dan nombor lori jika ada.',
+  'Pindah Keluar': 'Pengeluaran barangan pindah dari unit; rekod nombor lori dan masa anggaran.',
+  'Renovasi': 'Kerja-kerja pengubahsuaian (contoh: cat, tukar jubin). Pastikan kontraktor bawa dokumen kelulusan dan senarai pekerja.',
+  'Telekomunikasi': 'Kerja pemasangan/servis telekomunikasi. Sertakan nombor projek/PO dan waktu kerja jangkaan.',
+  'Kerja Servis': 'Servis berkala seperti penyelenggaraan lif, AC, atau sistem mekanikal. Nyatakan alat yang dibawa jika perlu.',
+  'Kawalan Serangga Perosak': 'Rawatan kawalan perosak. Pastikan kawasan yang terlibat dan langkah keselamatan diberi tahu.',
+  'Kerja Pembaikan': 'Pembaikan kecil/struktur. Nyatakan skop kerja ringkas dan akses yang diperlukan.',
+  'Pemeriksaan': 'Pemeriksaan keselamatan/inspeksi; sertakan pihak yang melakukan pemeriksaan dan tujuan pemeriksaan.'
 };
 
 function setCompanyFieldState(show) {
@@ -131,13 +153,19 @@ function setCompanyFieldState(show) {
 function updateSubCategoryForCategory(cat) {
   const wrap = document.getElementById('subCategoryWrap');
   const select = document.getElementById('subCategory');
+  const helpWrap = document.getElementById('subCategoryHelpWrap');
+  const helpEl = document.getElementById('subCategoryHelp');
   if (!wrap || !select) return;
+
   // reset
   select.innerHTML = '<option value="">— Pilih —</option>';
   select.required = false;
   select.disabled = true;
   wrap.classList.add('hidden');
   wrap.setAttribute('aria-hidden','true');
+
+  if (helpEl) { helpEl.textContent = ''; }
+  if (helpWrap) { helpWrap.classList.add('hidden'); helpWrap.setAttribute('aria-hidden','true'); }
 
   if (subCategoryMap[cat]) {
     subCategoryMap[cat].forEach(opt => {
@@ -150,6 +178,29 @@ function updateSubCategoryForCategory(cat) {
     wrap.removeAttribute('aria-hidden');
     select.disabled = false;
     select.required = true;
+    // attach change handler
+    select.removeEventListener('change', showSubCategoryHelp);
+    select.addEventListener('change', showSubCategoryHelp);
+    showSubCategoryHelp();
+  }
+}
+
+// helper: paparkan help text berdasar pilihan subCategory sekarang
+function showSubCategoryHelp() {
+  const select = document.getElementById('subCategory');
+  const val = select?.value || '';
+  const helpWrap = document.getElementById('subCategoryHelpWrap');
+  const helpEl = document.getElementById('subCategoryHelp');
+  if (!helpEl || !helpWrap) return;
+
+  if (val && subCategoryHelpMap[val]) {
+    helpEl.textContent = subCategoryHelpMap[val];
+    helpWrap.classList.remove('hidden');
+    helpWrap.removeAttribute('aria-hidden');
+  } else {
+    helpEl.textContent = '';
+    helpWrap.classList.add('hidden');
+    helpWrap.setAttribute('aria-hidden','true');
   }
 }
 
@@ -303,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
     categoryEl?.addEventListener('change', (ev) => {
       const v = ev.target.value?.trim();
 
-      // update subcategory (Penghantaran / Pindah options)
+      // update subcategory (Penghantaran / Pindah / Kontraktor options)
       updateSubCategoryForCategory(v);
 
       // stayOver for Pelawat: enable the control but default to No
@@ -327,10 +378,8 @@ document.addEventListener('DOMContentLoaded', () => {
       updateEtdState(v);
     });
 
-    // subCategory change: nothing special by default, but kept for future hooks
-    subCategoryEl?.addEventListener('change', () => {
-      // reserved for future logic if needed
-    });
+    // subCategory change: show help text when changed
+    subCategoryEl?.addEventListener('change', showSubCategoryHelp);
 
     // stayOver change handler: only relevant when category == Pelawat
     stayOverEl?.addEventListener('change', () => {
@@ -439,6 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
         vehicleNo: vehicleNo || '',
         vehicleNumbers: vehicleNumbers.length ? vehicleNumbers : [],
         vehicleType: vehicleType || '',
+        subCategoryHelp: subCategoryHelpMap[subCategory] || '',
         status: 'Pending',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
