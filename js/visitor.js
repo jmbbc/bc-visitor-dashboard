@@ -1,4 +1,4 @@
-// js/visitor.js - lengkap, termasuk subCategory help text untuk Kontraktor, ETD rules, vehicle multi, company logic
+// js/visitor.js - versi dengan strict select unit (populate dari senarai)
 import {
   collection, addDoc, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
@@ -47,7 +47,7 @@ function dateFromInputDateOnly(val){
   return isNaN(dt.getTime()) ? null : dt;
 }
 
-/* ---------- dynamic vehicle helpers ---------- */
+/* ---------- dynamic vehicle helpers (unchanged) ---------- */
 function createVehicleRow(value=''){
   const wrapper = document.createElement('div');
   wrapper.className = 'vehicle-row';
@@ -94,11 +94,75 @@ function getVehicleNumbersFromList(){
   return out;
 }
 
-/* ---------- category / subcategory / company logic ---------- */
+/* ---------- unit list (dari List.csv yang anda lampirkan) ---------- */
+const units = [
+  "A-1-1","A-1-2","A-1-3","A-1-4","A-1-5","A-1-6","A-1-7","A-1-8","A-1-9","A-1-10",
+  "A-2-1","A-2-2","A-2-3","A-2-4","A-2-5","A-2-6","A-2-7","A-2-8","A-2-9","A-2-10",
+  "A-3-1","A-3-2","A-3-3","A-3-4","A-3-5","A-3-6","A-3-7","A-3-8","A-3-9","A-3-10",
+  "A-4-1","A-4-2","A-4-3","A-4-4","A-4-5","A-4-6","A-4-7","A-4-8","A-4-9","A-4-10",
+  "A-5-1","A-5-2","A-5-3","A-5-4","A-5-5","A-5-6","A-5-7","A-5-8","A-5-9","A-5-10",
+  "A-6-1","A-6-2","A-6-3","A-6-4","A-6-5","A-6-6","A-6-7","A-6-8","A-6-9","A-6-10",
+  "A-7-1","A-7-2","A-7-3","A-7-4","A-7-5","A-7-6","A-7-7","A-7-8","A-7-9","A-7-10",
+  "A-8-1","A-8-2","A-8-3","A-8-4","A-8-5","A-8-6","A-8-7","A-8-8","A-8-9","A-8-10",
+  "A-9-1","A-9-2","A-9-3","A-9-4","A-9-5","A-9-6","A-9-7","A-9-8","A-9-9","A-9-10",
+  "A-10-1","A-10-2","A-10-3","A-10-4","A-10-5","A-10-6","A-10-7","A-10-8","A-10-9","A-10-10",
+  "A-11-1","A-11-2","A-11-3","A-11-4","A-11-5","A-11-6","A-11-7","A-11-8","A-11-9","A-11-10",
+  "A-12-1","A-12-2","A-12-3","A-12-4","A-12-5","A-12-6","A-12-7","A-12-8","A-12-9","A-12-10",
+  "A-13-1","A-13-2","A-13-3","A-13-4","A-13-5","A-13-6","A-13-7","A-13-8","A-13-9","A-13-10",
+  "A-14-1","A-14-2","A-14-3","A-14-4","A-14-5","A-14-6","A-14-7","A-14-8","A-14-9","A-14-10",
+  "B1-1-1","B1-1-2","B1-1-3","B1-1-4","B1-1-5","B1-1-6","B1-1-7","B1-1-8","B1-1-9","B1-1-10","B1-1-11","B1-1-12",
+  "B1-2-1","B1-2-2","B1-2-3","B1-2-4","B1-2-5","B1-2-6","B1-2-7","B1-2-8","B1-2-9","B1-2-10","B1-2-11","B1-2-12",
+  "B1-3-1","B1-3-2","B1-3-3","B1-3-4","B1-3-5","B1-3-6","B1-3-7","B1-3-8","B1-3-9","B1-3-10","B1-3-11","B1-3-12",
+  "B1-4-1","B1-4-2","B1-4-3","B1-4-4","B1-4-5","B1-4-6","B1-4-7","B1-4-8","B1-4-9","B1-4-10","B1-4-11","B1-4-12",
+  "B1-5-1","B1-5-2","B1-5-3","B1-5-4","B1-5-5","B1-5-6","B1-5-7","B1-5-8","B1-5-9","B1-5-10","B1-5-11","B1-5-12",
+  "B1-6-1","B1-6-2","B1-6-3","B1-6-4","B1-6-5","B1-6-6","B1-6-7","B1-6-8","B1-6-9","B1-6-10","B1-6-11","B1-6-12",
+  "B1-7-1","B1-7-2","B1-7-3","B1-7-4","B1-7-5","B1-7-6","B1-7-7","B1-7-8","B1-7-9","B1-7-10","B1-7-11","B1-7-12",
+  "B1-8-1","B1-8-2","B1-8-3","B1-8-4","B1-8-5","B1-8-6","B1-8-7","B1-8-8","B1-8-9","B1-8-10","B1-8-11","B1-8-12",
+  "B1-9-1","B1-9-2","B1-9-3","B1-9-4","B1-9-5","B1-9-6","B1-9-7","B1-9-8","B1-9-9","B1-9-10","B1-9-11","B1-9-12",
+  "B1-10-1","B1-10-2","B1-10-3","B1-10-4","B1-10-5","B1-10-6","B1-10-7","B1-10-8","B1-10-9","B1-10-10","B1-10-11","B1-10-12",
+  "B1-11-1","B1-11-2","B1-11-3","B1-11-4","B1-11-5","B1-11-6","B1-11-7","B1-11-8","B1-11-9","B1-11-10","B1-11-11","B1-11-12",
+  "B1-12-1","B1-12-2","B1-12-3","B1-12-4","B1-12-5","B1-12-6","B1-12-7","B1-12-8","B1-12-9","B1-12-10","B1-12-11","B1-12-12",
+  "B1-G-1","B1-G-2","B1-G-3","B1-G-4","B1-G-5","B1-G-6","B1-G-7","B1-G-8","B1-G-9","B1-G-10","B1-G-11","B1-G-12",
+  "B2-1-1","B2-1-2","B2-1-3","B2-1-4","B2-1-5","B2-1-6","B2-1-7","B2-1-8","B2-1-9","B2-1-10","B2-1-11","B2-1-12",
+  "B2-2-1","B2-2-2","B2-2-3","B2-2-4","B2-2-5","B2-2-6","B2-2-7","B2-2-8","B2-2-9","B2-2-10","B2-2-11","B2-2-12",
+  "B2-3-1","B2-3-2","B2-3-3","B2-3-4","B2-3-5","B2-3-6","B2-3-7","B2-3-8","B2-3-9","B2-3-10","B2-3-11","B2-3-12",
+  "B2-4-1","B2-4-2","B2-4-3","B2-4-4","B2-4-5","B2-4-6","B2-4-7","B2-4-8","B2-4-9","B2-4-10","B2-4-11","B2-4-12",
+  "B2-5-1","B2-5-2","B2-5-3","B2-5-4","B2-5-5","B2-5-6","B2-5-7","B2-5-8","B2-5-9","B2-5-10","B2-5-11","B2-5-12",
+  "B2-6-1","B2-6-2","B2-6-3","B2-6-4","B2-6-5","B2-6-6","B2-6-7","B2-6-8","B2-6-9","B2-6-10","B2-6-11","B2-6-12",
+  "B2-7-1","B2-7-2","B2-7-3","B2-7-4","B2-7-5","B2-7-6","B2-7-7","B2-7-8","B2-7-9","B2-7-10","B2-7-11","B2-7-12",
+  "B2-8-1","B2-8-2","B2-8-3","B2-8-4","B2-8-5","B2-8-6","B2-8-7","B2-8-8","B2-8-9","B2-8-10","B2-8-11","B2-8-12",
+  "B2-9-1","B2-9-2","B2-9-3","B2-9-4","B2-9-5","B2-9-6","B2-9-7","B2-9-8","B2-9-9","B2-9-10","B2-9-11","B2-9-12",
+  "B2-10-1","B2-10-2","B2-10-3","B2-10-4","B2-10-5","B2-10-6","B2-10-7","B2-10-8","B2-10-9","B2-10-10","B2-10-11","B2-10-12",
+  "B2-11-1","B2-11-2","B2-11-3","B2-11-4","B2-11-5","B2-11-6","B2-11-7","B2-11-8","B2-11-9","B2-11-10","B2-11-11","B2-11-12",
+  "B2-12-1","B2-12-2","B2-12-3","B2-12-4","B2-12-5","B2-12-6","B2-12-7","B2-12-8","B2-12-9","B2-12-10","B2-12-11","B2-12-12",
+  "B2-13-1","B2-13-2","B2-13-3","B2-13-4","B2-13-5","B2-13-6","B2-13-7","B2-13-8","B2-13-9","B2-13-10","B2-13-11","B2-13-12",
+  "B2-14-1","B2-14-2","B2-14-3","B2-14-4","B2-14-5","B2-14-6","B2-14-7","B2-14-8","B2-14-9","B2-14-10","B2-14-11","B2-14-12",
+  "B2-15-1","B2-15-2","B2-15-3","B2-15-4","B2-15-5","B2-15-6","B2-15-7","B2-15-8","B2-15-9","B2-15-10","B2-15-11","B2-15-12",
+  "B2-G-1","B2-G-2","B2-G-3","B2-G-4","B2-G-5","B2-G-6","B2-G-7","B2-G-8","B2-G-9","B2-G-10","B2-G-11","B2-G-12",
+  "B3-1-1","B3-1-2","B3-1-3","B3-1-4","B3-1-5","B3-1-6","B3-1-7","B3-1-8","B3-1-9","B3-1-10","B3-1-11","B3-1-12",
+  "B3-2-1","B3-2-2","B3-2-3","B3-2-4","B3-2-5","B3-2-6","B3-2-7","B3-2-8","B3-2-9","B3-2-10","B3-2-11","B3-2-12",
+  "B3-3-1","B3-3-2","B3-3-3","B3-3-4","B3-3-5","B3-3-6","B3-3-7","B3-3-8","B3-3-9","B3-3-10","B3-3-11","B3-3-12",
+  "B3-4-1","B3-4-2","B3-4-3","B3-4-4","B3-4-5","B3-4-6","B3-4-7","B3-4-8","B3-4-9","B3-4-10","B3-4-11","B3-4-12",
+  "B3-5-1","B3-5-2","B3-5-3","B3-5-4","B3-5-5","B3-5-6","B3-5-7","B3-5-8","B3-5-9","B3-5-10","B3-5-11","B3-5-12",
+  "B3-6-1","B3-6-2","B3-6-3","B3-6-4","B3-6-5","B3-6-6","B3-6-7","B3-6-8","B3-6-9","B3-6-10","B3-6-11","B3-6-12",
+  "B3-7-1","B3-7-2","B3-7-3","B3-7-4","B3-7-5","B3-7-6","B3-7-7","B3-7-8","B3-7-9","B3-7-10","B3-7-11","B3-7-12",
+  "B3-8-1","B3-8-2","B3-8-3","B3-8-4","B3-8-5","B3-8-6","B3-8-7","B3-8-8","B3-8-9","B3-8-10","B3-8-11","B3-8-12",
+  "B3-9-1","B3-9-2","B3-9-3","B3-9-4","B3-9-5","B3-9-6","B3-9-7","B3-9-8","B3-9-9","B3-9-10","B3-9-11","B3-9-12",
+  "B3-10-1","B3-10-2","B3-10-3","B3-10-4","B3-10-5","B3-10-6","B3-10-7","B3-10-8","B3-10-9","B3-10-10","B3-10-11","B3-10-12",
+  "B3-11-1","B3-11-2","B3-11-3","B3-11-4","B3-11-5","B3-11-6","B3-11-7","B3-11-8","B3-11-9","B3-11-10","B3-11-11","B3-11-12",
+  "B3-12-1","B3-12-2","B3-12-3","B3-12-4","B3-12-5","B3-12-6","B3-12-7","B3-12-8","B3-12-9","B3-12-10","B3-12-11","B3-12-12",
+  "B3-13-1","B3-13-2","B3-13-3","B3-13-4","B3-13-5","B3-13-6","B3-13-7","B3-13-8","B3-13-9","B3-13-10","B3-13-11","B3-13-12",
+  "B3-14-1","B3-14-2","B3-14-3","B3-14-4","B3-14-5","B3-14-6","B3-14-7","B3-14-8","B3-14-9","B3-14-10","B3-14-11","B3-14-12",
+  "B3-15-1","B3-15-2","B3-15-3","B3-15-4","B3-15-5","B3-15-6","B3-15-7","B3-15-8","B3-15-9","B3-15-10","B3-15-11","B3-15-12",
+  "B3-16-1","B3-16-2","B3-16-3","B3-16-4","B3-16-5","B3-16-6","B3-16-7","B3-16-8","B3-16-9","B3-16-10","B3-16-11","B3-16-12",
+  "B3-17-1","B3-17-2","B3-17-3","B3-17-4","B3-17-5","B3-17-6","B3-17-7","B3-17-8","B3-17-9","B3-17-10","B3-17-11","B3-17-12",
+  "B3-G-1","B3-G-2","B3-G-3","B3-G-4","B3-G-5","B3-G-6","B3-G-7","B3-G-8","B3-G-9","B3-G-10","B3-G-11","B3-G-12"
+];
+
+/* ---------- category / subcategory / company logic (kept same as earlier) ---------- */
 const companyCategories = new Set(['Kontraktor','Penghantaran Barang','Pindah Rumah']);
 const categoriesEtdDisabled = new Set(['Kontraktor','Penghantaran Barang','Pindah Rumah']);
 
-// subcategory map for specific categories
 const subCategoryMap = {
   'Penghantaran Barang': [
     { value: 'Penghantaran Masuk', label: 'Penghantaran Masuk' },
@@ -118,90 +182,37 @@ const subCategoryMap = {
   ]
 };
 
-// help text map for subcategories
 const subCategoryHelpMap = {
-  'Penghantaran Masuk': 'Penghantaran barang masuk ke Banjaria Court.',
-  'Penghantaran Keluar': 'Penghantaran barang keluar dari Banjaria Court.',
-  'Pindah Masuk': 'Urusan pindah masuk ke Banjaria Court.',
-  'Pindah Keluar': 'Urusan pindah keluar dari Banjaria Court.',
-  'Renovasi': 'Kerja-kerja pengubahsuaian (contoh: cat, tukar jubin). Pastikan kontraktor menerima salinan PTW yang diluluskan oleh Pihak Pengurusan.',
-  'Telekomunikasi': 'Kerja pemasangan baru telekomunikasi bagi Astro, TM, Time, Maxis.',
-  'Kerja Servis': 'Pemasangan baru atau servis berkala seperti COWAY, Cucko, Air-Cond.',
-  'Kawalan Serangga Perosak': 'Rawatan kawalan serangga perosak.',
-  'Kerja Pembaikan': 'Pembaikan melibatkan pendawaian dan perkakasan elektrik.',
-  'Pemeriksaan': 'Pemeriksaan di unit yang melibatkan utiliti seperti TNB,Air Selangor, TM dan TIME.'
+  'Penghantaran Masuk': 'Penghantaran masuk ke premis — nyatakan pihak penghantar dan penerima; pastikan masa muat turun dicatat.',
+  'Penghantaran Keluar': 'Penghantaran keluar dari premis — nyatakan penerima di luar dan butiran kenderaan jika ada.',
+  'Pindah Masuk': 'Kemasukan barangan pindah ke unit; sila nyatakan anggaran jumlah barangan dan nombor lori jika ada.',
+  'Pindah Keluar': 'Pengeluaran barangan pindah dari unit; rekod nombor lori dan masa anggaran.',
+  'Renovasi': 'Kerja-kerja pengubahsuaian (contoh: cat, tukar jubin). Pastikan kontraktor bawa dokumen kelulusan dan senarai pekerja.',
+  'Telekomunikasi': 'Kerja pemasangan/servis telekomunikasi. Sertakan nombor projek/PO dan waktu kerja jangkaan.',
+  'Kerja Servis': 'Servis berkala seperti penyelenggaraan lif, AC, atau sistem mekanikal. Nyatakan alat yang dibawa jika perlu.',
+  'Kawalan Serangga Perosak': 'Rawatan kawalan perosak. Pastikan kawasan yang terlibat dan langkah keselamatan diber2i tahu.',
+  'Kerja Pembaikan': 'Pembaikan kecil/struktur. Nyatakan skop kerja ringkas dan akses yang diperlukan.',
+  'Pemeriksaan': 'Pemeriksaan keselamatan/inspeksi; sertakan pihak yang melakukan pemeriksaan dan tujuan pemeriksaan.'
 };
 
-function setCompanyFieldState(show) {
-  const companyWrap = document.getElementById('companyWrap');
-  const companyInput = document.getElementById('companyName');
-  if (!companyWrap || !companyInput) return;
-  if (show) {
-    companyWrap.classList.remove('hidden');
-    companyInput.required = true;
-    companyInput.disabled = false;
-    companyInput.removeAttribute('aria-hidden');
-  } else {
-    companyWrap.classList.add('hidden');
-    companyInput.required = false;
-    companyInput.disabled = true;
-    companyInput.value = '';
-    companyInput.setAttribute('aria-hidden','true');
-  }
+/* ---------- helper to populate unit select and enforce strict choice ---------- */
+function populateUnitSelect() {
+  const sel = document.getElementById('hostUnit');
+  if (!sel) return;
+  // clear existing dynamic options (keep first placeholder)
+  sel.querySelectorAll('option[data-dyn]').forEach(o => o.remove());
+  units.forEach(u => {
+    const o = document.createElement('option');
+    o.value = u;
+    o.textContent = u;
+    o.setAttribute('data-dyn','1');
+    sel.appendChild(o);
+  });
 }
 
-function updateSubCategoryForCategory(cat) {
-  const wrap = document.getElementById('subCategoryWrap');
-  const select = document.getElementById('subCategory');
-  const helpWrap = document.getElementById('subCategoryHelpWrap');
-  const helpEl = document.getElementById('subCategoryHelp');
-  if (!wrap || !select) return;
-
-  // reset
-  select.innerHTML = '<option value="">— Pilih —</option>';
-  select.required = false;
-  select.disabled = true;
-  wrap.classList.add('hidden');
-  wrap.setAttribute('aria-hidden','true');
-
-  if (helpEl) { helpEl.textContent = ''; }
-  if (helpWrap) { helpWrap.classList.add('hidden'); helpWrap.setAttribute('aria-hidden','true'); }
-
-  if (subCategoryMap[cat]) {
-    subCategoryMap[cat].forEach(opt => {
-      const o = document.createElement('option');
-      o.value = opt.value;
-      o.textContent = opt.label;
-      select.appendChild(o);
-    });
-    wrap.classList.remove('hidden');
-    wrap.removeAttribute('aria-hidden');
-    select.disabled = false;
-    select.required = true;
-    // attach change handler
-    select.removeEventListener('change', showSubCategoryHelp);
-    select.addEventListener('change', showSubCategoryHelp);
-    showSubCategoryHelp();
-  }
-}
-
-// helper: paparkan help text berdasar pilihan subCategory sekarang
-function showSubCategoryHelp() {
-  const select = document.getElementById('subCategory');
-  const val = select?.value || '';
-  const helpWrap = document.getElementById('subCategoryHelpWrap');
-  const helpEl = document.getElementById('subCategoryHelp');
-  if (!helpEl || !helpWrap) return;
-
-  if (val && subCategoryHelpMap[val]) {
-    helpEl.textContent = subCategoryHelpMap[val];
-    helpWrap.classList.remove('hidden');
-    helpWrap.removeAttribute('aria-hidden');
-  } else {
-    helpEl.textContent = '';
-    helpWrap.classList.add('hidden');
-    helpWrap.setAttribute('aria-hidden','true');
-  }
+// strict validation helper
+function isValidUnitChoice(val) {
+  return units.includes(val);
 }
 
 /* ---------- theme handling ---------- */
@@ -227,6 +238,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const next = cur === 'dark' ? 'light' : 'dark';
     applyTheme(next);
   });
+
+  // populate unit select immediately
+  populateUnitSelect();
 
   (async () => {
     try {
@@ -443,7 +457,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const vehicleType = document.getElementById('vehicleType')?.value || '';
 
       // validation
-      if (!hostUnit || !hostName) { showStatus('Sila lengkapkan Butiran Penghuni (Unit & Nama).', false); toast('Sila lengkapkan Unit & Nama penghuni', false); return; }
+      if (!hostUnit) { showStatus('Sila pilih Unit rumah.', false); toast('Sila pilih Unit rumah', false); return; }
+      if (!isValidUnitChoice(hostUnit)) { showStatus('Unit pilihan tidak sah. Sila pilih dari senarai.', false); toast('Unit tidak sah', false); return; }
+      if (!hostName) { showStatus('Sila lengkapkan Butiran Penghuni (Nama).', false); toast('Sila lengkapkan Nama penghuni', false); return; }
       if (!category) { showStatus('Sila pilih Kategori.', false); toast('Sila pilih kategori', false); return; }
       if (subCategoryMap[category] && !subCategory) { showStatus('Sila pilih pilihan bagi kategori ini.', false); toast('Sila pilih pilihan bagi kategori ini', false); return; }
       if (companyCategories.has(category) && !companyName) { showStatus('Sila masukkan Nama syarikat.', false); toast('Sila masukkan Nama syarikat', false); return; }
@@ -501,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toast('Pendaftaran berjaya', true);
         form.reset();
         // reset UI bits
+        populateUnitSelect(); // re-populate to keep placeholder option
         setCompanyFieldState(false);
         updateSubCategoryForCategory('');
         if (vehicleMultiWrap) vehicleMultiWrap.classList.add('hidden');
@@ -520,6 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearBtn?.addEventListener('click', () => {
       form.reset();
       showStatus('', true);
+      populateUnitSelect();
       setCompanyFieldState(false);
       updateSubCategoryForCategory('');
       if (vehicleMultiWrap) vehicleMultiWrap.classList.add('hidden');
