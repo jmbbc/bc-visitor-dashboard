@@ -578,3 +578,20 @@ input.mono {
   .inline-two .form-row label { justify-self: start; margin-bottom: 6px; grid-column: 1 / -1; }
   .inline-two .form-row input, .inline-two .form-row select { grid-column: 1 / -1; }
 }
+
+/* Dashboard-specific additions: sidebar, responsive table and equal action buttons */
+.sidebar { width:100%; }
+.nav-item { transition: background .12s, color .12s; }
+.nav-item:active { transform: translateY(1px); }
+
+/* KPI chips */
+.kpi .chip { background:var(--card); border:1px solid var(--input-border); padding:8px 10px; border-radius:8px; font-weight:700; }
+
+/* Table wrap and small improvements already handled, provide safety for action buttons */
+.actions button { display:inline-flex; justify-content:center; align-items:center; gap:6px; }
+
+/* Ensure status pills consistent */
+.status-pill { padding:6px 8px; border-radius:999px; font-weight:700; font-size:13px; display:inline-block; }
+
+/* WhatsApp tel link small icon spacing */
+.tel-link .wa { margin-left:6px; font-size:13px; color:inherit; }
