@@ -1,17 +1,62 @@
 <!doctype html>
-<html>
+<html lang="ms">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Dashboard Keselamatan</title>
+  <title>Dashboard Keselamatan — Banjaria Court</title>
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Minimal local tweaks for dashboard layout (can be moved to css/style.css) */
+    .dashboard-wrap { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+    @media (max-width: 880px) { .dashboard-wrap { grid-template-columns: 1fr; } }
+
+    /* Sidebar */
+    .sidebar { padding: 12px; border-radius:8px; background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+    .sidebar nav { display:flex; flex-direction:column; gap:6px; }
+    .sidebar button.nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:transparent; cursor:pointer; font-weight:600; }
+    .sidebar button.nav-item.active { background: var(--accent); color:#fff; border-color:var(--accent); }
+
+    /* Top info */
+    .top-info { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+    .kpi { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+    /* Table responsive */
+    .table { width:100%; border-collapse:collapse; font-size:14px; }
+    .table th, .table td { padding:8px; border-bottom:1px solid var(--input-border); text-align:left; vertical-align:middle; }
+    .table td .small { display:block; color:var(--muted); margin-top:6px; font-size:12px; }
+
+    /* Make action buttons equal size */
+    .actions { display:flex; gap:8px; align-items:center; }
+    .actions button { min-width:96px; padding:8px 10px; border-radius:8px; }
+
+    /* Conflict highlight */
+    tr.conflict td { background: rgba(255,243,205,0.6); }
+
+    /* WhatsApp link style inside table */
+    .tel-link { color: var(--accent); font-weight:600; text-decoration: none; }
+    .tel-link:hover { text-decoration: underline; }
+
+    /* Small helper */
+    .muted-small { color:var(--muted); font-size:13px; }
+
+    /* Injected overlap area styling */
+    #overlapResult .msg { margin-top:8px; padding:8px; border-radius:8px; background:#ecfdf5; color:#065f46; }
+
+    /* Mobile tweaks: make table horizontally scrollable */
+    .table-wrap { overflow-x:auto; }
+
+    /* Tiny: center login area on small screens */
+    @media (max-width: 640px) {
+      .login-box { margin:8px 0; }
+    }
+  </style>
 </head>
 <body>
-  <main class="container card">
-    <a href="index.html">← Kembali</a>
-    <h2>Dashboard Keselamatan</h2>
+  <main class="container" style="padding:18px 12px;">
+    <a href="index.html" class="small">← Kembali</a>
+    <h2 style="margin-top:8px">Dashboard Keselamatan</h2>
 
-    <div class="login-box card small" id="loginBox">
+    <div id="loginBox" class="login-box card small" style="max-width:420px;margin-top:12px">
       <label>Email</label>
       <input id="loginEmail" type="email" />
       <label>Password</label>
@@ -23,21 +68,58 @@
       <div id="loginMsg" class="small" style="margin-top:8px"></div>
     </div>
 
-    <div id="dashboardArea" style="display:none">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <div class="small">Log masuk sebagai: <span id="who"></span></div>
-        <div>
-          <button id="reloadBtn" class="btn-ghost">Refresh</button>
-        </div>
+    <div id="dashboardArea" style="display:none; margin-top:12px">
+      <div class="dashboard-wrap">
+        <!-- SIDEBAR -->
+        <aside class="sidebar" aria-label="Navigasi Dashboard">
+          <div style="margin-bottom:10px">
+            <div class="small muted">Tarikh hari ini</div>
+            <div id="todayLabel" style="font-weight:800;font-size:16px;margin-top:6px"></div>
+            <div id="todayTime" class="muted-small" style="margin-top:4px"></div>
+          </div>
+
+          <nav>
+            <button id="navSummary" class="nav-item active">Ringkasan</button>
+            <button id="navCheckedIn" class="nav-item">Pelawat Checked In (Hari Ini)</button>
+            <hr style="border:none;border-top:1px solid var(--input-border);margin:10px 0">
+            <div class="muted-small">Alat</div>
+            <button id="reloadBtn" class="nav-item">Refresh Data</button>
+            <button id="exportCSVBtn" class="nav-item">Eksport CSV (hari ini)</button>
+          </nav>
+        </aside>
+
+        <!-- MAIN AREA -->
+        <section>
+          <div class="top-info">
+            <div>
+              <div class="small">Log masuk sebagai: <strong id="who"></strong></div>
+              <div id="kpiWrap" style="margin-top:8px" class="kpi"></div>
+            </div>
+
+            <div style="display:flex;gap:8px;align-items:center">
+              <label for="filterDate" class="small muted">Tunjuk mengikut ETA</label>
+              <input id="filterDate" type="date" />
+            </div>
+          </div>
+
+          <!-- injected overlap controls will appear here -->
+          <div id="injectedControls"></div>
+
+          <!-- content pages -->
+          <div id="pageSummary">
+            <div id="listAreaSummary" style="margin-top:8px"></div>
+          </div>
+
+          <div id="pageCheckedIn" style="display:none">
+            <h3 style="margin-top:6px">Pelawat Checked In — Hari Ini</h3>
+            <div id="listAreaCheckedIn" style="margin-top:8px"></div>
+          </div>
+        </section>
       </div>
-
-      <div id="listArea" style="margin-top:12px"></div>
     </div>
-
   </main>
 
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/dashboard.js"></script>
 </body>
 </html>
-
