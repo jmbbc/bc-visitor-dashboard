@@ -37,34 +37,51 @@
 
     /* Pilihan rapi: checkbox + label + nota sejajar kemas */
     .form-row.confirm-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 0;
+      display: flex !important;
+      align-items: center !important;
+      gap: 10px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100%;
+      box-sizing: border-box;
     }
     .form-row.confirm-row .confirm-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      margin: 0 !important;
     }
     .form-row.confirm-row input[type="checkbox"] {
-      margin: 0;
-      width: 18px;
-      height: 18px;
-      vertical-align: middle;
-      flex: 0 0 18px;
-      accent-color: #2563eb; /* optional */
+      display: inline-block !important;
+      margin: 0 !important;
+      width: 18px !important;
+      height: 18px !important;
+      flex: 0 0 18px !important;
+      vertical-align: middle !important;
+      accent-color: #2563eb;
     }
-    .form-row.confirm-row label {
-      margin: 0;
+    .form-row.confirm-row label[for="confirmAgree"] {
+      display: inline-block !important;
+      margin: 0 !important;
+      line-height: 1.2 !important;
       cursor: pointer;
       font-weight: 600;
-      line-height: 1.2;
     }
     .form-row.confirm-row .field-note {
-      margin-left: 8px;
-      color: var(--muted);
-      font-size: 12px;
+      margin-left: 8px !important;
+      color: var(--muted, #6b7280) !important;
+      font-size: 12px !important;
+      white-space: nowrap;
+    }
+    .form-row.confirm-row .confirm-left,
+    .form-row.confirm-row .field-note,
+    .form-row.confirm-row label,
+    .form-row.confirm-row input[type="checkbox"] {
+      min-width: 0 !important;
+    }
+    @media (max-width: 680px) {
+      .form-row.confirm-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+      .form-row.confirm-row .field-note { margin-left: 0; }
     }
   </style>
 </head>
