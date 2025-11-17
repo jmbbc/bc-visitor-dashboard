@@ -612,3 +612,204 @@ button.btn-edit { background: #f59e0b; border:0; color:#fff; font-weight:700; pa
 /* Table responsiveness safety */
 .table-wrap { -webkit-overflow-scrolling: touch; }
 
+/* =========================
+   Design tokens & typography (additional patch)
+   ========================= */
+:root{
+  --bg-page:#f3f4f6;
+  --surface:#ffffff;
+  --text-900:#0f172a;
+  --text-muted:#6b7280;
+  --accent:#2563eb;
+  --accent-alt:#7c3aed;
+  --success:#16a34a;
+  --warning:#f59e0b;
+  --danger:#ef4444;
+  --input-focus-shadow: 0 6px 18px rgba(37,99,235,0.08);
+
+  --radius-sm:6px;
+  --radius:8px;
+  --radius-pill:999px;
+
+  --elev-1: 0 1px 3px rgba(2,6,23,0.06);
+  --elev-2: 0 6px 18px rgba(2,6,23,0.08);
+
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-label: "Source Sans 3", var(--font-ui);
+}
+
+/* base overrides */
+html,body{height:100%}
+body{
+  background:var(--bg-page);
+  color:var(--text-900);
+  font-family:var(--font-ui);
+  font-size:16px;
+  line-height:1.45;
+  margin:0;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* text roles */
+h1,h2,h3{font-weight:700;color:var(--text-900)}
+label{font-family:var(--font-label);font-weight:600;font-size:14px;color:var(--text-900)}
+.small, .muted-small{font-size:13px;color:var(--text-muted)}
+.helper{font-size:12px;color:var(--text-muted)}
+
+/* Cards, layout helpers */
+.card{
+  background:var(--surface);
+  border-radius:var(--radius);
+  box-shadow:var(--elev-1);
+  padding:16px;
+  box-sizing:border-box;
+}
+
+/* container padding */
+.container{padding:18px 16px;max-width:1100px;margin:0 auto}
+
+/* Form controls (uniform) */
+input, select, textarea, button {
+  font-family:var(--font-ui);
+  font-size:15px;
+  color:var(--text-900);
+  box-sizing:border-box;
+}
+
+/* inputs */
+input, select, textarea {
+  width:100%;
+  min-height:44px;
+  padding:10px 12px;
+  border-radius:var(--radius);
+  border:1px solid var(--input-border);
+  background:var(--surface);
+  transition: border-color .12s, box-shadow .12s;
+}
+
+/* focus */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--input-focus-shadow);
+}
+
+/* placeholder */
+input::placeholder, textarea::placeholder { color:var(--text-muted); font-style:italic; }
+
+/* helper / error */
+.input-helper{font-size:12px;color:var(--text-muted);margin-top:6px}
+.input-error{font-size:13px;color:var(--danger);margin-top:6px}
+
+/* Buttons (primary / ghost / accent) */
+button{
+  cursor:pointer;
+  border:0;
+  border-radius:8px;
+  padding:10px 14px;
+  font-weight:700;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+}
+
+/* primary */
+.btn, button.primary{ background:var(--accent); color:#fff; }
+.btn-ghost, button.ghost{ background:transparent; color:var(--text-900); border:1px solid var(--input-border); }
+
+/* edit / accent */
+button.btn-edit{ background:var(--warning); color:#fff; border:0; }
+
+/* disabled */
+button[disabled]{ opacity:.6; cursor:not-allowed; }
+
+/* actions container */
+.actions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+@media (max-width:640px){ .actions{ flex-direction:column; } .actions button{ width:100%; } }
+
+/* Table and responsive */
+.table{ width:100%; border-collapse:collapse; font-size:14px; }
+.table th, .table td { padding:10px; border-bottom:1px solid var(--input-border); text-align:left; vertical-align:middle; }
+.table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+/* small devices: reduce padding */
+@media (max-width:640px){
+  .table th, .table td { padding:8px; font-size:13px; }
+}
+
+/* status pills */
+.status-pill{ padding:6px 8px; border-radius:999px; font-weight:700; font-size:13px; display:inline-block; }
+.pill-pending{ background:#fef3c7;color:#92400e }
+.pill-in{ background:#bbf7d0;color:#065f46 }
+.pill-out{ background:#e5e7eb;color:#374151 }
+
+/* conflict highlight */
+tr.conflict td{ background: rgba(255,243,205,0.6) }
+
+/* Sidebar & nav */
+.sidebar { width:100%; }
+.nav-item {
+  display:block;
+  text-align:left;
+  padding:8px 10px;
+  border-radius:8px;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--text-900);
+  font-weight:600;
+}
+.nav-item.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+
+/* Modal (centered) - polished */
+.modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:12000; background: rgba(6,8,15,0.35); }
+.modal .card{ width:460px; max-width:96%; box-shadow:var(--elev-2); padding:18px; max-height:90vh; overflow:auto; }
+.modal.hidden{ display:none !important; }
+.modal input, .modal select{ min-height:44px; }
+
+/* Mobile-first stacking for forms */
+.form-row{ display:block; margin-bottom:12px; }
+.form-row label{ display:block; margin-bottom:6px; }
+.form-row .field-note{ margin-top:6px; color:var(--text-muted); font-size:13px; }
+
+/* Desktop: two-column aligned form rows */
+@media (min-width:720px){
+  .form-row.grid{
+    display:grid;
+    grid-template-columns:200px 1fr;
+    gap:6px 12px;
+    align-items:center;
+    margin-bottom:12px;
+  }
+  .form-row.grid label{ justify-self:end; margin-bottom:0; }
+  .form-row.grid .field-note{ grid-column:2/3; margin-top:6px; }
+}
+
+/* Accessibility & focus outlines */
+:focus{ outline: none; }
+button:focus, input:focus, select:focus, textarea:focus{
+  box-shadow: var(--input-focus-shadow);
+  outline: 3px solid rgba(37,99,235,0.08);
+  outline-offset: 2px;
+}
+
+/* Small polish & helpers */
+.kpi .chip{ padding:8px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--input-border); font-weight:700; }
+.tel-link{ color:var(--accent); text-decoration:none; font-weight:600; }
+.tel-link:hover{ text-decoration:underline; }
+
+/* ensure date inputs show readable text on all browsers */
+input[type="date"]{ color:var(--text-900); background:var(--surface); }
+
+/* ensure form controls can't be accidentally scaled on iOS */
+input, textarea, select { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+
+/* sticky action bar helper for mobile */
+@media (max-width:600px){
+  .sticky-action-bar{
+    position:fixed; left:0; right:0; bottom:0; padding:12px; background:linear-gradient(180deg, transparent, rgba(243,244,246,0.95)); box-shadow:0 -4px 24px rgba(2,6,23,0.08);
+  }
+  .sticky-action-bar .actions{ display:flex; gap:8px; }
+}
