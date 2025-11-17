@@ -1,4 +1,4 @@
-// js/dashboard.js (module) - versi dikemaskini untuk mobile-friendly, today-only ETA filter, WhatsApp links, sidebar pages
+// js/dashboard.js (module) - updated: debug auth logs, mobile-friendly features, today-only ETA filter, whatsapp links, sidebar pages
 import {
   collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, Timestamp
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
@@ -16,12 +16,7 @@ function formatDateOnly(ts){
   const yy = d.getFullYear();
   return `${dd}/${mm}/${yy}`;
 }
-function isoDateString(d){ // yyyy-mm-dd
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const yy = d.getFullYear();
-  return `${yy}-${mm}-${dd}`;
-}
+function isoDateString(d){ const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const yy = d.getFullYear(); return `${yy}-${mm}-${dd}`; }
 function showLoginMsg(el, m, ok=true){ el.textContent = m; el.style.color = ok ? 'green' : 'red'; }
 function toast(msg){ const t = document.createElement('div'); t.className = 'msg'; t.textContent = msg; document.body.appendChild(t); setTimeout(()=>t.remove(),3000); }
 
@@ -45,7 +40,7 @@ const navSummary = document.getElementById('navSummary');
 const navCheckedIn = document.getElementById('navCheckedIn');
 const exportCSVBtn = document.getElementById('exportCSVBtn');
 
-/* injected overlap controls referencing (we keep same markup as before) */
+/* injected overlap controls (reused) */
 const overlapWrap = document.createElement('div');
 overlapWrap.className = 'card small';
 overlapWrap.style.margin = '12px 0';
@@ -60,24 +55,39 @@ overlapWrap.innerHTML = `
 `;
 let overlapDateEl, checkOverlapBtn, clearOverlapBtn, overlapResultEl;
 
-/* ---------- auth handlers ---------- */
+/* ---------- debug: check global firebase objects ---------- */
+console.info('dashboard.js loaded. window.__AUTH?', !!window.__AUTH, 'window.__FIRESTORE?', !!window.__FIRESTORE);
+
+/* ---------- auth handlers (with detailed error messages) ---------- */
 loginBtn.addEventListener('click', async ()=>{
   const email = document.getElementById('loginEmail').value.trim();
   const pass = document.getElementById('loginPass').value;
   showLoginMsg(loginMsg, 'Log masuk...');
   try {
-    await signInWithEmailAndPassword(window.__AUTH, email, pass);
+    const cred = await signInWithEmailAndPassword(window.__AUTH, email, pass);
+    console.info('Login success:', cred.user && (cred.user.email || cred.user.uid));
+    showLoginMsg(loginMsg, 'Berjaya log masuk.');
   } catch (err) {
-    console.error('login err', err);
-    showLoginMsg(loginMsg, 'Gagal log masuk: ' + (err.message || err), false);
+    console.error('login err detailed', err);
+    const code = err && err.code ? err.code : 'unknown_error';
+    const msg = err && err.message ? err.message : String(err);
+    showLoginMsg(loginMsg, `Gagal log masuk: ${code} — ${msg}`, false);
   }
 });
 
 logoutBtn.addEventListener('click', async ()=> {
-  await signOut(window.__AUTH);
+  try {
+    await signOut(window.__AUTH);
+    showLoginMsg(loginMsg, 'Anda telah log keluar.', true);
+  } catch (err) {
+    console.error('logout err', err);
+    showLoginMsg(loginMsg, 'Gagal log keluar', false);
+  }
 });
 
+/* ---------- auth state change handling ---------- */
 onAuthStateChanged(window.__AUTH, user => {
+  console.info('dashboard: onAuthStateChanged ->', user ? (user.email || user.uid) : 'signed out');
   if (user) {
     loginBox.style.display = 'none';
     dashboardArea.style.display = 'block';
@@ -97,7 +107,7 @@ onAuthStateChanged(window.__AUTH, user => {
     const now = new Date();
     todayLabel.textContent = formatDateOnly(now);
     todayTime.textContent = now.toLocaleTimeString();
-    filterDate.value = isoDateString(now);
+    if (!filterDate.value) filterDate.value = isoDateString(now);
     loadTodayList();
   } else {
     loginBox.style.display = 'block';
@@ -108,7 +118,6 @@ onAuthStateChanged(window.__AUTH, user => {
 
 /* ---------- paging & fetch ---------- */
 async function loadTodayList(){
-  // Uses filterDate value; default to today
   const dateStr = filterDate.value || isoDateString(new Date());
   await loadListForDateStr(dateStr);
 }
@@ -226,7 +235,7 @@ function renderList(rows, containerEl, compact=false){
   containerEl.innerHTML = '';
   containerEl.appendChild(wrap);
 
-  // Attach actions with equal button sizes already handled by CSS
+  // Attach actions
   containerEl.querySelectorAll('button[data-action]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-id');
@@ -240,9 +249,6 @@ function renderList(rows, containerEl, compact=false){
 async function doStatusUpdate(docId, newStatus){
   try {
     const ref = doc(window.__FIRESTORE, 'responses', docId);
-    // fetch current doc to include old value in audit (optional)
-    // const snap = await getDoc(ref);
-    // const oldStatus = snap.exists() ? snap.data().status : '';
     await updateDoc(ref, { status: newStatus, updatedAt: serverTimestamp() });
     const auditCol = collection(window.__FIRESTORE, 'audit');
     await addDoc(auditCol, {
@@ -263,7 +269,7 @@ async function doStatusUpdate(docId, newStatus){
   }
 }
 
-/* ---------- overlap detection (same as previous) ---------- */
+/* ---------- overlap detection ---------- */
 function buildDateRangeFromInput(dateStr){
   if (!dateStr) return null;
   const p = dateStr.split('-');
@@ -314,15 +320,11 @@ async function checkOverlapsAndRender(){
       return;
     }
 
-    // summary + highlight
     let html = '<div class="small" style="margin-bottom:8px">Ditemui pertindihan untuk nombor berikut:</div>';
     conflicts.forEach(c => { html += `<div style="margin-bottom:6px"><strong>${c.vehicle}</strong> — ${c.docIds.size} rekod</div>`; });
     overlapResultEl.innerHTML = html + '<div class="small" style="margin-top:8px">Baris yang terlibat diserlahkan di table.</div>';
 
-    const conflictMap = new Map();
-    conflicts.forEach(c => conflictMap.set(c.vehicle, c.docIds));
-    renderList(rows, listAreaSummary, false); // We don't highlight per-vehicle in this simplified render
-    // details list
+    renderList(rows, listAreaSummary, false);
     const detailsWrap = document.createElement('div');
     detailsWrap.style.marginTop = '12px';
     detailsWrap.innerHTML = '<h4 style="margin:0 0 8px 0">Butiran Pertindihan</h4>';
@@ -394,17 +396,13 @@ async function exportCSVForToday(){
 /* ---------- utilities ---------- */
 function escapeHtml(s){ if (!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function normalizePhoneForWhatsapp(raw){
-  // Accept local Malaysian formats; attempt to normalize to international without plus
-  let p = String(raw).trim();
-  // Remove spaces, dashes, parentheses
+  let p = String(raw || '').trim();
   p = p.replace(/[\s\-().]/g,'');
-  // If starts with 0, replace with 60 (Malaysia). If starts with +, keep the +.
+  if (!p) return '#';
   if (p.startsWith('+')) return `https://wa.me/${p.replace(/^\+/,'')}`;
   if (p.startsWith('0')) return `https://wa.me/6${p.replace(/^0+/,'')}`;
-  // fallback: assume already country code
   return `https://wa.me/${p}`;
 }
-function isoDateString(d){ const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const yy = d.getFullYear(); return `${yy}-${mm}-${dd}`; }
 
 /* ---------- page switching ---------- */
 function showPage(key){
@@ -422,7 +420,5 @@ function showPage(key){
 /* initialize filterDate with today if empty */
 if (!filterDate.value) filterDate.value = isoDateString(new Date());
 
-/* export overlap controls bind (we already add handlers on auth) */
-document.addEventListener('DOMContentLoaded', ()=> {
-  // nothing here; logic attached in onAuthStateChanged injection
-});
+/* DOMContentLoaded no-op (handlers set above) */
+document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
