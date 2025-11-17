@@ -1,6 +1,6 @@
-// js/dashboard.js (module) - updated: debug auth logs, mobile-friendly features, today-only ETA filter, whatsapp links, sidebar pages
+// js/dashboard.js (module) - complete patched version with edit modal and checked-in minimal columns
 import {
-  collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, Timestamp
+  collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, Timestamp, getDoc
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 import {
@@ -55,10 +55,10 @@ overlapWrap.innerHTML = `
 `;
 let overlapDateEl, checkOverlapBtn, clearOverlapBtn, overlapResultEl;
 
-/* ---------- debug: check global firebase objects ---------- */
+/* ---------- debug check ---------- */
 console.info('dashboard.js loaded. window.__AUTH?', !!window.__AUTH, 'window.__FIRESTORE?', !!window.__FIRESTORE);
 
-/* ---------- auth handlers (with detailed error messages) ---------- */
+/* ---------- auth handlers ---------- */
 loginBtn.addEventListener('click', async ()=>{
   const email = document.getElementById('loginEmail').value.trim();
   const pass = document.getElementById('loginPass').value;
@@ -93,6 +93,7 @@ onAuthStateChanged(window.__AUTH, user => {
     dashboardArea.style.display = 'block';
     who.textContent = user.email || user.uid;
     logoutBtn.style.display = 'inline-block';
+
     // inject overlap controls once
     if (!document.getElementById('overlapDate')) {
       injectedControls.appendChild(overlapWrap);
@@ -103,6 +104,7 @@ onAuthStateChanged(window.__AUTH, user => {
       checkOverlapBtn.addEventListener('click', ()=> checkOverlapsAndRender());
       clearOverlapBtn.addEventListener('click', ()=> { overlapDateEl.value=''; overlapResultEl.innerHTML=''; loadTodayList(); });
     }
+
     // set today's date into filter and label
     const now = new Date();
     todayLabel.textContent = formatDateOnly(now);
@@ -124,15 +126,11 @@ async function loadTodayList(){
 
 reloadBtn.addEventListener('click', ()=> loadTodayList());
 filterDate.addEventListener('change', ()=> loadTodayList());
-
 navSummary.addEventListener('click', ()=> { showPage('summary'); });
 navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
+exportCSVBtn.addEventListener('click', ()=> { exportCSVForToday(); });
 
-exportCSVBtn.addEventListener('click', ()=> {
-  exportCSVForToday();
-});
-
-/* ---------- core fetch for a given date string yyyy-mm-dd ---------- */
+/* ---------- core fetch for date ---------- */
 async function loadListForDateStr(yyyymmdd){
   const d = yyyymmdd.split('-');
   if (d.length !== 3) { listAreaSummary.innerHTML = '<div class="small">Tarikh tidak sah</div>'; return; }
@@ -148,7 +146,7 @@ async function loadListForDateStr(yyyymmdd){
     const rows = [];
     snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
 
-    // compute KPIs
+    // KPIs
     let pending = 0, checkedIn = 0, checkedOut = 0;
     rows.forEach(r => {
       if (!r.status || r.status === 'Pending') pending++;
@@ -157,9 +155,9 @@ async function loadListForDateStr(yyyymmdd){
     });
     renderKPIs(pending, checkedIn, checkedOut);
 
-    // render both pages: summary (all) and checked-in (filtered)
+    // render pages
     renderList(rows, listAreaSummary, false);
-    renderList(rows.filter(r => r.status === 'Checked In'), listAreaCheckedIn, true);
+    renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
   } catch (err) {
     console.error('loadList err', err);
     listAreaSummary.innerHTML = '<div class="small">Gagal muat. Semak konsol.</div>';
@@ -181,7 +179,7 @@ function renderKPIs(pending, checkedIn, checkedOut){
   kpiWrap.appendChild(createChip('Keluar (Checked Out)', checkedOut));
 }
 
-/* Render into a container (table mobile-friendly) */
+/* General render for summary (full columns) */
 function renderList(rows, containerEl, compact=false){
   if (!rows.length) { containerEl.innerHTML = '<div class="small">Tiada rekod</div>'; return; }
   const wrap = document.createElement('div');
@@ -198,7 +196,6 @@ function renderList(rows, containerEl, compact=false){
     if (Array.isArray(r.vehicleNumbers) && r.vehicleNumbers.length) vehicleDisplay = r.vehicleNumbers.join(', ');
     else if (r.vehicleNo) vehicleDisplay = r.vehicleNo;
 
-    // WhatsApp link for host phone if exists
     let hostContactHtml = '';
     if (r.hostName || r.hostPhone) {
       const phone = (r.hostPhone || '').trim();
@@ -245,6 +242,68 @@ function renderList(rows, containerEl, compact=false){
   });
 }
 
+/* ---------- Checked-In page minimal columns & Edit button ---------- */
+function renderCheckedInList(rows){
+  const containerEl = listAreaCheckedIn;
+  if (!rows || rows.length === 0) { containerEl.innerHTML = '<div class="small">Tiada rekod</div>'; return; }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'table-wrap';
+  const table = document.createElement('table');
+  table.className = 'table';
+  table.innerHTML = `<thead><tr>
+    <th>Unit / Tuan Rumah</th>
+    <th>ETA</th>
+    <th>ETD</th>
+    <th>Kenderaan</th>
+    <th>Status</th>
+    <th>Aksi</th>
+  </tr></thead>`;
+  const tbody = document.createElement('tbody');
+
+  rows.forEach(r => {
+    const vehicleDisplay = (Array.isArray(r.vehicleNumbers) && r.vehicleNumbers.length) ? r.vehicleNumbers.join(', ') : (r.vehicleNo || '-');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(r.hostUnit || '')}${r.hostName ? '<div class="small">'+escapeHtml(r.hostName)+'</div>' : ''}</td>
+      <td>${formatDateOnly(r.eta)}</td>
+      <td>${formatDateOnly(r.etd)}</td>
+      <td>${escapeHtml(vehicleDisplay)}</td>
+      <td><span class="status-pill ${r.status === 'Checked In' ? 'pill-in' : (r.status === 'Checked Out' ? 'pill-out' : 'pill-pending')}">${escapeHtml(r.status || 'Pending')}</span></td>
+      <td>
+        <div class="actions">
+          <button class="btn btn-edit" data-id="${r.id}">Isi Butiran</button>
+          <button class="btn" data-action="in" data-id="${r.id}">Check In</button>
+          <button class="btn btn-ghost" data-action="out" data-id="${r.id}">Check Out</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  containerEl.innerHTML = '';
+  containerEl.appendChild(wrap);
+
+  // Attach actions
+  containerEl.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+      await doStatusUpdate(id, action === 'in' ? 'Checked In' : 'Checked Out');
+    });
+  });
+
+  // Attach edit buttons
+  containerEl.querySelectorAll('button.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      openEditModalFor(id);
+    });
+  });
+}
+
 /* ---------- status update & audit ---------- */
 async function doStatusUpdate(docId, newStatus){
   try {
@@ -269,7 +328,7 @@ async function doStatusUpdate(docId, newStatus){
   }
 }
 
-/* ---------- overlap detection ---------- */
+/* ---------- overlap detection (unchanged) ---------- */
 function buildDateRangeFromInput(dateStr){
   if (!dateStr) return null;
   const p = dateStr.split('-');
@@ -295,7 +354,6 @@ async function checkOverlapsAndRender(){
     const rows = [];
     snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
 
-    // map vehicle->Set(docId)
     const map = new Map();
     rows.forEach(r => {
       const vals = [];
@@ -343,7 +401,7 @@ async function checkOverlapsAndRender(){
   }
 }
 
-/* ---------- CSV export (simple) ---------- */
+/* ---------- CSV export ---------- */
 async function exportCSVForToday(){
   const dateStr = filterDate.value || isoDateString(new Date());
   const d = dateStr.split('-');
@@ -404,6 +462,92 @@ function normalizePhoneForWhatsapp(raw){
   return `https://wa.me/${p}`;
 }
 
+/* ---------- modal edit: open/close/save ---------- */
+async function openEditModalFor(docId){
+  try {
+    const ref = doc(window.__FIRESTORE, 'responses', docId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) { alert('Rekod tidak ditemui'); return; }
+    const data = snap.data();
+    document.getElementById('editDocId').value = docId;
+    document.getElementById('editUnit').value = data.hostUnit || '';
+    document.getElementById('editETA').value = data.eta && data.eta.toDate ? isoDateString(data.eta.toDate()) : '';
+    document.getElementById('editETD').value = data.etd && data.etd.toDate ? isoDateString(data.etd.toDate()) : '';
+    const veh = Array.isArray(data.vehicleNumbers) && data.vehicleNumbers.length ? data.vehicleNumbers.join(';') : (data.vehicleNo || '');
+    document.getElementById('editVehicle').value = veh;
+    document.getElementById('editStatus').value = data.status || 'Pending';
+    showModal(true);
+  } catch (err) {
+    console.error('openEditModalFor err', err);
+    alert('Gagal muatkan data. Semak konsol');
+  }
+}
+
+function showModal(open){
+  const modal = document.getElementById('editModal');
+  if (!modal) return;
+  if (open) {
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden','false');
+  } else {
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden','true');
+  }
+}
+
+document.getElementById('closeEditModal').addEventListener('click', ()=> showModal(false));
+document.getElementById('cancelEditBtn').addEventListener('click', ()=> showModal(false));
+
+document.getElementById('saveEditBtn').addEventListener('click', async (ev) => {
+  ev.preventDefault();
+  const id = document.getElementById('editDocId').value;
+  if (!id) { alert('ID dokumen hilang'); return; }
+  const unit = document.getElementById('editUnit').value.trim();
+  const etaVal = document.getElementById('editETA').value || '';
+  const etdVal = document.getElementById('editETD').value || '';
+  const vehicleRaw = document.getElementById('editVehicle').value.trim();
+  const status = document.getElementById('editStatus').value;
+
+  const payload = {};
+  if (unit) payload.hostUnit = unit;
+  if (etaVal) payload.eta = Timestamp.fromDate(new Date(etaVal));
+  if (etdVal) payload.etd = Timestamp.fromDate(new Date(etdVal));
+  if (vehicleRaw) {
+    const parts = vehicleRaw.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+    if (parts.length > 1) { payload.vehicleNumbers = parts; payload.vehicleNo = ''; }
+    else { payload.vehicleNo = parts[0] || ''; payload.vehicleNumbers = []; }
+  }
+  payload.status = status;
+  payload.updatedAt = serverTimestamp();
+
+  try {
+    const ref = doc(window.__FIRESTORE, 'responses', id);
+    // get old doc for audit
+    const oldSnap = await getDoc(ref);
+    const oldData = oldSnap.exists() ? oldSnap.data() : null;
+    await updateDoc(ref, payload);
+
+    const auditCol = collection(window.__FIRESTORE, 'audit');
+    await addDoc(auditCol, {
+      ts: serverTimestamp(),
+      userId: window.__AUTH.currentUser ? window.__AUTH.currentUser.uid : 'unknown',
+      rowId: id,
+      field: 'manual_update',
+      old: oldData ? JSON.stringify(oldData) : '',
+      new: JSON.stringify(payload),
+      actionId: String(Date.now()),
+      notes: 'Manual edit from dashboard'
+    });
+
+    toast('Maklumat disimpan');
+    showModal(false);
+    await loadTodayList();
+  } catch (err) {
+    console.error('saveEdit err', err);
+    alert('Gagal simpan. Semak konsol.');
+  }
+});
+
 /* ---------- page switching ---------- */
 function showPage(key){
   if (key === 'summary') {
@@ -420,5 +564,5 @@ function showPage(key){
 /* initialize filterDate with today if empty */
 if (!filterDate.value) filterDate.value = isoDateString(new Date());
 
-/* DOMContentLoaded no-op (handlers set above) */
+/* DOM ready (no-op) */
 document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
