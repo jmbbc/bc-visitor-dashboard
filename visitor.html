@@ -85,6 +85,20 @@
     }
   </style>
 </head>
+
+  <script>
+  // remove inline style on autocomplete-wrap that may override CSS on mobile
+  (function(){
+    const el = document.querySelector('.autocomplete-wrap[style]');
+    if (el) el.removeAttribute('style');
+    // also force reflow on mobile/responsive change
+    window.addEventListener('resize', ()=> {
+      document.querySelectorAll('.autocomplete-wrap').forEach(e => e.style.width = '');
+    });
+  })();
+</script>
+
+  
 <body>
   <main class="container">
     <section class="card">
