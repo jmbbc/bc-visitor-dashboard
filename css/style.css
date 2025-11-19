@@ -928,4 +928,57 @@ input, textarea, select { -webkit-text-size-adjust:100%; -ms-text-size-adjust:10
   .autocomplete-wrap[style] { width: 100% !important; display:block !important; }
 }
 
+/* Home gallery cards */
+.home-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+.brand { display:flex; gap:12px; align-items:center; }
+.site-title { margin:0; font-size:18px; font-weight:700; }
+.site-sub { margin:0; font-size:13px; color:var(--muted); }
+
+.grid-cards {
+  display:grid;
+  gap:14px;
+  grid-template-columns: 1fr;
+  margin: 8px 0 16px 0;
+}
+
+/* tablet */
+@media (min-width:720px) { .grid-cards { grid-template-columns: 1fr 1fr; } }
+/* desktop */
+@media (min-width:1100px) { .grid-cards { grid-template-columns: repeat(3,1fr); } }
+
+.img-card {
+  display:block;
+  background:var(--card);
+  border-radius:10px;
+  overflow:hidden;
+  text-decoration:none;
+  color:inherit;
+  box-shadow:0 6px 18px rgba(2,6,23,0.06);
+  transition: transform .12s ease, box-shadow .12s ease;
+  border:1px solid transparent;
+  min-height:72px;
+}
+
+/* image container keeps aspect ratio to avoid layout shift */
+.img-wrap { width:100%; aspect-ratio:16/9; overflow:hidden; background:linear-gradient(180deg, rgba(0,0,0,0.03), rgba(0,0,0,0.02)); }
+.img-wrap img { width:100%; height:100%; object-fit:cover; display:block; transition: transform .22s ease; }
+
+/* meta */
+.img-meta { padding:12px 14px; }
+.img-title { margin:0 0 4px 0; font-size:15px; font-weight:700; color:var(--form-text); }
+.img-sub { margin:0; font-size:13px; color:var(--muted); }
+
+/* affordance & focus */
+.img-card:hover, .img-card:focus { transform: translateY(-4px); box-shadow:0 12px 36px rgba(2,6,23,0.10); border-color: rgba(37,99,235,0.08); }
+.img-card:focus-visible { outline:3px solid rgba(37,99,235,0.12); outline-offset:2px; }
+.img-card:hover .img-wrap img, .img-card:focus .img-wrap img { transform:scale(1.03); }
+
+/* ensure comfortable touch target */
+.img-card, .img-card .img-meta { min-height:56px; padding-bottom: 8px; }
+
+/* small hint icon (inline) */
+.img-meta .link-hint { margin-left:8px; font-size:13px; color:var(--accent); }
+
+/* fallback skeleton color while images load */
+.img-wrap { background:var(--muted); }
 
