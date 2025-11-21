@@ -12,8 +12,9 @@
 
     .sidebar { padding: 12px; border-radius:8px; background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
     .sidebar nav { display:flex; flex-direction:column; gap:6px; }
-    .sidebar button.nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:transparent; cursor:pointer; font-weight:600; }
+    .sidebar button.nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:transparent; cursor:pointer; font-weight:600; transition: background .12s, color .12s; }
     .sidebar button.nav-item.active { background: var(--accent); color:#fff; border-color:var(--accent); }
+    .sidebar button.nav-item:active { transform: translateY(1px); }
 
     .top-info { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
     .kpi { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -40,37 +41,6 @@
 
     /* Modal base (kept minimal; additional styles in css/style.css) */
     .modal.hidden { display:none !important; }
-
-    /* Parking report alignment & grid */
-    .card-tight { padding:16px !important; border-radius:10px !important; }
-    .parking-header { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px; }
-    .parking-header .ph-item { display:flex; flex-direction:column; gap:4px; }
-    .parking-header .ph-value { font-weight:800; font-size:15px; }
-    .parking-header .ph-grow { flex:1; min-width:220px; }
-    .parking-header input { min-height:42px; }
-
-    .parking-grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; align-items:start; }
-    @media (max-width:860px){ .parking-grid { grid-template-columns: 1fr; } }
-
-    .parking-title { margin:0 0 8px 0; font-size:16px; }
-    .parking-list { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
-
-    .parking-slot {
-      display:flex; align-items:center; justify-content:space-between; gap:8px;
-      padding:8px; border-radius:8px; border:1px solid var(--input-border); background:var(--card);
-    }
-    .parking-slot .meta { display:flex; gap:10px; align-items:center; min-width:0; }
-    .parking-slot .meta .slot-num { font-weight:800; width:44px; min-width:44px; text-align:center; }
-    .parking-slot .meta .slot-info { font-size:13px; color:var(--muted); display:flex; flex-direction:column; gap:2px; min-width:0; }
-    .parking-slot .meta .slot-info .small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .parking-slot .actions { display:flex; gap:8px; }
-    .parking-slot.filled { border-color: rgba(37,99,235,0.12); box-shadow: 0 6px 18px rgba(2,6,23,0.08); }
-    .parking-empty { color:var(--muted); font-size:13px; }
-
-    .parking-slot .slot-info { word-break: break-word; overflow-wrap: anywhere; }
-    @media (max-width:640px){ .parking-slot .meta .slot-info .small:nth-child(2){ display:none; } }
-
-    #parkingSlotModal .card { position:relative; }
   </style>
 </head>
 <body>
@@ -107,7 +77,7 @@
             <div class="muted-small">Alat</div>
             <button id="reloadBtn" class="nav-item">Refresh Data</button>
             <button id="exportCSVBtn" class="nav-item">Eksport CSV (hari ini)</button>
-            <!-- Letak nav parking di sini supaya align -->
+            <!-- Submenu baru -->
             <button id="navParking" class="nav-item">Laporan Parkir Pelawat</button>
           </nav>
         </aside>
