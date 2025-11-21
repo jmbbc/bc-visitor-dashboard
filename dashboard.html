@@ -147,7 +147,85 @@
     </div>
   </div>
 
+  <!-- 1) Sidebar nav: tambah butang baru -->
+<button id="navParking" class="nav-item">Laporan Parkir Pelawat</button>
+
+<!-- 2) Main: tambah halaman parkir (letakkan sebelum footer main atau selepas pageCheckedIn) -->
+<div id="pageParking" style="display:none; margin-top:12px;">
+  <div class="card">
+    <h3>Laporan Parkir Pelawat</h3>
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+      <div>
+        <label class="small muted">Tarikh</label>
+        <div id="parkingDateLabel" style="font-weight:800"></div>
+      </div>
+      <div>
+        <label class="small muted">Waktu</label>
+        <div style="font-weight:800">12:00 am</div>
+      </div>
+      <div style="flex:1">
+        <label class="small muted">Nama PK</label>
+        <input id="parkingPKName" placeholder="Nama PK" />
+      </div>
+      <div>
+        <button id="parkingSaveAll" class="btn">Simpan Semua</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="card" style="padding:12px;">
+        <h4 style="margin-top:0">Lot Parkir Pelawat Bahagian Masuk</h4>
+        <div id="parkingMasuk" class="parking-list"></div>
+      </div>
+
+      <div class="card" style="padding:12px;">
+        <h4 style="margin-top:0">Lot Parkir Pelawat Bahagian Luar</h4>
+        <div id="parkingLuar" class="parking-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3) Modal edit slot -->
+<div id="parkingSlotModal" class="modal hidden" aria-hidden="true" role="dialog">
+  <div class="card" style="width:520px;max-width:95%;">
+    <button id="closeParkingModal" style="position:absolute;right:12px;top:12px;border:0;background:transparent;font-size:20px;cursor:pointer">×</button>
+    <h3 style="margin-top:0">Edit Lot Parkir</h3>
+    <form id="parkingSlotForm">
+      <div class="form-row grid">
+        <label>Lot</label>
+        <div><input id="slotNumber" disabled /></div>
+      </div>
+      <div class="form-row grid">
+        <label>Nombor Kenderaan</label>
+        <div><input id="slotVehicle" placeholder="Contoh: ABC1234" class="force-mono" /></div>
+      </div>
+      <div class="form-row grid">
+        <label>Unit Rumah</label>
+        <div><input id="slotUnit" placeholder="Contoh: B1-1-1" /></div>
+      </div>
+      <div class="form-row grid">
+        <label>ETA</label>
+        <div><input id="slotETA" type="date" /></div>
+      </div>
+      <div class="form-row grid">
+        <label>ETD</label>
+        <div><input id="slotETD" type="date" /></div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+        <button type="button" id="saveSlotBtn" class="btn">Simpan</button>
+        <button type="button" id="clearSlotBtn" class="btn-ghost">Kosongkan</button>
+        <button type="button" id="cancelSlotBtn" class="btn-ghost">Batal</button>
+      </div>
+      <input type="hidden" id="slotDocId" />
+    </form>
+  </div>
+</div>
+
+  
   <script type="module" src="js/firebase-init.js"></script>
   <script type="module" src="js/dashboard.js"></script>
+  
 </body>
 </html>
