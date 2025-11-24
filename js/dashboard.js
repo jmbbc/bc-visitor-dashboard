@@ -1,6 +1,9 @@
-// js/dashboard.js — patched full version with parking save fixes, deterministic doc IDs, improved logging
+// js/dashboard.js — full patched version with parking save fixes, deterministic doc IDs, improved logging,
+// and assignLotTransaction (Firestore transaction) for atomic parking assignment.
+
 import {
-  collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp, addDoc, setDoc, Timestamp, getDoc
+  collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp,
+  addDoc, setDoc, Timestamp, getDoc, runTransaction
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
@@ -358,24 +361,40 @@ function renderCheckedInList(rows){
 /* ---------- status update & audit ---------- */
 async function doStatusUpdate(docId, newStatus){
   try {
+    console.log('[status] doStatusUpdate called', { docId, newStatus, uid: window.__AUTH && window.__AUTH.currentUser && window.__AUTH.currentUser.uid });
     const ref = doc(window.__FIRESTORE, 'responses', docId);
-    await updateDoc(ref, { status: newStatus, updatedAt: serverTimestamp() });
-    const auditCol = collection(window.__FIRESTORE, 'audit');
-    await addDoc(auditCol, {
-      ts: serverTimestamp(),
-      userId: window.__AUTH.currentUser ? window.__AUTH.currentUser.uid : 'unknown',
-      rowId: docId,
-      field: 'status',
-      old: '',
-      new: newStatus,
-      actionId: String(Date.now()),
-      notes: ''
-    });
+
+    // check existence
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      console.warn('[status] doc not found, using setDoc merge to create', docId);
+      await setDoc(ref, { status: newStatus, updatedAt: serverTimestamp() }, { merge: true });
+    } else {
+      await updateDoc(ref, { status: newStatus, updatedAt: serverTimestamp() });
+    }
+
+    // audit
+    try {
+      const auditCol = collection(window.__FIRESTORE, 'audit');
+      await addDoc(auditCol, {
+        ts: serverTimestamp(),
+        userId: window.__AUTH.currentUser ? window.__AUTH.currentUser.uid : 'unknown',
+        rowId: docId,
+        field: 'status',
+        old: snap.exists() ? JSON.stringify(snap.data()) : '',
+        new: newStatus,
+        actionId: String(Date.now()),
+        notes: 'Status change from dashboard'
+      });
+    } catch(auditErr) {
+      console.error('[status] audit write failed', auditErr);
+    }
+
     toast('Status dikemaskini');
-    loadTodayList();
+    await loadTodayList();
   } catch (err) {
-    console.error('update err', err);
-    alert('Gagal kemaskini status. Semak konsol.');
+    console.error('[status] doStatusUpdate err', err);
+    alert('Gagal kemaskini status. Semak konsol untuk butiran penuh.');
   }
 }
 
@@ -644,8 +663,6 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
     try {
       console.log('[parking] loadParkingForDate', dateStr);
       slotCache = {};
-      const from = new Date(dateStr);
-      const to = new Date(from); to.setDate(to.getDate()+1);
       const col = collection(window.__FIRESTORE, 'parkingSlots');
       const q = query(col, where('date', '==', dateStr), orderBy('slot','asc'));
       const snap = await getDocs(q);
@@ -811,4 +828,117 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
 
   // expose loader for external calls (used when filterDate changes)
   window.loadParkingForDate = loadParkingForDate;
+
+  /* ---------- Assign Lot transaction helpers ---------- */
+
+  // helper: get yyyy-mm-dd from Timestamp or Date/string
+  function dateKeyFromEta(eta) {
+    if (!eta) return null;
+    let d;
+    if (eta.toDate) d = eta.toDate();
+    else if (typeof eta === 'string') d = new Date(eta);
+    else d = new Date(eta);
+    if (isNaN(d.getTime())) return null;
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  }
+
+  /**
+   * Assign lot atomically using Firestore transaction.
+   * Ensures no two responses get same lot for same date.
+   */
+  async function assignLotTransaction(responseId, lotId) {
+    if (!responseId || !lotId) throw new Error('responseId dan lotId diperlukan');
+
+    const responsesCol = collection(window.__FIRESTORE, 'responses');
+    const respRef = doc(window.__FIRESTORE, 'responses', responseId);
+    const auditCol = collection(window.__FIRESTORE, 'audit');
+
+    try {
+      const auditPayload = await runTransaction(window.__FIRESTORE, async (tx) => {
+        // read response
+        const respSnap = await tx.get(respRef);
+        if (!respSnap.exists()) throw new Error('Rekod pendaftaran tidak ditemui');
+
+        const respData = respSnap.data();
+        const eta = respData.eta;
+        const dateKey = dateKeyFromEta(eta);
+        if (!dateKey) throw new Error('Tarikh ETA tidak sah pada rekod ini');
+
+        // build range for that date
+        const from = new Date(dateKey + 'T00:00:00');
+        const to = new Date(from); to.setDate(to.getDate() + 1);
+
+        // query other responses for same date with same lot
+        const colRef = collection(window.__FIRESTORE, 'responses');
+        const q = query(
+          colRef,
+          where('eta', '>=', Timestamp.fromDate(from)),
+          where('eta', '<', Timestamp.fromDate(to)),
+          where('parkingLot', '==', lotId)
+        );
+
+        const qSnap = await getDocs(q);
+        const conflict = qSnap.docs.some(d => d.id !== responseId);
+        if (conflict) throw new Error(`Lot ${lotId} sudah diambil untuk tarikh ${dateKey}`);
+
+        // perform update
+        const assignedBy = window.__AUTH && window.__AUTH.currentUser ? (window.__AUTH.currentUser.uid || window.__AUTH.currentUser.email) : 'unknown';
+        tx.update(respRef, {
+          parkingLot: lotId,
+          assignedBy,
+          assignedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        // prepare audit payload to write after tx
+        return {
+          ts: serverTimestamp(),
+          userId: assignedBy,
+          rowId: responseId,
+          action: 'assign_parking_lot',
+          details: {
+            lot: lotId,
+            eta: dateKey,
+            hostUnit: respData.hostUnit || null,
+            visitorName: respData.visitorName || null
+          }
+        };
+      });
+
+      // write audit after successful transaction
+      try {
+        await addDoc(auditCol, auditPayload);
+      } catch (ae) {
+        console.error('Gagal tulis audit selepas assign', ae);
+      }
+
+      console.log(`[assignLot] Berjaya assign lot ${lotId} kepada response ${responseId}`);
+    } catch (err) {
+      console.error('[assignLot] err', err);
+      throw err;
+    }
+  }
+
+  // UI handler wrapper
+  async function onAssignButtonClicked(responseId, selectedLotId) {
+    try {
+      // optional: disable UI
+      await assignLotTransaction(responseId, selectedLotId);
+      toast(`Lot ${selectedLotId} berjaya diassign`);
+      await loadTodayList();
+    } catch (err) {
+      const msg = err && err.message ? err.message : 'Gagal assign lot';
+      alert(`Gagal assign lot: ${msg}`);
+    } finally {
+      // optional: re-enable UI
+    }
+  }
+
+  // expose assign function for UI usage
+  window.assignLotTransaction = assignLotTransaction;
+  window.onAssignButtonClicked = onAssignButtonClicked;
+
 })();
