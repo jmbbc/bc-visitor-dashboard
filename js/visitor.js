@@ -436,11 +436,11 @@ function sendWhatsAppToAdmin(payload){
   const lines = [
     'Pendaftaran Pelawat Baru',
     `Unit: ${payload.hostUnit || '-'}`,
-    `Host: ${payload.hostName || '-'}`,
-    `Pelawat: ${payload.visitorName || '-'}`,
-    `Tel Pelawat: ${payload.visitorPhone || '-'}`,
-    `ETA: ${etaText}`,
-    `ETD: ${etdText}`,
+    `Nama penghuni: ${payload.hostName || '-'}`,
+    `Nama pelawat: ${payload.visitorName || '-'}`,
+    `Nombor telefon pelawat: ${payload.visitorPhone || '-'}`,
+    `Tarikh masuk: ${etaText}`,
+    `Tarikh keluar: ${etdText}`,
     `Kenderaan: ${ (payload.vehicleNumbers && payload.vehicleNumbers.length) ? payload.vehicleNumbers.join('; ') : (payload.vehicleNo || '-') }`,
     `Kategori: ${payload.category || '-'}`,
   ];
@@ -670,17 +670,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (subCategoryMap[category] && !subCategory) { showStatus('Sila pilih pilihan bagi kategori ini.', false); toast('Sila pilih pilihan bagi kategori ini', false); return; }
       if (companyCategories.has(category) && !companyName) { showStatus('Sila masukkan Nama syarikat.', false); toast('Sila masukkan Nama syarikat', false); return; }
       if (!visitorName) { showStatus('Sila masukkan Nama Pelawat.', false); toast('Sila masukkan Nama Pelawat', false); return; }
-      if (!etaVal) { showStatus('Sila pilih Tarikh ETA.', false); toast('Sila pilih ETA', false); return; }
+      if (!etaVal) { showStatus('Sila pilih Tarikh masuk.', false); toast('Sila pilih Tarikh masuk', false); return; }
       if (!validatePhone(visitorPhone)) { showStatus('Nombor telefon pelawat tidak sah.', false); toast('Nombor telefon pelawat tidak sah', false); return; }
       if (hostPhone && !validatePhone(hostPhone)) { showStatus('Nombor telefon penghuni tidak sah.', false); toast('Nombor telefon penghuni tidak sah', false); return; }
 
       const etaDate = dateFromInputDateOnly(etaVal);
       const etdDate = etdVal ? dateFromInputDateOnly(etdVal) : null;
-      if (!etaDate) { showStatus('Tarikh ETA tidak sah.', false); toast('Tarikh ETA tidak sah', false); return; }
-      if (etdVal && !etdDate) { showStatus('Tarikh ETD tidak sah.', false); toast('Tarikh ETD tidak sah', false); return; }
+      if (!etaDate) { showStatus('Tarikh masuk tidak sah.', false); toast('Tarikh masuk tidak sah', false); return; }
+      if (etdVal && !etdDate) { showStatus('Tarikh keluar tidak sah.', false); toast('Tarikh keluar tidak sah', false); return; }
       if (etdDate) {
         const max = new Date(etaDate); max.setDate(max.getDate() + 3);
-        if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh ETD mesti antara ETA hingga 3 hari selepas ETA.', false); toast('Tarikh ETD mesti antara ETA hingga 3 hari selepas ETA', false); return; }
+        if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh keluar mesti antara Tarikh masuk hingga 3 hari selepas Tarikh masuk.', false); toast('Tarikh keluar mesti antara Tarikh masuk hingga 3 hari selepas Tarikh masuk', false); return; }
       }
 
       // agreement checkbox

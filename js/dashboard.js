@@ -1,69 +1,86 @@
 // --- Parking Lot Summary Renderer ---
-function renderParkingLotSummary() {
-  const masukLots = Array.from({length: 19}, (_, i) => String(i+1).padStart(2,'0'));
-  const keluarLots = Array.from({length: 19}, (_, i) => String(i+40));
-  const masukHtml = masukLots.map(lot => `<div class="lot-item">${lot}</div>`).join('');
-  const keluarHtml = keluarLots.map(lot => `<div class="lot-item">${lot}</div>`).join('');
-  const html = `
-    <div class="parking-summary-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;">
-      <div>
-        <h4 style="margin-bottom:8px">Lot Parkir Pelawat Bahagian Masuk</h4>
-        <div class="lot-list">${masukHtml}</div>
-      </div>
-      <div>
-        <h4 style="margin-bottom:8px">Lot Parkir Pelawat Bahagian Keluar</h4>
-        <div class="lot-list">${keluarHtml}</div>
-      </div>
-    </div>
-  `;
-  const parkingCard = document.querySelector('#pageParking .card.card-tight');
-  if (parkingCard) {
-    parkingCard.insertAdjacentHTML('afterbegin', html);
+function renderCheckedInList(rows){
+  const containerEl = listAreaCheckedIn;
+  if (!rows || rows.length === 0) { containerEl.innerHTML = '<div class="small">Tiada rekod</div>'; return; }
+
+  // group rows by category
+  const groups = {};
+  rows.forEach(r => {
+    const c = determineCategory(r);
+    groups[c] = groups[c] || [];
+    groups[c].push(r);
+  });
+
+  // preferred order of categories
+  const order = ['Pelawat','Kontraktor','Pindah barang','Penghantaran Barang','Pelawat Khas','Kenderaan','Penghuni'];
+  const keys = Object.keys(groups).sort((a,b) => {
+    const ia = order.indexOf(a); const ib = order.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1; if (ib === -1) return -1; return ia - ib;
+  });
+
+  // build grouped card
+  const wrap = document.createElement('div');
+  wrap.className = 'card card-tight';
+  keys.forEach(k => {
+    const list = groups[k];
+    const catClass = categoryClassMap[k] || 'cat-lain';
+    const groupEl = document.createElement('div');
+    groupEl.className = 'parking-summary-group';
+    groupEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-weight:700"><span class="cat-badge ${catClass}">${escapeHtml(k)}</span> <span class="small muted" style="margin-left:8px">(${list.length})</span></div>
+      </div>`;
+
+    const table = document.createElement('table');
+    table.className = 'table';
+    table.innerHTML = `<thead><tr>
+      <th>Kategori</th>
+      <th>Unit / Tuan Rumah</th>
+      <th>ETA</th>
+      <th>ETD</th>
+      <th>Kenderaan</th>
+      <th>Status</th>
+      <th>Aksi</th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+
+    list.forEach(r => {
+      const vehicleDisplay = (Array.isArray(r.vehicleNumbers) && r.vehicleNumbers.length) ? r.vehicleNumbers.join(', ') : (r.vehicleNo || '-');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="cat-badge ${catClass}">${escapeHtml(k)}</span></td>
+        <td>${escapeHtml(r.hostUnit || '')}${r.hostName ? '<div class="small">'+escapeHtml(r.hostName)+'</div>' : ''}</td>
+        <td>${formatDateOnly(r.eta)}</td>
+        <td>${formatDateOnly(r.etd)}</td>
+        <td>${escapeHtml(vehicleDisplay)}</td>
+        <td><span class="status-pill ${r.status === 'Checked In' ? 'pill-in' : (r.status === 'Checked Out' ? 'pill-out' : 'pill-pending')}">${escapeHtml(r.status || 'Pending')}</span></td>
+        <td>
+          <div class="actions">
+            <button class="btn" data-action="in" data-id="${r.id}">Check In</button>
+            <button class="btn btn-ghost" data-action="out" data-id="${r.id}">Check Out</button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    groupEl.appendChild(table);
+    wrap.appendChild(groupEl);
+  });
+
+  containerEl.innerHTML = '';
+  containerEl.appendChild(wrap);
+
+  // attach button handlers
+  containerEl.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+      await doStatusUpdate(id, action === 'in' ? 'Checked In' : 'Checked Out');
+    });
+  });
   }
-}
-
-// Call summary renderer when parking page is shown
-document.getElementById('navParking').addEventListener('click', () => {
-  setTimeout(renderParkingLotSummary, 100); // ensure DOM is ready
-});
-let lastRowsHash = '';
-let autoRefreshTimer = null;
-
-function hashRows(rows) {
-  // Simple hash: join IDs and length
-  return rows.map(r => r.id).join('-') + ':' + rows.length;
-}
-
-function startAutoRefresh() {
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-  autoRefreshTimer = setInterval(async () => {
-    const dateStr = filterDate.value || isoDateString(new Date());
-    const rows = await fetchRowsForDateStr(dateStr);
-    const newHash = hashRows(rows);
-    if (lastRowsHash && newHash !== lastRowsHash) {
-      toast('Borang baru telah diisi!', true);
-      loadTodayList();
-    }
-    lastRowsHash = newHash;
-  }, 30000); // 30 seconds
-}
-
-async function fetchRowsForDateStr(yyyymmdd){
-  const d = yyyymmdd.split('-');
-  if (d.length !== 3) return [];
-  const from = new Date(parseInt(d[0],10), parseInt(d[1],10)-1, parseInt(d[2],10), 0,0,0,0);
-  const to = new Date(from); to.setDate(to.getDate()+1);
-  try {
-    const col = collection(window.__FIRESTORE, 'responses');
-    const q = query(col, where('eta', '>=', Timestamp.fromDate(from)), where('eta', '<', Timestamp.fromDate(to)), orderBy('eta','asc'));
-    const snap = await getDocs(q);
-    const rows = [];
-    snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
-    return rows;
-  } catch (err) {
-    return [];
-  }
-}
 // js/dashboard.js — full patched version with parking save fixes, deterministic doc IDs, improved logging,
 // and assignLotTransaction (Firestore transaction) for atomic parking assignment.
 
@@ -373,67 +390,11 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       await doStatusUpdate(id, action === 'in' ? 'Checked In' : 'Checked Out');
     });
   });
+
+  // No generic 'Isi Butiran' handlers here (checked-in edit removed)
 }
 
 /* ---------- Checked-In list ---------- */
-function renderCheckedInList(rows){
-  const containerEl = listAreaCheckedIn;
-  if (!rows || rows.length === 0) { containerEl.innerHTML = '<div class="small">Tiada rekod</div>'; return; }
-
-  const wrap = document.createElement('div');
-  wrap.className = 'table-wrap';
-  const table = document.createElement('table');
-  table.className = 'table';
-  table.innerHTML = `<thead><tr>
-    <th>Unit / Tuan Rumah</th>
-    <th>ETA</th>
-    <th>ETD</th>
-    <th>Kenderaan</th>
-    <th>Status</th>
-    <th>Aksi</th>
-  </tr></thead>`;
-  const tbody = document.createElement('tbody');
-
-  rows.forEach(r => {
-    const vehicleDisplay = (Array.isArray(r.vehicleNumbers) && r.vehicleNumbers.length) ? r.vehicleNumbers.join(', ') : (r.vehicleNo || '-');
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${escapeHtml(r.hostUnit || '')}${r.hostName ? '<div class="small">'+escapeHtml(r.hostName)+'</div>' : ''}</td>
-      <td>${formatDateOnly(r.eta)}</td>
-      <td>${formatDateOnly(r.etd)}</td>
-      <td>${escapeHtml(vehicleDisplay)}</td>
-      <td><span class="status-pill ${r.status === 'Checked In' ? 'pill-in' : (r.status === 'Checked Out' ? 'pill-out' : 'pill-pending')}">${escapeHtml(r.status || 'Pending')}</span></td>
-      <td>
-        <div class="actions">
-          <button class="btn btn-edit" data-id="${r.id}">Isi Butiran</button>
-          <button class="btn" data-action="in" data-id="${r.id}">Check In</button>
-          <button class="btn btn-ghost" data-action="out" data-id="${r.id}">Check Out</button>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  table.appendChild(tbody);
-  wrap.appendChild(table);
-  containerEl.innerHTML = '';
-  containerEl.appendChild(wrap);
-
-  containerEl.querySelectorAll('button[data-action]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-id');
-      const action = btn.getAttribute('data-action');
-      await doStatusUpdate(id, action === 'in' ? 'Checked In' : 'Checked Out');
-    });
-  });
-
-  containerEl.querySelectorAll('button.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
-      openEditModalFor(id);
-    });
-  });
-}
 
 /* ---------- status update & audit ---------- */
 async function doStatusUpdate(docId, newStatus){
@@ -977,7 +938,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
         const respData = respSnap.data();
         const eta = respData.eta;
         const dateKey = dateKeyFromEta(eta);
-        if (!dateKey) throw new Error('Tarikh ETA tidak sah pada rekod ini');
+        if (!dateKey) throw new Error('Tarikh masuk tidak sah pada rekod ini');
 
         // build range for that date
         const from = new Date(dateKey + 'T00:00:00');
