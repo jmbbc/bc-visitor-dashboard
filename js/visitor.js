@@ -1,6 +1,6 @@
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
-  collection, serverTimestamp, Timestamp, doc, runTransaction
+  collection, serverTimestamp, Timestamp, doc, setDoc, runTransaction
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-functions.js";
 
@@ -141,15 +141,49 @@ async function createResponseWithDedupe(payload){
   const fn = httpsCallable(funcs, 'createResponseWithDedupe');
   try {
     const res = await fn({ payload: safePayload });
-    if (res && res.data && res.data.success) return res.data.id;
+    if (res && res.data && res.data.success) return { success: true, id: res.data.id, fallback: false };
     throw new Error('function_failed');
   } catch (err) {
     // firebase functions throws HttpsError with code property
     const code = err && err.code ? err.code : (err && err.message ? err.message : 'server_error');
+    // duplicate error returned from server-side transaction (explicit duplicate) -> bubble up
     if (String(code).toLowerCase().includes('already-exists') || String(err).toLowerCase().includes('duplicate')) {
       const e = new Error('duplicate'); e.code = 'DUPLICATE'; throw e;
     }
-    throw err;
+
+    // If the callable failed for permission reasons (client can't touch dedupeKeys) or
+    // the function is not deployed, fall back to a best-effort client-only write to
+    // `responses` (no dedupe). This keeps the user's submission from being blocked.
+    console.warn('createResponseWithDedupe callable failed — attempting client-only fallback', err);
+
+    try {
+      // wait for Firestore to be available in the page context
+      await waitForFirestore(3000);
+    } catch (waitErr) {
+      // if firestore not available, rethrow the original error
+      console.error('firestore unavailable for fallback', waitErr);
+      throw err;
+    }
+
+    // Build a deterministic-ish id so we can still reference the submission if needed
+    const fallbackId = `resp-${Date.now()}-${_shortId()}`;
+    const ref = doc(window.__FIRESTORE, 'responses', fallbackId);
+
+    // Use the original payload (keep timestamps as sent) and ensure createdAt/updatedAt are present
+    const clientPayload = Object.assign({}, payload);
+    if (!clientPayload.createdAt) clientPayload.createdAt = serverTimestamp();
+    if (!clientPayload.updatedAt) clientPayload.updatedAt = serverTimestamp();
+
+    try {
+      await setDoc(ref, clientPayload);
+      // indicate fallback was used
+      return { success: true, id: fallbackId, fallback: true };
+    } catch (writeErr) {
+      console.error('fallback write to responses failed', writeErr);
+      // fall through and surface the original callable error to the caller
+      throw err;
+    }
+  }
   }
 }
 
@@ -956,13 +990,19 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         // attempt create with server-side dedupe transaction
         // create response (atomic) and dedupe key inside a transaction to avoid duplicates
-        await createResponseWithDedupe(payload);
+        const resp = await createResponseWithDedupe(payload);
 
         // QUICK WA: open admin WhatsApp with prefilled summary (user must press Send)
         try { sendWhatsAppToAdmin(payload); } catch(e) { console.warn('WA open failed', e); }
 
-        showStatus('Pendaftaran berjaya. Terima kasih.', true);
-        toast('Pendaftaran berjaya', true);
+        if (resp && resp.fallback) {
+          // we succeeded but without dedupe enforcement (callable not available or blocked)
+          showStatus('Pendaftaran berjaya (tanpa semakan duplikasi).', true);
+          toast('Pendaftaran berjaya (tanpa semakan duplikasi)', true);
+        } else {
+          showStatus('Pendaftaran berjaya. Terima kasih.', true);
+          toast('Pendaftaran berjaya', true);
+        }
         form.reset();
         closeSuggestions(wrapper);
         if (confirmAgreeEl) confirmAgreeEl.checked = false;
