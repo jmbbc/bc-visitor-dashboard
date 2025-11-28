@@ -1,6 +1,6 @@
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
-  collection, addDoc, serverTimestamp, Timestamp
+  collection, serverTimestamp, Timestamp, doc, runTransaction
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 /* ---------- full units array (from your List.csv) ---------- */
@@ -114,6 +114,67 @@ function dateFromInputDateOnly(val){
   const d = parseInt(parts[2],10);
   const dt = new Date(y,m,d,0,0,0,0);
   return isNaN(dt.getTime()) ? null : dt;
+}
+
+/* ---------- duplicate submission check ---------- */
+/*
+ * Transaction-based dedupe + create response
+ * This creates a small dedupe key document (collection: 'dedupeKeys') and
+ * the response document in the same transaction using deterministic ids.
+ * This keeps reads to a minimum (one read for the dedupe key) and guarantees
+ * uniqueness even under concurrent attempts.
+ */
+function _shortId(){ return Math.random().toString(36).slice(2,9); }
+
+async function createResponseWithDedupe(payload){
+  if (!window.__FIRESTORE) throw new Error('Firestore not available');
+
+  // build dateKey in yyyy-mm-dd for dedupe grouping
+  let etaDate = payload.eta && payload.eta.toDate ? payload.eta.toDate() : (payload.eta instanceof Date ? payload.eta : new Date(payload.eta));
+  if (!etaDate || isNaN(etaDate.getTime())) throw new Error('Invalid eta date');
+  const yy = etaDate.getFullYear();
+  const mm = String(etaDate.getMonth()+1).padStart(2,'0');
+  const dd = String(etaDate.getDate()).padStart(2,'0');
+  const dateKey = `${yy}-${mm}-${dd}`;
+
+  // normalized phone or fallback to name hash
+  const phoneNorm = (payload.visitorPhone || '').replace(/[^0-9+]/g,'');
+  const nameKey = payload.visitorName ? String(payload.visitorName).trim().toLowerCase().replace(/\s+/g,'_').slice(0,64) : '';
+  const dedupeKey = `dedupe-${dateKey}_${(payload.hostUnit||'').replace(/\s+/g,'')}_${phoneNorm || nameKey || _shortId()}`;
+
+  // deterministic response id so we can write it inside the transaction atomically
+  const responseId = `resp-${Date.now()}-${_shortId()}`;
+
+  // transaction writes both dedupe doc and response doc atomically
+  const dedupeRef = doc(window.__FIRESTORE, 'dedupeKeys', dedupeKey);
+  const respRef = doc(window.__FIRESTORE, 'responses', responseId);
+
+  try {
+    await runTransaction(window.__FIRESTORE, async (tx) => {
+      const dSnap = await tx.get(dedupeRef);
+      if (dSnap.exists()) throw new Error('duplicate');
+
+      // set dedupe marker
+      tx.set(dedupeRef, {
+        responseId,
+        hostUnit: payload.hostUnit || '',
+        visitorPhone: payload.visitorPhone || '',
+        visitorName: payload.visitorName || '',
+        etaDate: dateKey,
+        createdAt: serverTimestamp()
+      });
+
+      // set response doc
+      tx.set(respRef, payload);
+    });
+
+    return responseId;
+  } catch (err) {
+    if (String(err).toLowerCase().includes('duplicate')) {
+      const e = new Error('duplicate'); e.code = 'DUPLICATE'; throw e;
+    }
+    throw err;
+  }
 }
 
 /* ---------- vehicle helpers ---------- */
@@ -310,12 +371,18 @@ function normalizeUnitInput(raw) {
 }
 function isPatternValidUnit(val) {
   if (!val) return false;
-  return /^[A-Z0-9]+-\d{1,3}-\d{1,2}$/.test(val);
+  // Accept forms like:
+  //  - A-12-03  (blocks with digits)
+  //  - B1-G-1   (blocks where middle segment can be letters like 'G')
+  //  - B1-G     (group/prefix form)
+  // Allow both two-part and three-part segments, each containing letters/digits.
+  return /^[A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)?$/.test(val);
 }
 
 /* ---------- subcategory/company/etd logic ---------- */
 const companyCategories = new Set(['Kontraktor','Penghantaran Barang','Pindah Rumah']);
-const categoriesEtdDisabled = new Set(['Kontraktor','Penghantaran Barang','Pindah Rumah']);
+// For certain categories ETD (tarikh keluar) isn't applicable — include Pelawat Khas
+const categoriesEtdDisabled = new Set(['Kontraktor','Penghantaran Barang','Pindah Rumah', 'Pelawat Khas']);
 
 const subCategoryMap = {
   'Penghantaran Barang': [
@@ -355,15 +422,20 @@ function setCompanyFieldState(show) {
   if (!companyWrap || !companyInput) return;
   if (show) {
     companyWrap.classList.remove('hidden');
+    try { companyWrap.style.removeProperty('display'); } catch(e) { companyWrap.style.display = ''; }
     companyInput.required = true;
     companyInput.disabled = false;
     companyInput.removeAttribute('aria-hidden');
+    try { companyInput.tabIndex = 0; } catch(e) {}
   } else {
     companyWrap.classList.add('hidden');
+    // enforce hiding with inline !important so other CSS can't override
+    try { companyWrap.style.setProperty('display', 'none', 'important'); } catch(e) { companyWrap.style.display = 'none'; }
     companyInput.required = false;
     companyInput.disabled = true;
     companyInput.value = '';
     companyInput.setAttribute('aria-hidden','true');
+    try { companyInput.tabIndex = -1; } catch(e) {}
   }
 }
 
@@ -377,22 +449,28 @@ function updateSubCategoryForCategory(cat) {
   select.innerHTML = '<option value="">— Pilih —</option>';
   select.required = false;
   select.disabled = true;
+  try { select.tabIndex = -1; } catch(e) {}
   wrap.classList.add('hidden');
+  try { wrap.style.setProperty('display','none','important'); } catch(e) { wrap.style.display = 'none'; }
   wrap.setAttribute('aria-hidden','true');
 
   if (helpEl) { helpEl.textContent = ''; }
-  if (helpWrap) { helpWrap.classList.add('hidden'); helpWrap.setAttribute('aria-hidden','true'); }
+  if (helpWrap) { helpWrap.classList.add('hidden'); helpWrap.setAttribute('aria-hidden','true'); try { helpWrap.style.setProperty('display','none','important'); } catch(e) { helpWrap.style.display = 'none'; } }
 
-  if (subCategoryMap[cat]) {
-    subCategoryMap[cat].forEach(opt => {
+    if (subCategoryMap[cat]) {
+      subCategoryMap[cat].forEach(opt => { 
       const o = document.createElement('option');
       o.value = opt.value;
       o.textContent = opt.label;
       select.appendChild(o);
     });
-    wrap.classList.remove('hidden');
-    wrap.removeAttribute('aria-hidden');
+      wrap.classList.remove('hidden');
+      wrap.removeAttribute('aria-hidden');
+      // remove inline hiding to ensure visible again
+      try { wrap.style.removeProperty('display'); } catch(e) { wrap.style.display = ''; }
     select.disabled = false;
+    select.removeAttribute('aria-hidden');
+    try { select.tabIndex = 0; } catch(e) {}
     select.required = true;
     select.removeEventListener('change', showSubCategoryHelp);
     select.addEventListener('change', showSubCategoryHelp);
@@ -411,10 +489,12 @@ function showSubCategoryHelp() {
     helpEl.textContent = subCategoryHelpMap[val];
     helpWrap.classList.remove('hidden');
     helpWrap.removeAttribute('aria-hidden');
+    try { helpWrap.style.removeProperty('display'); } catch(e) { helpWrap.style.display = ''; }
   } else {
     helpEl.textContent = '';
     helpWrap.classList.add('hidden');
     helpWrap.setAttribute('aria-hidden','true');
+    try { helpWrap.style.setProperty('display','none','important'); } catch(e) { helpWrap.style.display = 'none'; }
   }
 }
 
@@ -430,8 +510,19 @@ function normalizeForWaLink(raw){
 
 function sendWhatsAppToAdmin(payload){
   const adminNumber = '601172248614'; // updated admin number (Malaysia) without plus
-  const etaText = (payload.eta && payload.eta.toDate) ? payload.eta.toDate().toISOString().slice(0,10) : (payload.eta || '-');
-  const etdText = (payload.etd && payload.etd.toDate) ? payload.etd.toDate().toISOString().slice(0,10) : (payload.etd || '-');
+  
+  // Format date to local timezone (dd/mm/yyyy) instead of UTC
+  const formatLocalDate = (ts) => {
+    if (!ts) return '-';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  };
+  
+  const etaText = payload.eta ? formatLocalDate(payload.eta) : '-';
+  const etdText = payload.etd ? formatLocalDate(payload.etd) : '-';
 
   const lines = [
     'Pendaftaran Pelawat Baru',
@@ -529,6 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const categoryEl = document.getElementById('category');
     const subCategoryEl = document.getElementById('subCategory');
     const stayOverEl = document.getElementById('stayOver');
+    const stayOverWrap = document.getElementById('stayOverWrap');
     const etaEl = document.getElementById('eta');
     const etdEl = document.getElementById('etd');
 
@@ -562,15 +654,31 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // update ETD (tarikh keluar) visibility & state based on category and stayOver
     function updateEtdState(cat) {
       if (!etdEl || !etaEl) return;
+      // when category is empty/default, ETD is not applicable -> hide
+      if (!cat) {
+        const etdWrap = document.getElementById('etdWrap');
+        if (etdWrap) { etdWrap.classList.add('hidden'); try { etdWrap.style.setProperty('display','none','important'); } catch(e){ etdWrap.style.display = 'none'; } etdWrap.setAttribute('aria-hidden','true'); }
+        try { etdEl.tabIndex = -1; } catch(e) {}
+        etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = '';
+        return;
+      }
+      const etdWrap = document.getElementById('etdWrap');
       if (categoriesEtdDisabled.has(cat)) {
-        etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = ''; return;
+        // category-level rule: ETD not applicable
+        etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = '';
+        if (etdWrap) { etdWrap.classList.add('hidden'); try { etdWrap.style.setProperty('display','none','important'); } catch(e){ etdWrap.style.display = 'none'; } etdWrap.setAttribute('aria-hidden','true'); }
+        try { etdEl.tabIndex = -1; } catch(e) {}
+        return;
       }
       if (cat === 'Pelawat') {
         const stay = stayOverEl?.value || 'No';
         if (stay === 'Yes') {
           etdEl.disabled = false;
+          if (etdWrap) { etdWrap.classList.remove('hidden'); etdWrap.removeAttribute('aria-hidden'); try { etdWrap.style.removeProperty('display'); } catch(e){ etdWrap.style.display = ''; } }
+          try { etdEl.tabIndex = 0; } catch(e) {}
           const etaVal = etaEl.value;
           if (etaVal) {
             const etaDate = dateFromInputDateOnly(etaVal);
@@ -581,11 +689,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         } else {
+          // user chose Tidak Bermalam (No) -> hide and disable ETD
           etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = '';
+          if (etdWrap) { etdWrap.classList.add('hidden'); try { etdWrap.style.setProperty('display','none','important'); } catch(e){ etdWrap.style.display = 'none'; } etdWrap.setAttribute('aria-hidden','true'); }
+          try { etdEl.tabIndex = -1; } catch(e) {}
         }
         return;
       }
       etdEl.disabled = false;
+      if (etdWrap) { etdWrap.classList.remove('hidden'); etdWrap.removeAttribute('aria-hidden'); try { etdWrap.style.removeProperty('display'); } catch(e){ etdWrap.style.display = ''; } }
+      try { etdEl.tabIndex = 0; } catch(e) {}
       const etaVal = etaEl.value;
       if (etaVal) {
         const etaDate = dateFromInputDateOnly(etaVal);
@@ -601,7 +714,12 @@ document.addEventListener('DOMContentLoaded', () => {
       } else { etdEl.min = ''; etdEl.max = ''; }
     }
 
-    if (stayOverEl) stayOverEl.disabled = true;
+    // hide and disable stayOver by default; only show when category === 'Pelawat'
+    if (stayOverEl) {
+      stayOverEl.disabled = true;
+      try { stayOverEl.tabIndex = -1; } catch(e) {}
+    }
+    if (stayOverWrap) { stayOverWrap.classList.add('hidden'); try { stayOverWrap.style.setProperty('display','none','important'); } catch(e) { stayOverWrap.style.display ='none'; } stayOverWrap.setAttribute('aria-hidden','true'); }
     if (companyWrap && companyInput) { companyWrap.classList.add('hidden'); companyInput.disabled = true; companyInput.setAttribute('aria-hidden','true'); }
     if (vehicleMultiWrap) vehicleMultiWrap.classList.add('hidden');
     if (vehicleSingleWrap) vehicleSingleWrap.classList.remove('hidden');
@@ -609,13 +727,91 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addVehicleBtn) { addVehicleBtn.disabled = true; addVehicleBtn.classList.add('btn-disabled'); }
 
     categoryEl?.addEventListener('change', (ev) => {
-      const v = ev.target.value?.trim();
-      updateSubCategoryForCategory(v);
-      if (stayOverEl) {
-        if (v === 'Pelawat') { stayOverEl.disabled = false; if (!stayOverEl.value) stayOverEl.value = 'No'; }
-        else { stayOverEl.value = 'No'; stayOverEl.disabled = true; }
+      const v = ev.target.value?.trim() || '';
+
+      // If empty/default -> hide sub-category and company (and stayOver). For Pelawat Khas, we still need ETA (tarikh masuk) but ETD not applicable.
+      if (!v) {
+        // ensure sub-category select is cleared and disabled when not applicable
+        const subWrap = document.getElementById('subCategoryWrap');
+        const subSel = document.getElementById('subCategory');
+        if (subSel) {
+          subSel.innerHTML = '<option value="">— Pilih —</option>';
+          subSel.disabled = true;
+          subSel.required = false;
+          subSel.setAttribute('aria-hidden', 'true');
+          try { subSel.tabIndex = -1; } catch(e) {}
+        }
+        if (subWrap) { subWrap.classList.add('hidden'); subWrap.setAttribute('aria-hidden', 'true'); try { subWrap.style.setProperty('display','none','important'); } catch(e) { subWrap.style.display = 'none'; } }
+        const subHelp = document.getElementById('subCategoryHelpWrap');
+        if (subHelp) { subHelp.classList.add('hidden'); subHelp.setAttribute('aria-hidden', 'true'); try { subHelp.style.setProperty('display','none','important'); } catch(e) { subHelp.style.display = 'none'; } }
+        // hide/disable company input
+        setCompanyFieldState(false);
+        // hide stayOver
+        if (stayOverWrap) { try { stayOverWrap.style.setProperty('display','none','important'); } catch(e) { stayOverWrap.style.display='none'; } stayOverWrap.classList.add('hidden'); stayOverWrap.setAttribute('aria-hidden','true'); }
+        if (stayOverEl) { stayOverEl.disabled = true; try { stayOverEl.tabIndex = -1; } catch(e) {} }
+        // hide ETA / ETD when category is default or not applicable
+        const etaWrapEl = document.getElementById('etaWrap');
+        if (etaWrapEl) { try { etaWrapEl.style.setProperty('display','none','important'); } catch(e) { etaWrapEl.style.display = 'none'; } etaWrapEl.classList.add('hidden'); etaWrapEl.setAttribute('aria-hidden','true'); }
+        if (etaEl) { etaEl.disabled = true; etaEl.value = ''; try { etaEl.tabIndex = -1; } catch(e) {} etaEl.required = false; }
+        const etdWrapEl = document.getElementById('etdWrap');
+        if (etdWrapEl) { try { etdWrapEl.style.setProperty('display','none','important'); } catch(e) { etdWrapEl.style.display = 'none'; } etdWrapEl.classList.add('hidden'); etdWrapEl.setAttribute('aria-hidden','true'); }
+        if (etdEl) { etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = ''; try { etdEl.tabIndex = -1; } catch(e) {} }
+      } else if (v === 'Pelawat') {
+        // Pelawat: hide sub-category and company (stayOver is applicable)
+        const subWrap = document.getElementById('subCategoryWrap');
+        const subSel = document.getElementById('subCategory');
+        if (subSel) {
+          subSel.innerHTML = '<option value="">— Pilih —</option>';
+          subSel.disabled = true;
+          subSel.required = false;
+          subSel.setAttribute('aria-hidden', 'true');
+          try { subSel.tabIndex = -1; } catch(e){}
+        }
+        if (subWrap) { subWrap.classList.add('hidden'); try { subWrap.style.setProperty('display','none','important'); } catch(e) { subWrap.style.display='none'; } subWrap.setAttribute('aria-hidden','true'); }
+        setCompanyFieldState(false);
+        // show stayOver
+        if (stayOverWrap) { stayOverWrap.classList.remove('hidden'); stayOverWrap.removeAttribute('aria-hidden'); try { stayOverWrap.style.removeProperty('display'); } catch(e) { stayOverWrap.style.display = ''; } }
+        if (stayOverEl) { stayOverEl.disabled = false; try { stayOverEl.tabIndex = 0; } catch(e) {} }
+        // show ETA for Pelawat
+        const etaWrapEl2 = document.getElementById('etaWrap');
+        if (etaWrapEl2) { etaWrapEl2.classList.remove('hidden'); etaWrapEl2.removeAttribute('aria-hidden'); try { etaWrapEl2.style.removeProperty('display'); } catch(e) { etaWrapEl2.style.display=''; } }
+        if (etaEl) { etaEl.disabled = false; try { etaEl.tabIndex = 0; } catch(e) {} etaEl.required = true; }
+        // ETD visibility will be handled by updateEtdState (depends on stayOver)
+      } else if (v === 'Pelawat Khas') {
+        // Pelawat Khas: show ETA (required), hide ETD (not applicable)
+        const subWrap = document.getElementById('subCategoryWrap');
+        const subSel = document.getElementById('subCategory');
+        if (subSel) {
+          subSel.innerHTML = '<option value="">— Pilih —</option>';
+          subSel.disabled = true;
+          subSel.required = false;
+          subSel.setAttribute('aria-hidden', 'true');
+          try { subSel.tabIndex = -1; } catch(e){}
+        }
+        if (subWrap) { subWrap.classList.add('hidden'); try { subWrap.style.setProperty('display','none','important'); } catch(e) { subWrap.style.display='none'; } subWrap.setAttribute('aria-hidden','true'); }
+        setCompanyFieldState(false);
+        // show ETA; ensure required
+        const etaWrapPK = document.getElementById('etaWrap');
+        if (etaWrapPK) { etaWrapPK.classList.remove('hidden'); etaWrapPK.removeAttribute('aria-hidden'); try { etaWrapPK.style.removeProperty('display'); } catch(e) { etaWrapPK.style.display = ''; } }
+        if (etaEl) { etaEl.disabled = false; try { etaEl.tabIndex = 0; } catch(e) {} etaEl.required = true; }
+        // hide ETD explicitly (Pelawat Khas not overnight)
+        const etdWrapPK = document.getElementById('etdWrap');
+        if (etdWrapPK) { try { etdWrapPK.style.setProperty('display','none','important'); } catch(e) { etdWrapPK.style.display = 'none'; } etdWrapPK.classList.add('hidden'); etdWrapPK.setAttribute('aria-hidden','true'); }
+        if (etdEl) { etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = ''; try { etdEl.tabIndex = -1; } catch(e) {} }
+      } else {
+        // for other categories, populate sub-category (if available) and show company when required
+        updateSubCategoryForCategory(v);
+        setCompanyFieldState(companyCategories.has(v));
+        // hide stayOver for non-Pelawat categories
+        if (stayOverWrap) { try { stayOverWrap.style.setProperty('display','none','important'); } catch(e) { stayOverWrap.style.display='none'; } stayOverWrap.classList.add('hidden'); stayOverWrap.setAttribute('aria-hidden','true'); }
+        if (stayOverEl) { stayOverEl.disabled = true; try { stayOverEl.tabIndex = -1; } catch(e) {} }
+        // show ETA for other categories
+        const etaWrapEl3 = document.getElementById('etaWrap');
+        if (etaWrapEl3) { etaWrapEl3.classList.remove('hidden'); etaWrapEl3.removeAttribute('aria-hidden'); try { etaWrapEl3.style.removeProperty('display'); } catch(e) { etaWrapEl3.style.display=''; } }
+        if (etaEl) { etaEl.disabled = false; try { etaEl.tabIndex = 0; } catch(e) {} etaEl.required = true; }
       }
-      setCompanyFieldState(companyCategories.has(v));
+
+      if (stayOverEl) { /* stayOver logic preserved from before */ }
       updateVehicleControlsForCategory(v);
       updateEtdState(v);
     });
@@ -635,10 +831,62 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const initCat = categoryEl?.value?.trim() || '';
-    setCompanyFieldState(companyCategories.has(initCat));
-    updateSubCategoryForCategory(initCat);
+    // If initial category is empty/default or Pelawat or Pelawat Khas, hide both sub-category and company
+    if (!initCat || initCat === 'Pelawat' || initCat === 'Pelawat Khas') {
+      // hide sub-category and helper
+      const subWrapInit = document.getElementById('subCategoryWrap');
+      const subSelInit = document.getElementById('subCategory');
+      if (subSelInit) { subSelInit.innerHTML = '<option value="">— Pilih —</option>'; subSelInit.disabled = true; subSelInit.required = false; subSelInit.setAttribute('aria-hidden','true'); }
+      if (subWrapInit) { subWrapInit.classList.add('hidden'); subWrapInit.setAttribute('aria-hidden','true'); try { subWrapInit.style.setProperty('display','none','important'); } catch(e) { subWrapInit.style.display = 'none'; } }
+      const subHelpInit = document.getElementById('subCategoryHelpWrap');
+      if (subHelpInit) { subHelpInit.classList.add('hidden'); subHelpInit.setAttribute('aria-hidden','true'); try { subHelpInit.style.setProperty('display','none','important'); } catch(e) { subHelpInit.style.display = 'none'; } }
+
+      // hide company
+      setCompanyFieldState(false);
+      // ensure Bermalam is hidden unless initCat is Pelawat
+      if (initCat === 'Pelawat') {
+        if (stayOverWrap) { stayOverWrap.classList.remove('hidden'); stayOverWrap.removeAttribute('aria-hidden'); try { stayOverWrap.style.removeProperty('display'); } catch(e) { stayOverWrap.style.display=''; } }
+        if (stayOverEl) { stayOverEl.disabled = false; try { stayOverEl.tabIndex = 0; } catch(e) {} }
+      } else {
+        if (stayOverWrap) { try { stayOverWrap.style.setProperty('display','none','important'); } catch(e) { stayOverWrap.style.display='none'; } stayOverWrap.classList.add('hidden'); stayOverWrap.setAttribute('aria-hidden','true'); }
+        if (stayOverEl) { stayOverEl.disabled = true; try { stayOverEl.tabIndex = -1; } catch(e) {} }
+      }
+      // handle ETA/ETD initial visibility depending on initial category
+      if (!initCat) {
+        // initial empty -> hide both
+        const etaWrapInit = document.getElementById('etaWrap');
+        if (etaWrapInit) { try { etaWrapInit.style.setProperty('display','none','important'); } catch(e) { etaWrapInit.style.display='none'; } etaWrapInit.classList.add('hidden'); etaWrapInit.setAttribute('aria-hidden','true'); }
+        if (etaEl) { etaEl.disabled = true; etaEl.value = ''; try { etaEl.tabIndex = -1; } catch(e) {} etaEl.required = false; }
+        const etdWrapInit = document.getElementById('etdWrap');
+        if (etdWrapInit) { try { etdWrapInit.style.setProperty('display','none','important'); } catch(e) { etdWrapInit.style.display='none'; } etdWrapInit.classList.add('hidden'); etdWrapInit.setAttribute('aria-hidden','true'); }
+        if (etdEl) { etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = ''; try { etdEl.tabIndex = -1; } catch(e) {} }
+      } else if (initCat === 'Pelawat Khas') {
+        // Pelawat Khas initial -> show ETA required, hide ETD
+        const etaWrapInitPK = document.getElementById('etaWrap');
+        if (etaWrapInitPK) { etaWrapInitPK.classList.remove('hidden'); etaWrapInitPK.removeAttribute('aria-hidden'); try { etaWrapInitPK.style.removeProperty('display'); } catch(e) { etaWrapInitPK.style.display=''; } }
+        if (etaEl) { etaEl.disabled = false; try { etaEl.tabIndex = 0; } catch(e) {} etaEl.required = true; }
+        const etdWrapInitPK = document.getElementById('etdWrap');
+        if (etdWrapInitPK) { try { etdWrapInitPK.style.setProperty('display','none','important'); } catch(e) { etdWrapInitPK.style.display='none'; } etdWrapInitPK.classList.add('hidden'); etdWrapInitPK.setAttribute('aria-hidden','true'); }
+        if (etdEl) { etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = ''; try { etdEl.tabIndex = -1; } catch(e) {} }
+      } else if (initCat === 'Pelawat') {
+        // Pelawat -> show ETA and stayOver handled above
+        const etaWrapInit2 = document.getElementById('etaWrap');
+        if (etaWrapInit2) { etaWrapInit2.classList.remove('hidden'); etaWrapInit2.removeAttribute('aria-hidden'); try { etaWrapInit2.style.removeProperty('display'); } catch(e) { etaWrapInit2.style.display=''; } }
+        if (etaEl) { etaEl.disabled = false; try { etaEl.tabIndex = 0; } catch(e) {} etaEl.required = true; }
+      } else {
+        // other non-empty category -> eta visible and required
+        const etaWrapInit3 = document.getElementById('etaWrap');
+        if (etaWrapInit3) { etaWrapInit3.classList.remove('hidden'); etaWrapInit3.removeAttribute('aria-hidden'); try { etaWrapInit3.style.removeProperty('display'); } catch(e) { etaWrapInit3.style.display=''; } }
+        if (etaEl) { etaEl.disabled = false; try { etaEl.tabIndex = 0; } catch(e) {} etaEl.required = true; }
+      }
+    } else {
+      setCompanyFieldState(companyCategories.has(initCat));
+      updateSubCategoryForCategory(initCat);
+    }
     updateVehicleControlsForCategory(initCat);
     updateEtdState(initCat);
+
+    const submitBtn = document.getElementById('submitBtn');
 
     // submit
     form.addEventListener('submit', async (e) => {
@@ -726,9 +974,13 @@ document.addEventListener('DOMContentLoaded', () => {
         updatedAt: serverTimestamp()
       };
 
+      // disable submit to prevent double click / double submit
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('btn-disabled'); }
+
       try {
-        const col = collection(window.__FIRESTORE, 'responses');
-        await addDoc(col, payload);
+        // attempt create with server-side dedupe transaction
+        // create response (atomic) and dedupe key inside a transaction to avoid duplicates
+        await createResponseWithDedupe(payload);
 
         // QUICK WA: open admin WhatsApp with prefilled summary (user must press Send)
         try { sendWhatsAppToAdmin(payload); } catch(e) { console.warn('WA open failed', e); }
@@ -745,11 +997,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (vehicleList) vehicleList.innerHTML = '';
         if (addVehicleBtn) { addVehicleBtn.disabled = true; addVehicleBtn.classList.add('btn-disabled'); }
         if (stayOverEl) { stayOverEl.disabled = true; stayOverEl.value = 'No'; }
-        if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; etdEl.disabled = true; }
+        // hide ETA and ETD after successful submit (form reset -> default state)
+        const etaWrapAfter = document.getElementById('etaWrap');
+        if (etaWrapAfter) { try { etaWrapAfter.style.setProperty('display','none','important'); } catch(e) { etaWrapAfter.style.display='none'; } etaWrapAfter.classList.add('hidden'); etaWrapAfter.setAttribute('aria-hidden','true'); }
+        if (etaEl) { etaEl.disabled = true; etaEl.value = ''; try { etaEl.tabIndex = -1; } catch(e) {} etaEl.required = false; }
+        if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; etdEl.disabled = true; try { etdEl.tabIndex = -1; } catch(e) {} }
       } catch (err) {
         console.error('visitor add error', err);
-        showStatus('Gagal hantar. Sila cuba lagi atau hubungi pentadbir.', false);
-        toast('Gagal hantar. Sila cuba lagi', false);
+        // handle duplicate returned from transaction
+        if (err && (err.code === 'DUPLICATE' || String(err).toLowerCase().includes('duplicate'))) {
+          showStatus('Pendaftaran serupa telah wujud untuk tarikh ini — tidak dihantar.', false);
+          toast('Rekod serupa wujud untuk tarikh ini — tidak dihantar', false);
+        } else {
+          showStatus('Gagal hantar. Sila cuba lagi atau hubungi pentadbir.', false);
+          toast('Gagal hantar. Sila cuba lagi', false);
+        }
+      } finally {
+        // always re-enable submit btn after attempt
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('btn-disabled'); }
       }
     });
 
@@ -766,7 +1031,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (vehicleList) vehicleList.innerHTML = '';
       if (addVehicleBtn) { addVehicleBtn.disabled = true; addVehicleBtn.classList.add('btn-disabled'); }
       if (stayOverEl) { stayOverEl.disabled = true; stayOverEl.value = 'No'; }
-      if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; etdEl.disabled = true; }
+      // hide ETA and ETD when form cleared
+      const etaWrapClear = document.getElementById('etaWrap');
+      if (etaWrapClear) { try { etaWrapClear.style.setProperty('display','none','important'); } catch(e) { etaWrapClear.style.display='none'; } etaWrapClear.classList.add('hidden'); etaWrapClear.setAttribute('aria-hidden','true'); }
+      if (etaEl) { etaEl.disabled = true; etaEl.value = ''; try { etaEl.tabIndex = -1; } catch(e) {} etaEl.required = false; }
+      if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; etdEl.disabled = true; try { etdEl.tabIndex = -1; } catch(e) {} }
     });
   })();
 });

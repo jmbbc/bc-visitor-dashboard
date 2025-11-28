@@ -13,8 +13,9 @@
 
     .sidebar { padding: 12px; border-radius:8px; background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
     .sidebar nav { display:flex; flex-direction:column; gap:6px; }
-    .sidebar button.nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:transparent; cursor:pointer; font-weight:600; transition: background .12s, color .12s; }
-    .sidebar button.nav-item.active { background: var(--accent); color:#fff; border-color:var(--accent); }
+    .sidebar button.nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:var(--surface); cursor:pointer; color:var(--text-900); font-weight:600; transition: background .12s, color .12s; }
+    .sidebar button.nav-item.active { background: rgba(37,99,235,0.08); color: var(--text-900); border-color: transparent; }
+    .sidebar button.nav-item.active:hover { background: rgba(37,99,235,0.10); }
     .sidebar button.nav-item:active { transform: translateY(1px); }
 
     .top-info { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
@@ -187,7 +188,7 @@
   </div>
 
   <!-- Modal edit slot (satu sahaja dalam halaman) -->
-  <div id="parkingSlotModal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="parkingSlotModalLabel">
+  <div id="parkingSlotModal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="parkingSlotModalLabel" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:12000;">
     <div class="card card-tight" style="width:520px;max-width:95%;">
       <button id="closeParkingModal" aria-label="Tutup" style="position:absolute;right:12px;top:12px;border:0;background:transparent;font-size:20px;cursor:pointer">×</button>
       <h3 id="parkingSlotModalLabel" style="margin-top:0">Edit Lot Parkir</h3>
@@ -211,6 +212,14 @@
         <div class="form-row grid">
           <label>ETD</label>
           <div><input id="slotETD" type="date" /></div>
+        </div>
+
+        <div class="form-row">
+          <label></label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input id="applyToRegistration" type="checkbox" />
+            <div class="small">Terapkan perubahan ini ke Pendaftaran (responses)</div>
+          </div>
         </div>
 
         <div class="actions" style="justify-content:flex-end;">

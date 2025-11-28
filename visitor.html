@@ -168,7 +168,7 @@
 
         <div id="subCategoryWrap" class="form-row span-2 hidden" aria-hidden="true">
           <label for="subCategory">Pilihan</label>
-          <select id="subCategory" name="subCategory" aria-label="Pilihan Kategori">
+          <select id="subCategory" name="subCategory" aria-label="Pilihan Kategori" disabled aria-hidden="true">
             <option value="">— Pilih —</option>
           </select>
         </div>
@@ -198,7 +198,7 @@
           <input id="visitorPhone" name="visitorPhone" type="tel" inputmode="tel" placeholder="012-3456789" />
         </div>
 
-        <div class="form-row">
+        <div class="form-row" id="stayOverWrap">
           <label for="stayOver">Bermalam?</label>
           <select id="stayOver" name="stayOver" disabled>
             <option value="No">Tidak Bermalam</option>
@@ -206,12 +206,12 @@
           </select>
         </div>
 
-        <div class="form-row">
+        <div class="form-row" id="etaWrap">
           <label for="eta" class="required">Tarikh masuk</label>
           <input id="eta" name="eta" type="date" required aria-required="true" />
         </div>
 
-        <div class="form-row">
+        <div class="form-row" id="etdWrap">
           <label for="etd">Tarikh keluar</label>
           <input id="etd" name="etd" type="date" disabled />
           <div class="field-note">Tarikh keluar boleh dipilih sehingga 3 hari selepas Tarikh masuk</div>
