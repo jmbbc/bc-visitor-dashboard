@@ -73,6 +73,8 @@ exports.createResponseWithDedupe = functions.https.onCall(async (data, context) 
       throw new functions.https.HttpsError('already-exists', 'Duplicate');
     }
     console.error('createResponseWithDedupe error', err);
-    throw new functions.https.HttpsError('internal', 'Server error');
+    // Include the underlying error message to aid diagnosing an 'internal' error from client logs.
+    const serverMsg = err && err.message ? `Server error: ${err.message}` : 'Server error';
+    throw new functions.https.HttpsError('internal', serverMsg);
   }
 });
