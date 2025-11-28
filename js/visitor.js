@@ -180,8 +180,13 @@ async function createResponseWithDedupe(payload){
       return { success: true, id: fallbackId, fallback: true };
     } catch (writeErr) {
       console.error('fallback write to responses failed', writeErr);
-      // fall through and surface the original callable error to the caller
-      throw err;
+      // return a richer error so callers can show a precise message
+      const e = new Error('fallback_failed');
+      e.code = writeErr.code || err.code || 'FALLBACK_FAILED';
+      e.message = `Fallback write failed: ${writeErr?.message || writeErr} — original: ${err?.message || err}`;
+      e.writeError = writeErr;
+      e.originalError = err;
+      throw e;
     }
   }
   }
@@ -1024,6 +1029,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (err && (err.code === 'DUPLICATE' || String(err).toLowerCase().includes('duplicate'))) {
           showStatus('Pendaftaran serupa telah wujud untuk tarikh ini — tidak dihantar.', false);
           toast('Rekod serupa wujud untuk tarikh ini — tidak dihantar', false);
+        } else if (err && (String(err.code || '').toLowerCase().includes('permission') || String(err.code || '').toLowerCase().includes('internal') || String(err.code || '').toLowerCase().includes('fallback') || String(err).toLowerCase().includes('fallback'))) {
+          // permission or internal server errors — provide a clearer action for the user
+          console.warn('Server / fallback error during submission:', err);
+          showStatus('Gagal hantar — masalah pelayan atau kebenaran. Sila hubungi pentadbir.', false);
+          toast('Gagal hantar — masalah pelayan atau kebenaran', false);
         } else {
           showStatus('Gagal hantar. Sila cuba lagi atau hubungi pentadbir.', false);
           toast('Gagal hantar. Sila cuba lagi', false);
