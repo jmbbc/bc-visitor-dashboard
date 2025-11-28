@@ -1050,8 +1050,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       const rows = [];
       snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
 
-      // filter only Pelawat category
-      const pelawatRows = rows.filter(r => determineCategory(r) === 'Pelawat');
+      // filter only Pelawat category who are staying over (Bermalam)
+      const pelawatRows = rows.filter(r => determineCategory(r) === 'Pelawat' && String((r.stayOver || '').toLowerCase()) === 'yes');
 
       const total = pelawatRows.length;
       const assigned = pelawatRows.filter(r => r.parkingLot && String(r.parkingLot).trim()).length;
@@ -1065,7 +1065,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       let existing = document.getElementById('parkingReportSummary');
       const wrap = existing || document.createElement('div');
       wrap.id = 'parkingReportSummary';
-      wrap.className = 'card small';
+      // add a parking-report class so we can style it like the main registration table
+      wrap.className = 'card small parking-report';
       wrap.style.marginBottom = '12px';
       let listHtml = '';
       if (pelawatRows.length) {
@@ -1086,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       wrap.innerHTML = `
         <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
           <div style="display:flex;gap:10px;align-items:center">
-            <div style="font-weight:700">Laporan Parkir — Pelawat</div>
+            <div style="font-weight:700">Laporan Parkir — Pelawat Bermalam</div>
             <div class="small muted">(${formatDateOnly(from)})</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
@@ -1142,8 +1143,8 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       const snap = await getDocs(q);
       const rows = []; snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
 
-      // Only Pelawat category
-      const pelawat = rows.filter(r => determineCategory(r) === 'Pelawat');
+          // Only Pelawat category AND staying over (Bermalam)
+          const pelawat = rows.filter(r => determineCategory(r) === 'Pelawat' && String((r.stayOver || '').toLowerCase()) === 'yes');
 
       // Build per-plate counts across the week (count of distinct days a plate appears on)
       // We'll use this to mark plates that appear on multiple days
@@ -1184,7 +1185,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       header.style.display = 'flex'; header.style.justifyContent='space-between'; header.style.alignItems='center'; header.style.gap='8px';
       // left: title + prev/next controls, right: week range
       const left = document.createElement('div'); left.style.display='flex'; left.style.alignItems='center'; left.style.gap='8px';
-      const title = document.createElement('div'); title.style.fontWeight = '700'; title.textContent = 'Kalendar Mingguan Parkir — Pelawat';
+      const title = document.createElement('div'); title.style.fontWeight = '700'; title.textContent = 'Kalendar Mingguan Parkir — Pelawat Bermalam';
       const navWrap = document.createElement('div'); navWrap.className = 'pw-week-nav';
       const prevBtn = document.createElement('button'); prevBtn.type='button'; prevBtn.className='btn-ghost'; prevBtn.textContent = '‹'; prevBtn.title = 'Minggu sebelumnya';
       const nextBtn = document.createElement('button'); nextBtn.type='button'; nextBtn.className='btn-ghost'; nextBtn.textContent = '›'; nextBtn.title = 'Minggu seterusnya';
