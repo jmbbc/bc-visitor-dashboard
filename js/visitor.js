@@ -135,16 +135,7 @@ async function createResponseWithDedupe(payload){
   const safePayload = Object.assign({}, payload);
   try { if (safePayload.eta && safePayload.eta.toDate) safePayload.eta = safePayload.eta.toDate().toISOString(); } catch(e) {}
   try { if (safePayload.etd && safePayload.etd.toDate) safePayload.etd = safePayload.etd.toDate().toISOString(); } catch(e) {}
-  if (!etaDate || isNaN(etaDate.getTime())) throw new Error('Invalid eta date');
-  const yy = etaDate.getFullYear();
-  const mm = String(etaDate.getMonth()+1).padStart(2,'0');
-  const dd = String(etaDate.getDate()).padStart(2,'0');
-  const dateKey = `${yy}-${mm}-${dd}`;
-
-  // normalized phone or fallback to name hash
-  const phoneNorm = (payload.visitorPhone || '').replace(/[^0-9+]/g,'');
-  const nameKey = payload.visitorName ? String(payload.visitorName).trim().toLowerCase().replace(/\s+/g,'_').slice(0,64) : '';
-  const dedupeKey = `dedupe-${dateKey}_${(payload.hostUnit||'').replace(/\s+/g,'')}_${phoneNorm || nameKey || _shortId()}`;
+  // (server-side callable will compute dedupe key and run the transaction)
 
   const funcs = getFunctions(window.__FIREBASE_APP);
   const fn = httpsCallable(funcs, 'createResponseWithDedupe');
