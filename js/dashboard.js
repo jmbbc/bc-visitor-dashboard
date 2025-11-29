@@ -67,8 +67,13 @@ const exportCSVBtn = document.getElementById('exportCSVBtn');
 
 // auto-refresh timer handle
 let autoRefreshTimer = null;
+// lightweight in-memory cache to reduce duplicate reads
+// responseCache caches per-day query results (dateStr -> rows)
+const responseCache = { date: null, rows: [] };
+// weekCache keyed by week start date (yyyy-mm-dd) -> rows for that week
+const weekResponseCache = Object.create(null);
 
-function startAutoRefresh(intervalMs = 60_000){
+function startAutoRefresh(intervalMs = 180_000){
   try{
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
     autoRefreshTimer = setInterval(()=>{
@@ -167,11 +172,42 @@ async function loadListForDateStr(yyyymmdd){
   listAreaSummary.innerHTML = '<div class="small">Memuat...</div>';
   listAreaCheckedIn.innerHTML = '<div class="small">Memuat...</div>';
   try {
-    const col = collection(window.__FIRESTORE, 'responses');
-    const q = query(col, where('eta', '>=', Timestamp.fromDate(from)), where('eta', '<', Timestamp.fromDate(to)), orderBy('eta','asc'));
-    const snap = await getDocs(q);
-    const rows = [];
-    snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+    // check cache to avoid re-reading the same date
+    if (responseCache.date === yyyymmdd && Array.isArray(responseCache.rows) && responseCache.rows.length) {
+      const rows = responseCache.rows;
+      // KPIs
+      let pending = 0, checkedIn = 0, checkedOut = 0;
+      rows.forEach(r => {
+        if (!r.status || r.status === 'Pending') pending++;
+        else if (r.status === 'Checked In') checkedIn++;
+        else if (r.status === 'Checked Out') checkedOut++;
+      });
+      renderKPIs(pending, checkedIn, checkedOut);
+
+      // render pages from cached rows
+      renderList(rows, listAreaSummary, false);
+      renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
+      console.info('[loadListForDateStr] used cache for', yyyymmdd, 'rows:', rows.length);
+      return;
+    }
+
+    // try to reuse the cached rows for this date when available
+    let rows = [];
+    if (responseCache.date === yyyymmdd && Array.isArray(responseCache.rows) && responseCache.rows.length) {
+      rows = responseCache.rows;
+    } else {
+      const col = collection(window.__FIRESTORE, 'responses');
+      const q = query(col, where('eta', '>=', Timestamp.fromDate(from)), where('eta', '<', Timestamp.fromDate(to)), orderBy('eta','asc'));
+      const snap = await getDocs(q);
+      snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      // cache for reuse
+      responseCache.date = yyyymmdd;
+      responseCache.rows = rows;
+    }
+
+    // store in cache for reuse by other functions (export, parking summary)
+    responseCache.date = yyyymmdd;
+    responseCache.rows = rows;
 
     // KPIs
     let pending = 0, checkedIn = 0, checkedOut = 0;
@@ -983,10 +1019,18 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       const to = new Date(from); to.setDate(to.getDate()+1);
 
       const colRef = collection(window.__FIRESTORE, 'responses');
-      const q = query(colRef, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'));
-      const snap = await getDocs(q);
-      const rows = [];
-      snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      let rows = [];
+      // reuse cached rows for this date when available
+      if (responseCache.date === dateKey && Array.isArray(responseCache.rows) && responseCache.rows.length) {
+        rows = responseCache.rows;
+      } else {
+        const q = query(colRef, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'));
+        const snap = await getDocs(q);
+        snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+        // cache for reuse
+        responseCache.date = dateKey;
+        responseCache.rows = rows;
+      }
 
       // find matches — match by vehicleNo or vehicleNumbers array or hostUnit
       const needle = String(payload.vehicle || '').trim().toLowerCase();
@@ -1043,12 +1087,19 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       const from = new Date(parseInt(d[0],10), parseInt(d[1],10)-1, parseInt(d[2],10), 0,0,0,0);
       const to = new Date(from); to.setDate(to.getDate()+1);
 
-      // fetch responses for that date
+      // try to use cached rows for the date if available
       const colRef = collection(window.__FIRESTORE, 'responses');
-      const q = query(colRef, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'));
-      const snap = await getDocs(q);
-      const rows = [];
-      snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      let rows = [];
+      if (responseCache.date === ds && Array.isArray(responseCache.rows) && responseCache.rows.length) {
+        rows = responseCache.rows;
+      } else {
+        const q = query(colRef, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'));
+        const snap = await getDocs(q);
+        snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+        // cache for reuse
+        responseCache.date = ds;
+        responseCache.rows = rows;
+      }
 
       // filter only Pelawat category who are staying over (Bermalam)
       const pelawatRows = rows.filter(r => determineCategory(r) === 'Pelawat' && String((r.stayOver || '').toLowerCase()) === 'yes');
@@ -1138,13 +1189,20 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       const from = new Date(wr.start); const to = new Date(wr.start); to.setDate(to.getDate()+7);
 
       // Query responses for the week
+      const weekKey = isoDateString(wr.start);
       const col = collection(window.__FIRESTORE, 'responses');
-      const q = query(col, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'));
-      const snap = await getDocs(q);
-      const rows = []; snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      // reuse cached week rows when possible
+      let rows = weekResponseCache[weekKey];
+      if (!Array.isArray(rows)) {
+        const q = query(col, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'));
+        const snap = await getDocs(q);
+        rows = [];
+        snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+        weekResponseCache[weekKey] = rows;
+      }
 
-          // Only Pelawat category AND staying over (Bermalam)
-          const pelawat = rows.filter(r => determineCategory(r) === 'Pelawat' && String((r.stayOver || '').toLowerCase()) === 'yes');
+      // Only Pelawat category AND staying over (Bermalam)
+      const pelawat = rows.filter(r => determineCategory(r) === 'Pelawat' && String((r.stayOver || '').toLowerCase()) === 'yes');
 
       // Build per-plate counts across the week (count of distinct days a plate appears on)
       // We'll use this to mark plates that appear on multiple days
