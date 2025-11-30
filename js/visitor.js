@@ -81,23 +81,121 @@ function waitForFirestore(timeout = 5000){
   });
 }
 
-function toast(message, ok = true) {
+function toast(message, ok = true, opts = {}) {
+  // opts.duration - ms to auto-dismiss (default 7000)
+  const duration = typeof opts.duration === 'number' ? opts.duration : 7000;
+
   const el = document.createElement('div');
   el.className = `toast ${ok ? 'ok' : 'err'}`;
-  // accessibility: announce to assistive tech
   el.setAttribute('role', 'status');
   el.setAttribute('aria-live', 'polite');
   el.setAttribute('aria-atomic', 'true');
-  el.textContent = message;
+
+  const content = document.createElement('div');
+  content.className = 'toast-content';
+  content.textContent = message;
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'toast-close';
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label','Tutup pemberitahuan');
+  closeBtn.innerText = '×';
+
+  closeBtn.addEventListener('click', () => {
+    if (!el._removed) { el._removed = true; el.classList.add('fade'); setTimeout(()=> el.remove(), 220); }
+  });
+
+  el.appendChild(content);
+  el.appendChild(closeBtn);
   document.body.appendChild(el);
-  setTimeout(()=> el.classList.add('fade'), 10);
-  setTimeout(()=> el.remove(), 3300);
+
+  // show then schedule auto-dismiss
+  // tiny delay so CSS transition can run
+  setTimeout(()=> el.classList.add('show'), 10);
+
+  let timer = setTimeout(()=> {
+    if (!el._removed) { el._removed = true; el.classList.add('fade'); setTimeout(()=> el.remove(), 220); }
+  }, duration);
+
+  // pause on hover / focus
+  el.addEventListener('mouseenter', () => { clearTimeout(timer); });
+  el.addEventListener('mouseleave', () => { timer = setTimeout(()=> { if (!el._removed) { el._removed = true; el.classList.add('fade'); setTimeout(()=> el.remove(), 220); } }, 2000); });
+
+  // accessible dismiss via Escape
+  el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeBtn.click(); } });
+  return el;
+}
+
+function clearAllToasts() {
+  try {
+    const toasts = Array.from(document.querySelectorAll('.toast'));
+    toasts.forEach(t => { if (!t._removed) { t._removed = true; t.classList.add('fade'); setTimeout(()=> t.remove(), 220); } else { t.remove(); } });
+  } catch (e) { /* ignore */ }
+}
+
+// Field-level helpers for showing validation visually
+function setFieldError(el, message) {
+  if (!el) return;
+  try { el.setAttribute('aria-invalid', 'true'); } catch (e) {}
+  el.classList.add('input-error');
+  if (typeof message === 'string') {
+    try { el.setCustomValidity(message); } catch(e) {}
+  }
+}
+
+function clearFieldError(el) {
+  if (!el) return;
+  try { el.removeAttribute('aria-invalid'); } catch (e) {}
+  el.classList.remove('input-error');
+  try { el.setCustomValidity(''); } catch(e) {}
+}
+
+// show a small inline status box nearest the input: render SVG icons (check / cross) for states
+function updateUnitStatus(el) {
+  if (!el) return;
+  try {
+    const wrap = el.closest('.autocomplete-wrap');
+    const status = wrap ? wrap.querySelector('#hostUnitStatus') : document.getElementById('hostUnitStatus');
+    if (!status) return;
+    const v = (el.value || '').trim();
+    if (!v) { status.style.display = 'none'; status.classList.remove('ok','err'); status.innerHTML = ''; status.setAttribute('aria-hidden','true'); status.removeAttribute('aria-label'); return; }
+    const norm = normalizeUnitInput(v);
+    if (!isPatternValidUnit(norm)) {
+      // syntactically invalid -> red cross icon
+      status.style.display = 'inline-flex'; status.classList.remove('ok'); status.classList.add('err');
+      status.setAttribute('aria-hidden','false');
+      status.setAttribute('aria-label','Format unit tidak sah');
+      status.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L10.59 13.41 4.29 19.71 2.88 18.29 9.18 12 2.88 5.71 4.29 4.29 10.59 10.59 16.88 4.29z"/></svg>';
+      return;
+    }
+    // syntactically valid — check whether unit exists in list
+    if (units.includes(norm)) {
+      // syntactically valid AND exists in list -> green check icon
+      status.style.display = 'inline-flex'; status.classList.remove('err'); status.classList.add('ok');
+      status.setAttribute('aria-hidden','false');
+      status.setAttribute('aria-label','Unit ditemui');
+      status.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true" focusable="false"><path d="M9.3 16.29L4.71 11.7l1.41-1.41L9.3 13.46l8.59-8.59L19.3 6.3 9.3 16.29z"/></svg>';
+    } else {
+      // syntactically valid but not found -> red cross icon
+      status.style.display = 'inline-flex'; status.classList.remove('ok'); status.classList.add('err');
+      status.setAttribute('aria-hidden','false');
+      status.setAttribute('aria-label','Unit tidak ditemui');
+      status.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L10.59 13.41 4.29 19.71 2.88 18.29 9.18 12 2.88 5.71 4.29 4.29 10.59 10.59 16.88 4.29z"/></svg>';
+    }
+  } catch (e) { /* ignore */ }
 }
 
 function showStatus(msg, ok=true){
+  // Always clear the inline status area. If msg is empty -> also clear any active toasts.
   const statusEl = document.getElementById('statusMsg');
-  if (!statusEl) return;
-  statusEl.innerHTML = `<span class="${ok ? 'text-green-500' : 'text-red-500'}">${msg}</span>`;
+  try { if (statusEl) statusEl.innerHTML = ''; } catch(e) {}
+  if (!msg) {
+    // remove any lingering toasts
+    clearAllToasts();
+    return;
+  }
+  // show a toast for non-empty messages
+  toast(msg, ok);
 }
 
 function validatePhone(phone){
@@ -350,9 +448,18 @@ function closeSuggestions(wrapperEl) {
 
 function selectSuggestionByIndex(idx, inputEl, wrapperEl) {
   if (idx < 0 || idx >= currentSuggestions.length) return;
-  const val = currentSuggestions[idx];
-  inputEl.value = val;
+  const rawVal = currentSuggestions[idx];
+  // normalize selection (ensures consistent formatting) and clear any previous error state
+  const norm = normalizeUnitInput(rawVal);
+  inputEl.value = norm || rawVal;
+  clearFieldError(inputEl);
+  // update the small status indicator after selection
+  updateUnitStatus(inputEl);
+  // user selected a valid result — clear any toasts (old errors) immediately
+  clearAllToasts();
   closeSuggestions(wrapperEl);
+  // update aria + screen reader state and focus so user sees the change clearly
+  try { inputEl.setAttribute('aria-activedescendant', `unit-suggestion-${idx}`); } catch(e) {}
   inputEl.focus();
 }
 
@@ -569,6 +676,22 @@ document.addEventListener('DOMContentLoaded', () => {
     openSuggestionsGrouped(q, wrapper, input);
   });
 
+  // clear unit error quickly if user types a syntactically valid unit
+  input?.addEventListener('input', (e) => {
+    try{
+      // dynamically update the small status indicator as user types
+      updateUnitStatus(input);
+      const val = e.target.value || '';
+      const norm = normalizeUnitInput(val);
+      if (isPatternValidUnit(norm)) {
+        // once user types a syntactically valid value, clear earlier visual error state
+        clearFieldError(input);
+        // clear inline status / toast so UI is less noisy
+        showStatus('', true);
+      }
+    } catch (err) { /* ignore */ }
+  });
+
   // keyboard navigation
   input?.addEventListener('keydown', (e) => {
     if (!listEl || listEl.hidden) return;
@@ -607,13 +730,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const norm = normalizeUnitInput(e.target.value || '');
     e.target.value = norm;
     if (norm && !isPatternValidUnit(norm)) {
-      input.setCustomValidity('Format tidak sah. Gunakan contohnya A-12-03.');
+      setFieldError(input, 'Format tidak sah. Gunakan contohnya A-12-03.');
+      updateUnitStatus(input);
       showStatus('Unit rumah: format tidak sah. Gunakan contoh A-12-03.', false);
     } else {
-      input.setCustomValidity('');
+      // clear any previous native validity
       if (norm && !units.includes(norm)) {
-        showStatus('Unit tidak ditemui dalam senarai; pastikan ia betul.', true);
+        // unit looks ok syntactically but not found in the list — treat as an error and prevent submit
+        setFieldError(input, 'Unit tidak ditemui dalam senarai');
+        updateUnitStatus(input);
+        try { input.focus(); } catch(e) {}
+        showStatus('Unit tidak ditemui dalam senarai; pastikan ia betul.', false);
       } else {
+        clearFieldError(input);
+        updateUnitStatus(input);
         showStatus('', true);
       }
     }
@@ -925,31 +1055,30 @@ document.addEventListener('DOMContentLoaded', () => {
       const vehicleType = document.getElementById('vehicleType')?.value || '';
 
       // basic validation
-      if (!hostUnit) { showStatus('Sila masukkan Unit rumah.', false); toast('Sila masukkan Unit rumah', false); return; }
-      if (!isPatternValidUnit(hostUnit)) { showStatus('Format Unit tidak sah. Gunakan contoh A-12-03.', false); toast('Format Unit tidak sah', false); return; }
-      if (!hostName) { showStatus('Sila lengkapkan Butiran Penghuni (Nama).', false); toast('Sila lengkapkan Nama penghuni', false); return; }
-      if (!category) { showStatus('Sila pilih Kategori.', false); toast('Sila pilih kategori', false); return; }
-      if (subCategoryMap[category] && !subCategory) { showStatus('Sila pilih pilihan bagi kategori ini.', false); toast('Sila pilih pilihan bagi kategori ini', false); return; }
-      if (companyCategories.has(category) && !companyName) { showStatus('Sila masukkan Nama syarikat.', false); toast('Sila masukkan Nama syarikat', false); return; }
-      if (!visitorName) { showStatus('Sila masukkan Nama Pelawat.', false); toast('Sila masukkan Nama Pelawat', false); return; }
-      if (!etaVal) { showStatus('Sila pilih Tarikh masuk.', false); toast('Sila pilih Tarikh masuk', false); return; }
-      if (!validatePhone(visitorPhone)) { showStatus('Nombor telefon pelawat tidak sah.', false); toast('Nombor telefon pelawat tidak sah', false); return; }
-      if (hostPhone && !validatePhone(hostPhone)) { showStatus('Nombor telefon penghuni tidak sah.', false); toast('Nombor telefon penghuni tidak sah', false); return; }
+      if (!hostUnit) { showStatus('Sila masukkan Unit rumah.', false); return; }
+      if (!isPatternValidUnit(hostUnit)) { showStatus('Format Unit tidak sah. Gunakan contoh A-12-03.', false); return; }
+      if (!hostName) { showStatus('Sila lengkapkan Butiran Penghuni (Nama).', false); return; }
+      if (!category) { showStatus('Sila pilih Kategori.', false); return; }
+      if (subCategoryMap[category] && !subCategory) { showStatus('Sila pilih pilihan bagi kategori ini.', false); return; }
+      if (companyCategories.has(category) && !companyName) { showStatus('Sila masukkan Nama syarikat.', false); return; }
+      if (!visitorName) { showStatus('Sila masukkan Nama Pelawat.', false); return; }
+      if (!etaVal) { showStatus('Sila pilih Tarikh masuk.', false); return; }
+      if (!validatePhone(visitorPhone)) { showStatus('Nombor telefon pelawat tidak sah.', false); return; }
+      if (hostPhone && !validatePhone(hostPhone)) { showStatus('Nombor telefon penghuni tidak sah.', false); return; }
 
       const etaDate = dateFromInputDateOnly(etaVal);
       const etdDate = etdVal ? dateFromInputDateOnly(etdVal) : null;
-      if (!etaDate) { showStatus('Tarikh masuk tidak sah.', false); toast('Tarikh masuk tidak sah', false); return; }
-      if (etdVal && !etdDate) { showStatus('Tarikh keluar tidak sah.', false); toast('Tarikh keluar tidak sah', false); return; }
+      if (!etaDate) { showStatus('Tarikh masuk tidak sah.', false); return; }
+      if (etdVal && !etdDate) { showStatus('Tarikh keluar tidak sah.', false); return; }
       if (etdDate) {
         const max = new Date(etaDate); max.setDate(max.getDate() + 3);
-        if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh keluar mesti antara Tarikh masuk hingga 3 hari selepas Tarikh masuk.', false); toast('Tarikh keluar mesti antara Tarikh masuk hingga 3 hari selepas Tarikh masuk', false); return; }
+        if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh keluar mesti antara Tarikh masuk hingga 3 hari selepas Tarikh masuk.', false); return; }
       }
 
       // agreement checkbox
       if (!(confirmAgreeEl && confirmAgreeEl.checked)) {
         if (confirmAgreeEl) confirmAgreeEl.focus();
         showStatus('Sila tandakan "Saya setuju" untuk meneruskan.', false);
-        toast('Sila tandakan "Saya setuju" sebelum hantar', false);
         return;
       }
 
@@ -958,12 +1087,13 @@ document.addEventListener('DOMContentLoaded', () => {
       let vehicleNumbers = [];
       if (category === 'Pelawat Khas') {
         vehicleNumbers = getVehicleNumbersFromList();
-        if (!vehicleNumbers.length) { showStatus('Sila masukkan sekurang-kurangnya satu nombor kenderaan untuk Pelawat Khas.', false); toast('Sila masukkan nombor kenderaan', false); return; }
+        if (!vehicleNumbers.length) { showStatus('Sila masukkan sekurang-kurangnya satu nombor kenderaan untuk Pelawat Khas.', false); return; }
       } else {
         vehicleNo = document.getElementById('vehicleNo')?.value.trim() || '';
       }
 
       const unitFound = units.includes(hostUnit);
+      if (!unitFound) { const el = document.getElementById('hostUnit'); setFieldError(el, 'Unit tidak ditemui dalam senarai'); try { el.focus(); } catch(e) {} updateUnitStatus(el); showStatus('Unit tidak ditemui dalam senarai; pastikan ia betul.', false); return; }
 
       const payload = {
         hostUnit,
@@ -1002,12 +1132,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (resp && resp.fallback) {
           // we succeeded but without dedupe enforcement (callable not available or blocked)
           showStatus('Pendaftaran berjaya (tanpa semakan duplikasi).', true);
-          toast('Pendaftaran berjaya (tanpa semakan duplikasi)', true);
         } else {
           showStatus('Pendaftaran berjaya. Terima kasih.', true);
-          toast('Pendaftaran berjaya', true);
         }
         form.reset();
+        // clear any visual error state left on the hostUnit input after reset
+        try { clearFieldError(document.getElementById('hostUnit')); updateUnitStatus(document.getElementById('hostUnit')); } catch(e) {}
         closeSuggestions(wrapper);
         if (confirmAgreeEl) confirmAgreeEl.checked = false;
         setCompanyFieldState(false);
@@ -1027,15 +1157,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // handle duplicate returned from transaction
         if (err && (err.code === 'DUPLICATE' || String(err).toLowerCase().includes('duplicate'))) {
           showStatus('Pendaftaran serupa telah wujud untuk tarikh ini — tidak dihantar.', false);
-          toast('Rekod serupa wujud untuk tarikh ini — tidak dihantar', false);
         } else if (err && (String(err.code || '').toLowerCase().includes('permission') || String(err.code || '').toLowerCase().includes('internal') || String(err.code || '').toLowerCase().includes('fallback') || String(err).toLowerCase().includes('fallback'))) {
           // permission or internal server errors — provide a clearer action for the user
           console.warn('Server / fallback error during submission:', err);
           showStatus('Gagal hantar — masalah pelayan atau kebenaran. Sila hubungi pentadbir.', false);
-          toast('Gagal hantar — masalah pelayan atau kebenaran', false);
         } else {
           showStatus('Gagal hantar. Sila cuba lagi atau hubungi pentadbir.', false);
-          toast('Gagal hantar. Sila cuba lagi', false);
         }
       } finally {
         // always re-enable submit btn after attempt
@@ -1046,6 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // clear handler
     clearBtn?.addEventListener('click', () => {
       form.reset();
+      try { clearFieldError(document.getElementById('hostUnit')); updateUnitStatus(document.getElementById('hostUnit')); } catch(e) {}
       showStatus('', true);
       closeSuggestions(wrapper);
       if (confirmAgreeEl) confirmAgreeEl.checked = false;

@@ -128,7 +128,10 @@
   <div class="form-row">
     <label for="hostUnit" class="required">Unit rumah</label>
     <div class="autocomplete-wrap">
-      <input id="hostUnit" name="hostUnit" required aria-required="true" placeholder="Contoh: A-12-03" aria-describedby="unitHelp" aria-controls="unitSuggestions" aria-expanded="false" aria-autocomplete="list" role="combobox" autocomplete="off" />
+      <div style="position:relative; display:flex; align-items:center; gap:8px;">
+        <input id="hostUnit" name="hostUnit" required aria-required="true" placeholder="Contoh: A-12-03" aria-describedby="unitHelp" aria-controls="unitSuggestions" aria-expanded="false" aria-autocomplete="list" role="combobox" autocomplete="off" />
+        <div id="hostUnitStatus" class="unit-status" aria-hidden="true" title="Status Unit" style="display:none"></div>
+      </div>
       <div id="unitSuggestions" class="autocomplete-list" role="listbox" aria-label="Cadangan unit" hidden></div>
     </div>
     <div id="unitHelp" class="field-note">Taip awalan seperti <strong>A-1</strong> untuk lihat A-1-1, A-1-2 dan seterusnya.</div>

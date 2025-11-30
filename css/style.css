@@ -159,6 +159,26 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
   box-shadow: var(--input-focus-shadow);
 }
+/* input error state (visual) */
+.input-error {
+  border-color: var(--danger) !important;
+  box-shadow: 0 8px 28px rgba(239,68,68,0.12) !important;
+}
+.input-error:focus {
+  box-shadow: 0 8px 28px rgba(239,68,68,0.18) !important;
+  outline: 3px solid rgba(239,68,68,0.08);
+}
+
+/* small status box next to unit input */
+.unit-status {
+  width:28px; height:28px; min-width:28px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:6px; font-weight:800; color:#fff; font-size:13px;
+  background: transparent; border:1px solid transparent; cursor:default;
+}
+.unit-status svg { width: 14px; height: 14px; display:block; fill: currentColor; }
+.unit-status.ok { background: #16a34a; border-color: rgba(16,163,74,0.12); }
+.unit-status.err { background: #ef4444; border-color: rgba(239,68,68,0.12); }
+.unit-status.hidden { display:none !important; }
 input::placeholder, textarea::placeholder { color:var(--text-muted); font-style:italic; }
 
 button{
@@ -438,11 +458,16 @@ form textarea[placeholder] {
 .autocomplete-header { padding: 8px 10px; font-weight:700; color:var(--muted); }
 
 /* Toast styles: floating and non-blocking */
-.toast, .msg { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 24000; padding: 12px 18px; border-radius: 12px; box-shadow: 0 8px 30px rgba(6,6,15,0.12); display:inline-flex; align-items:center; gap:8px; font-weight:700; }
+.toast, .msg { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(8px); z-index: 24000; padding: 12px 18px; border-radius: 12px; box-shadow: 0 8px 30px rgba(6,6,15,0.12); display:flex; align-items:center; gap:12px; font-weight:700; min-width: 220px; max-width: min(92%, 640px); }
 .toast.ok, .msg.ok{ background:var(--ok); color:#042e17; }
 .toast.err, .msg.err{ background:var(--danger); color:#fff; }
-.toast { transition: transform .22s ease, opacity .22s ease; }
-.toast.fade, .msg.fade { opacity: 0; transform: translateX(-50%) translateY(16px); }
+.toast { transition: transform .22s ease, opacity .22s ease; padding-right: 10px; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.fade, .msg.fade { opacity: 0; transform: translateX(-50%) translateY(20px); }
+/* toast content and close button */
+.toast .toast-content { flex: 1; padding-right: 6px; }
+.toast .toast-close { background: transparent; border: 0; color: inherit; font-size: 20px; padding: 6px 8px; cursor: pointer; line-height: 1; border-radius: 8px; }
+.toast .toast-close:focus { outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
 
 /* Vehicle row improvements */
 #vehicleList .vehicle-row { padding: 6px; border-radius: 8px; box-shadow: var(--elev-1); gap: 10px; margin-bottom: 8px; }
