@@ -1,10 +1,13 @@
 // js/dashboard.js — full patched version with parking save fixes, deterministic doc IDs,
 // and assignLotTransaction (Firestore transaction) for atomic parking assignment.
+//
+// NOTE: This file now supports per-page date filters. There are three separate
+// date inputs: `filterDateSummary`, `filterDateCheckedIn`, and `filterDateParking`.
+// Each page uses its own selected date and changing one won't affect the others.
 
 import {
-  collection, query, where, getDocs, orderBy, doc, updateDoc, serverTimestamp,
+  collection, query, where, getDocs, onSnapshot, orderBy, limit, doc, updateDoc, serverTimestamp,
   addDoc, setDoc, Timestamp, getDoc, runTransaction, writeBatch
-  , getCountFromServer
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
@@ -55,7 +58,13 @@ const who = document.getElementById('who');
 const listAreaSummary = document.getElementById('listAreaSummary');
 const listAreaCheckedIn = document.getElementById('listAreaCheckedIn');
 const reloadBtn = document.getElementById('reloadBtn');
-const filterDate = document.getElementById('filterDate');
+// per-page date inputs (summary, checked-in, parking)
+const filterDateSummary = document.getElementById('filterDateSummary');
+const filterDateCheckedIn = document.getElementById('filterDateCheckedIn');
+const summaryDateWrap = document.getElementById('summaryDateWrap');
+const checkedInDateWrap = document.getElementById('checkedInDateWrap');
+// parking page uses internal week navigator; track its current yyyy-mm-dd
+let parkingCurrentDate = null;
 const todayLabel = document.getElementById('todayLabel');
 const todayTime = document.getElementById('todayTime');
 const kpiWrap = document.getElementById('kpiWrap');
@@ -68,13 +77,20 @@ const exportCSVBtn = document.getElementById('exportCSVBtn');
 
 // auto-refresh timer handle
 let autoRefreshTimer = null;
+// live clock timer
+let timeTicker = null;
+// whether the user manually changed the date filter — prevents unwanted auto-reset
+// track manual changes per-page so auto-sync doesn't override user's explicit selection
+let filterDateUserChangedSummary = false;
+let filterDateUserChangedCheckedIn = false;
+let filterDateUserChangedParking = false;
 // lightweight in-memory cache to reduce duplicate reads
 // responseCache caches per-day query results (dateStr -> rows)
 const responseCache = { date: null, rows: [] };
 // weekCache keyed by week start date (yyyy-mm-dd) -> rows for that week
 const weekResponseCache = Object.create(null);
 
-function startAutoRefresh(intervalMs = 180_000){
+function startAutoRefresh(intervalMs = 600_000){
   try{
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
     autoRefreshTimer = setInterval(()=>{
@@ -86,6 +102,47 @@ function startAutoRefresh(intervalMs = 180_000){
   } catch(e) { console.warn('startAutoRefresh err', e); }
 }
 
+/* ---------- Nav selection helpers (visual selected state + keyboard activation) ---------- */
+function setSelectedNav(el){
+  try{
+    document.querySelectorAll('.sidebar .nav-item').forEach(b=>b.classList.remove('selected'));
+    if (el && el.classList) el.classList.add('selected');
+  } catch(e) { /* ignore */ }
+}
+
+function getActivePageKey(){
+  try{
+    if (navSummary && navSummary.classList.contains('active')) return 'summary';
+    if (navCheckedIn && navCheckedIn.classList.contains('active')) return 'checkedin';
+    if (navParking && navParking.classList.contains('active')) return 'parking';
+  } catch(e){}
+  return 'summary';
+}
+
+function getParkingDate(){
+  // parkingCurrentDate takes precedence (set via setParkingDate)
+  if (parkingCurrentDate) return parkingCurrentDate;
+  // otherwise fall back to the summary date (so parking defaults to the summary selection)
+  if (filterDateSummary && filterDateSummary.value) return filterDateSummary.value;
+  return isoDateString(new Date());
+}
+
+// Ensure nav buttons support keyboard activation (Enter / Space) and toggle visual selection
+[navSummary, navCheckedIn, navParking].forEach(btn => {
+  if (!btn) return;
+  // toggle selection on click (keeps visual box outline)
+  btn.addEventListener('click', (e) => {
+    try { setSelectedNav(btn); } catch(err){}
+  });
+  // allow Enter / Space to activate the button for keyboard users
+  btn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      btn.click();
+    }
+  });
+});
+
 
 /* ---------- debug ---------- */
 console.info('dashboard.js loaded. __AUTH?', !!window.__AUTH, '__FIRESTORE?', !!window.__FIRESTORE);
@@ -96,9 +153,7 @@ loginBtn.addEventListener('click', async ()=>{
   const pass = document.getElementById('loginPass').value;
   showLoginMsg(loginMsg, 'Log masuk...');
   try {
-    // prepare aggregation flag/values
-    let aggCountsOK = false;
-    let aggTotal = 0, aggCheckedIn = 0, aggCheckedOut = 0;
+    // login
     const cred = await signInWithEmailAndPassword(window.__AUTH, email, pass);
     console.info('Login success:', cred.user && (cred.user.email || cred.user.uid));
     showLoginMsg(loginMsg, 'Berjaya log masuk.');
@@ -133,7 +188,43 @@ onAuthStateChanged(window.__AUTH, user => {
     const now = new Date();
     todayLabel.textContent = formatDateOnly(now);
     todayTime.textContent = now.toLocaleTimeString();
-    if (!filterDate.value) filterDate.value = isoDateString(now);
+    // start a live clock that updates every second and keep date in sync if midnight passes
+    try {
+      if (timeTicker) clearInterval(timeTicker);
+      timeTicker = setInterval(()=>{
+        const n = new Date();
+        todayTime.textContent = n.toLocaleTimeString();
+        // if date changes (passed midnight) update label + reload data for new date
+        const newDateStr = isoDateString(new Date());
+
+        // determine active page and its currently selected date
+        const active = (typeof getActivePageKey === 'function') ? getActivePageKey() : 'summary';
+        let curDateStr = isoDateString(new Date());
+        if (active === 'summary' && filterDateSummary) curDateStr = filterDateSummary.value || isoDateString(new Date());
+        else if (active === 'checkedin' && filterDateCheckedIn) curDateStr = filterDateCheckedIn.value || isoDateString(new Date());
+        else if (active === 'parking') curDateStr = getParkingDate();
+
+        if (curDateStr !== newDateStr) {
+          todayLabel.textContent = formatDateOnly(new Date());
+          // leave the user's chosen date untouched unless they didn't change it manually
+          let shouldAuto = false;
+          if (active === 'summary' && !filterDateUserChangedSummary && responseCache.date === curDateStr) shouldAuto = true;
+          if (active === 'checkedin' && !filterDateUserChangedCheckedIn && responseCache.date === curDateStr) shouldAuto = true;
+          if (active === 'parking' && !filterDateUserChangedParking && responseCache.date === curDateStr) shouldAuto = true;
+          if (shouldAuto) {
+            if (active === 'summary' && filterDateSummary) { filterDateSummary.value = newDateStr; filterDateUserChangedSummary = false; }
+            if (active === 'checkedin' && filterDateCheckedIn) { filterDateCheckedIn.value = newDateStr; filterDateUserChangedCheckedIn = false; }
+            if (active === 'parking') { parkingCurrentDate = newDateStr; filterDateUserChangedParking = false; }
+            loadTodayList();
+          }
+        }
+      }, 1000);
+    } catch(e) { console.warn('timeTicker start failed', e); }
+    // initialize each per-page filterDate input with today if empty
+    const todayKey = isoDateString(now);
+    if (filterDateSummary && !filterDateSummary.value) filterDateSummary.value = todayKey;
+    if (filterDateCheckedIn && !filterDateCheckedIn.value) filterDateCheckedIn.value = todayKey;
+    if (!parkingCurrentDate) parkingCurrentDate = todayKey;
     loadTodayList();
     startAutoRefresh();
   } else {
@@ -141,24 +232,40 @@ onAuthStateChanged(window.__AUTH, user => {
     dashboardArea.style.display = 'none';
     logoutBtn.style.display = 'none';
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    if (timeTicker) { clearInterval(timeTicker); timeTicker = null; }
+    // unsubscribe any active onSnapshot listener to avoid continued reads after sign-out
+    try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
   }
 });
 
 /* ---------- paging & fetch ---------- */
 async function loadTodayList(){
-  const dateStr = filterDate.value || isoDateString(new Date());
+  // load data for the currently active page using that page's date filter
+  const active = (typeof getActivePageKey === 'function') ? getActivePageKey() : 'summary';
+  if (active === 'parking') {
+    const dateStr = getParkingDate();
+    if (typeof window.loadParkingForDate === 'function') await window.loadParkingForDate(dateStr);
+    return;
+  }
+  // summary / checked-in use the same loadListForDateStr function (snapshot-driven)
+  const dateStr = (active === 'checkedin' && filterDateCheckedIn && filterDateCheckedIn.value) ? filterDateCheckedIn.value : ((filterDateSummary && filterDateSummary.value) ? filterDateSummary.value : isoDateString(new Date()));
   await loadListForDateStr(dateStr);
 }
 
 if (reloadBtn) reloadBtn.addEventListener('click', ()=> loadTodayList());
-if (filterDate) filterDate.addEventListener('change', ()=> {
-  loadTodayList();
-  if (document.getElementById('pageParking') && document.getElementById('pageParking').style.display !== 'none') {
-    const ds = filterDate.value || isoDateString(new Date());
-    document.getElementById('parkingDateLabel').textContent = formatDateOnly(new Date(ds));
-    if (typeof window.loadParkingForDate === 'function') window.loadParkingForDate(ds);
-  }
+if (filterDateSummary) filterDateSummary.addEventListener('change', ()=>{
+  const todayKey = isoDateString(new Date());
+  filterDateUserChangedSummary = (filterDateSummary.value !== todayKey);
+  loadListForDateStr(filterDateSummary.value || isoDateString(new Date()));
 });
+
+if (filterDateCheckedIn) filterDateCheckedIn.addEventListener('change', ()=>{
+  const todayKey = isoDateString(new Date());
+  filterDateUserChangedCheckedIn = (filterDateCheckedIn.value !== todayKey);
+  loadListForDateStr(filterDateCheckedIn.value || isoDateString(new Date()));
+});
+
+// parking date is managed by the parking module's week navigator -> no DOM date input change handler
 if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary'); });
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
 if (exportCSVBtn) exportCSVBtn.addEventListener('click', ()=> { exportCSVForToday(); });
@@ -175,8 +282,11 @@ async function loadListForDateStr(yyyymmdd){
   if (spinner) spinner.style.display = 'flex';
   listAreaSummary.innerHTML = '<div class="small">Memuat...</div>';
   listAreaCheckedIn.innerHTML = '<div class="small">Memuat...</div>';
+  // KPIs are computed from cached/snapshot rows (avoid remote count APIs to reduce reads)
+
   try {
-    // check cache to avoid re-reading the same date
+    // If we have cached rows for this date, render them immediately so the UI is responsive.
+    // Then continue and fetch fresh data in the background so the UI eventually reconciles.
     if (responseCache.date === yyyymmdd && Array.isArray(responseCache.rows) && responseCache.rows.length) {
       const rows = responseCache.rows;
       // KPIs
@@ -191,8 +301,8 @@ async function loadListForDateStr(yyyymmdd){
       // render pages from cached rows
       renderList(rows, listAreaSummary, false);
       renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
-      console.info('[loadListForDateStr] used cache for', yyyymmdd, 'rows:', rows.length);
-      return;
+      console.info('[loadListForDateStr] used cache for instant render', yyyymmdd, 'rows:', rows.length);
+      // continue — we will set up a snapshot listener below (or reuse existing) to get real-time updates
     }
 
     // try to reuse the cached rows for this date when available
@@ -200,49 +310,54 @@ async function loadListForDateStr(yyyymmdd){
     if (responseCache.date === yyyymmdd && Array.isArray(responseCache.rows) && responseCache.rows.length) {
       rows = responseCache.rows;
     } else {
-      // try to compute KPIs using aggregation counts (cheaper than reading all docs when possible)
-      let total = 0, checkedIn = 0, checkedOut = 0;
-      try {
-        const colRefCounts = collection(window.__FIRESTORE, 'responses');
-        const qTotal = query(colRefCounts, where('eta', '>=', Timestamp.fromDate(from)), where('eta', '<', Timestamp.fromDate(to)));
-        const totalSnap = await getCountFromServer(qTotal);
-        total = totalSnap.data().count || 0;
-
-        const qIn = query(colRefCounts, where('eta', '>=', Timestamp.fromDate(from)), where('eta', '<', Timestamp.fromDate(to)), where('status','==','Checked In'));
-        const inSnap = await getCountFromServer(qIn);
-        checkedIn = inSnap.data().count || 0;
-
-        const qOut = query(colRefCounts, where('eta', '>=', Timestamp.fromDate(from)), where('eta', '<', Timestamp.fromDate(to)), where('status','==','Checked Out'));
-        const outSnap = await getCountFromServer(qOut);
-        checkedOut = outSnap.data().count || 0;
-
-        aggCountsOK = true;
-        aggTotal = total; aggCheckedIn = checkedIn; aggCheckedOut = checkedOut;
-      } catch (countErr) {
-        // If counts fail (older SDK or network) we'll fall back to counting from rows
-        console.warn('Aggregation counts failed, falling back to in-memory counts later', countErr);
-      }
+      // We'll rely on snapshot / local rows for KPI computation to reduce remote count reads on Spark.
       const col = collection(window.__FIRESTORE, 'responses');
       const q = query(col, where('eta', '>=', Timestamp.fromDate(from)), where('eta', '<', Timestamp.fromDate(to)), orderBy('eta','asc'));
-      const snap = await getDocs(q);
-      snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+
+      // Use onSnapshot (real-time) for this date range — this reduces repeated full-fetch reads and
+      // ensures clients stay in sync with server changes. If we already have a snapshot for this date
+      // we'll reuse it; otherwise we install a new listener and let it drive updates.
+      try {
+        // unsubscribe previous snapshot if it's for another date
+        if (typeof window.__RESPONSES_UNSUB === 'function' && window.__RESPONSES_DATE !== yyyymmdd) {
+          try { window.__RESPONSES_UNSUB(); } catch(e) { /* ignore */ }
+          window.__RESPONSES_UNSUB = null;
+          window.__RESPONSES_DATE = null;
+        }
+
+        if (!window.__RESPONSES_UNSUB || window.__RESPONSES_DATE !== yyyymmdd) {
+          console.info('[loadListForDateStr] attaching onSnapshot for', yyyymmdd);
+          window.__RESPONSES_DATE = yyyymmdd;
+          window.__RESPONSES_UNSUB = onSnapshot(q, snap => {
+            const freshRows = [];
+            snap.forEach(d => freshRows.push({ id: d.id, ...d.data() }));
+            // update cache + UI
+            responseCache.date = yyyymmdd;
+            responseCache.rows = freshRows;
+
+            // recompute KPIs and render
+            let pending = 0, checkedIn = 0, checkedOut = 0;
+            freshRows.forEach(r => {
+              if (!r.status || r.status === 'Pending') pending++;
+              else if (r.status === 'Checked In') checkedIn++;
+              else if (r.status === 'Checked Out') checkedOut++;
+            });
+            renderKPIs(pending, checkedIn, checkedOut);
+            renderList(freshRows, listAreaSummary, false);
+            renderCheckedInList(freshRows.filter(r => r.status === 'Checked In'));
+          }, err => console.error('[onSnapshot] error', err));
+        }
+        // let the snapshot handler populate rows — use cached rows for now
+      } catch(snapshotErr) {
+        console.warn('[loadListForDateStr] snapshot failed, falling back to getDocs', snapshotErr);
+        const snap = await getDocs(q);
+        snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      }
       // cache for reuse
       responseCache.date = yyyymmdd;
       responseCache.rows = rows;
 
-      // If aggregation succeeded earlier update KPIs using those numbers; otherwise compute from rows
-      if (aggCountsOK) {
-        const pending = Math.max(0, aggTotal - aggCheckedIn - aggCheckedOut);
-        renderKPIs(pending, aggCheckedIn, aggCheckedOut);
-      }
-    }
-
-    // store in cache for reuse by other functions (export, parking summary)
-    responseCache.date = yyyymmdd;
-    responseCache.rows = rows;
-
-    // KPIs (if aggregation counts failed earlier we'll compute from rows)
-    if (!aggCountsOK) {
+      // compute KPIs from rows (we don't run remote counts on Spark to avoid extra reads)
       let pending = 0, checkedIn = 0, checkedOut = 0;
       rows.forEach(r => {
         if (!r.status || r.status === 'Pending') pending++;
@@ -252,7 +367,81 @@ async function loadListForDateStr(yyyymmdd){
       renderKPIs(pending, checkedIn, checkedOut);
     }
 
-    // render pages
+    // store in cache for reuse by other functions (export, parking summary)
+    responseCache.date = yyyymmdd;
+    responseCache.rows = rows;
+
+    // KPIs already computed earlier in this function (from cache or snapshot fallback)
+
+    // If we don't have rows from the primary eta query, try a safe fallback:
+    // some older/migrated documents may not have 'eta' as a Timestamp (or may be missing),
+    // but were created on the date the user expects; attempt to include those via createdAt.
+    if ((!rows || rows.length === 0)) {
+      try {
+        console.info('[loadListForDateStr] no results for eta range — attempting fallback query using createdAt');
+        const fallbackRows = [];
+        const col2 = collection(window.__FIRESTORE, 'responses');
+        const q2 = query(col2, where('createdAt', '>=', Timestamp.fromDate(from)), where('createdAt', '<', Timestamp.fromDate(to)), orderBy('createdAt','asc'));
+        const snap2 = await getDocs(q2);
+        snap2.forEach(d => fallbackRows.push({ id: d.id, ...d.data() }));
+        if (fallbackRows.length) {
+          // merge fallback rows into rows (avoid duplicates when both present)
+          const ids = new Set(rows.map(r => r.id));
+          fallbackRows.forEach(fr => { if (!ids.has(fr.id)) rows.push(fr); });
+          responseCache.rows = rows;
+          console.info('[loadListForDateStr] fallback found rows for createdAt:', fallbackRows.length);
+          // Surface a brief UX hint so users know a fallback was used
+          try { toast(`Menunjukkan ${fallbackRows.length} rekod yang dijumpai berdasarkan tarikh pembuatan (createdAt).`, true); } catch(e) {}
+        }
+      } catch (fbErr) {
+        console.warn('[loadListForDateStr] fallback createdAt query failed', fbErr);
+      }
+      // If still nothing, attempt a limited, lenient client-side search for older documents
+      if ((!rows || rows.length === 0)) {
+        try {
+          console.info('[loadListForDateStr] attempting lenient client-side fallback (limited fetch)');
+          const looseRows = [];
+          // limit the read to a reasonable number to avoid scanning entire collection
+          // keep the read bounded — limit to 500 most recent documents to avoid scanning whole collection
+          const q3 = query(col2, orderBy('createdAt','desc'), limit(500));
+          // Try to get a limited snapshot — use getDocs and slice client-side
+          const snap3 = await getDocs(q3);
+          snap3.forEach(d => looseRows.push({ id: d.id, ...d.data() }));
+
+          // Helper to get the date-only key (yyyy-mm-dd) from potential timestamp/string
+          const toDateKey = (v) => {
+            if (!v) return null;
+            try {
+              if (v && v.toDate) v = v.toDate();
+              // if it's a string, parse it
+              if (typeof v === 'string') v = new Date(v);
+              if (!(v instanceof Date) || isNaN(v.getTime())) return null;
+              return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+            } catch(e){ return null; }
+          };
+
+          const targetKey = yyyymmdd;
+          const matched = looseRows.filter(r => {
+            const etaKey = toDateKey(r.eta);
+            const createdKey = toDateKey(r.createdAt);
+            // if either eta or createdAt match the requested date, include
+            return etaKey === targetKey || createdKey === targetKey;
+          });
+          if (matched.length) {
+            // merge without duplicates
+            const ids = new Set(rows.map(r => r.id));
+            matched.forEach(m => { if (!ids.has(m.id)) rows.push(m); });
+            responseCache.rows = rows;
+            console.info('[loadListForDateStr] lenient fallback found rows:', matched.length);
+            try { toast(`Menunjukkan ${matched.length} rekod (carian longgar) untuk tarikh ini.`, true); } catch(e){}
+          }
+        } catch (lenErr) {
+          console.warn('[loadListForDateStr] lenient fallback failed', lenErr);
+        }
+      }
+    }
+
+    // render pages (snapshot listener will keep the UI fresh). Show the current rows we have.
     renderList(rows, listAreaSummary, false);
     renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
     console.info('[loadListForDateStr] rendered summary + checked-in lists, rows:', rows.length);
@@ -505,39 +694,85 @@ function renderCheckedInList(rows){
 
 /* ---------- status update & audit ---------- */
 async function doStatusUpdate(docId, newStatus){
+  // Optimistic update: update in-memory cache and UI immediately so the user perceives instant response.
+  // Then perform the Firestore writes in the background and reconcile (reload) when the writes complete.
+  const ref = doc(window.__FIRESTORE, 'responses', docId);
+  let originalRow = null;
   try {
-    const ref = doc(window.__FIRESTORE, 'responses', docId);
-
-    // check existence
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(ref, { status: newStatus, updatedAt: serverTimestamp() }, { merge: true });
-    } else {
-      await updateDoc(ref, { status: newStatus, updatedAt: serverTimestamp() });
+    // If we have cached rows, patch the cached entry and re-render immediately
+    if (responseCache.date && Array.isArray(responseCache.rows)) {
+      const idx = responseCache.rows.findIndex(r => r.id === docId);
+      if (idx !== -1) {
+        originalRow = Object.assign({}, responseCache.rows[idx]);
+        responseCache.rows[idx] = Object.assign({}, responseCache.rows[idx], { status: newStatus, updatedAt: new Date() });
+        // KPIs: update counts quickly using the cache
+        const rows = responseCache.rows;
+        let pending = 0, checkedIn = 0, checkedOut = 0;
+        rows.forEach(r => {
+          if (!r.status || r.status === 'Pending') pending++;
+          else if (r.status === 'Checked In') checkedIn++;
+          else if (r.status === 'Checked Out') checkedOut++;
+        });
+        // re-render immediately
+        renderKPIs(pending, checkedIn, checkedOut);
+        renderList(rows, listAreaSummary, false);
+        renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
+      }
     }
 
-    // audit
+    // perform write (don't block UI) — we'll still await the write so we can report failures,
+    // but we will not block with a full reload; instead run a background reconciliation afterward.
+    let snap = null;
     try {
-      const auditCol = collection(window.__FIRESTORE, 'audit');
-      await addDoc(auditCol, {
-        ts: serverTimestamp(),
-        userId: window.__AUTH.currentUser ? window.__AUTH.currentUser.uid : 'unknown',
-        rowId: docId,
-        field: 'status',
-        old: snap.exists() ? JSON.stringify(snap.data()) : '',
-        new: newStatus,
-        actionId: String(Date.now()),
-        notes: 'Status change from dashboard'
-      });
-    } catch(auditErr) {
-      console.error('[status] audit write failed', auditErr);
+      snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, { status: newStatus, updatedAt: serverTimestamp() }, { merge: true });
+      } else {
+        await updateDoc(ref, { status: newStatus, updatedAt: serverTimestamp() });
+      }
+    } catch (writeErr) {
+      // on write error revert the optimistic change
+      console.error('[status] write failed', writeErr);
+      toast('Gagal kemaskini status ke server. Cuba lagi', false);
+      if (originalRow && responseCache.date && Array.isArray(responseCache.rows)) {
+        const i2 = responseCache.rows.findIndex(r => r.id === docId);
+        if (i2 !== -1) { responseCache.rows[i2] = originalRow; renderList(responseCache.rows, listAreaSummary, false); renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In')); }
+      }
+      return;
     }
+
+    // audit write: do not block UI — write audit in background
+    (async () => {
+      try {
+        const auditCol = collection(window.__FIRESTORE, 'audit');
+        await addDoc(auditCol, {
+          ts: serverTimestamp(),
+          userId: window.__AUTH.currentUser ? window.__AUTH.currentUser.uid : 'unknown',
+          rowId: docId,
+          field: 'status',
+          old: snap && snap.exists() ? JSON.stringify(snap.data()) : '',
+          new: newStatus,
+          actionId: String(Date.now()),
+          notes: 'Status change from dashboard'
+        });
+      } catch (auditErr) {
+        console.error('[status] audit write failed', auditErr);
+      }
+    })();
 
     toast('Status dikemaskini');
-    await loadTodayList();
+
+    // rely on onSnapshot listeners (installed for the current date) to reconcile server-side changes
+    // (avoids an extra full fetch/read after every status change)
+
   } catch (err) {
     console.error('[status] doStatusUpdate err', err);
-    toast('Gagal kemaskini status. Semak konsol untuk butiran penuh.');
+    toast('Gagal kemaskini status. Semak konsol untuk butiran penuh.', false);
+    // revert optimistic update if we previously set it
+    if (originalRow && responseCache.date && Array.isArray(responseCache.rows)) {
+      const i2 = responseCache.rows.findIndex(r => r.id === docId);
+      if (i2 !== -1) { responseCache.rows[i2] = originalRow; renderList(responseCache.rows, listAreaSummary, false); renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In')); }
+    }
   }
 }
 
@@ -545,7 +780,8 @@ async function doStatusUpdate(docId, newStatus){
 
 /* ---------- CSV export ---------- */
 async function exportCSVForToday(){
-  const dateStr = filterDate.value || isoDateString(new Date());
+  // Export uses the summary's selected date
+  const dateStr = (filterDateSummary && filterDateSummary.value) ? filterDateSummary.value : isoDateString(new Date());
   const d = dateStr.split('-');
   const from = new Date(parseInt(d[0],10), parseInt(d[1],10)-1, parseInt(d[2],10), 0,0,0,0);
   const to = new Date(from); to.setDate(to.getDate()+1);
@@ -692,7 +928,16 @@ document.getElementById('saveEditBtn').addEventListener('click', async (ev) => {
 
     toast('Maklumat disimpan');
     closeModal(document.getElementById('editModal'));
-    await loadTodayList();
+    // update in-memory cache so UI reflects the manual edit immediately (no full reload)
+    if (responseCache.date && Array.isArray(responseCache.rows)) {
+      const idx = responseCache.rows.findIndex(r => r.id === id);
+      if (idx !== -1) {
+        const existing = responseCache.rows[idx] || {};
+        responseCache.rows[idx] = Object.assign({}, existing, payload);
+        renderList(responseCache.rows, listAreaSummary, false);
+        renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In'));
+      }
+    }
   } catch (err) {
     console.error('saveEdit err', err);
     toast('Gagal simpan. Semak konsol.');
@@ -708,27 +953,46 @@ function showPage(key){
     navSummary.classList.add('active');
     navCheckedIn.classList.remove('active');
     if (navParking) navParking.classList.remove('active');
+    // keep visual selection in sync with the active page
+    try { setSelectedNav(navSummary); } catch(e) {}
+    // show the per-page date control for summary
+    try { if (summaryDateWrap) summaryDateWrap.style.display = ''; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
   } else if (key === 'checkedin') {
     document.getElementById('pageSummary').style.display = 'none';
     document.getElementById('pageCheckedIn').style.display = '';
     document.getElementById('pageParking').style.display = 'none';
     navSummary.classList.remove('active');
     navCheckedIn.classList.add('active');
+    try { setSelectedNav(navCheckedIn); } catch(e) {}
+    try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = ''; } catch(e) {}
     if (navParking) navParking.classList.remove('active');
+  }
+  // If user navigates away from registration views (eg. parking) unsubscribe snapshot listeners
+  if (key !== 'summary' && key !== 'checkedin') {
+    try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
+  } else {
+    // When returning to summary/checkedin, ensure we have the latest snapshot for the current date
+    try {
+      // When returning to summary/checkedin, ensure we have the latest snapshot for the current date
+      if (key === 'summary') {
+        const ds = (filterDateSummary && filterDateSummary.value) ? filterDateSummary.value : isoDateString(new Date());
+        loadListForDateStr(ds);
+      } else if (key === 'checkedin') {
+        const ds = (filterDateCheckedIn && filterDateCheckedIn.value) ? filterDateCheckedIn.value : isoDateString(new Date());
+        loadListForDateStr(ds);
+      }
+    } catch(e) { /* ignore */ }
   }
   // KPIs are only relevant for the registration summary view
   try { kpiWrap.style.display = (key === 'summary') ? '' : 'none'; } catch(e) { /* ignore if missing */ }
-  // show filterDate only on summary
-  try {
-    const lbl = document.querySelector('label[for="filterDate"]');
-    if (lbl) lbl.style.display = (key === 'summary' ? '' : 'none');
-    if (filterDate) filterDate.style.display = (key === 'summary' ? '' : 'none');
-  } catch(e) {}
+  // Show/hide the right per-page date input already handled above
 }
 
-/* initialize filterDate with today if empty */
-if (!filterDate.value) filterDate.value = isoDateString(new Date());
-document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
+/* per-page date inputs are initialised when auth state becomes active */
+document.addEventListener('DOMContentLoaded', ()=>{
+  // ensure the initial nav 'active' has the visual selected state
+  try { const initial = document.querySelector('.sidebar .nav-item.active'); if (initial) setSelectedNav(initial); } catch(e) { /* ignore */ }
+});
 
 /* ---------- Parking report module (patched) ---------- */
 (function initParkingModule(){
@@ -758,7 +1022,9 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
   let slotCache = {};
 
   function setParkingDate(dateStr){
+    // dateStr may be undefined -> default to today
     const d = dateStr ? new Date(dateStr) : new Date();
+    parkingCurrentDate = dateStr ? dateStr : isoDateString(new Date());
     parkingDateLabel.textContent = formatDateOnly(d);
   }
 
@@ -875,12 +1141,9 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       const cols = document.createElement('div');
       cols.className = 'lot-columns';
 
-      // left: Masuk
-      const left = document.createElement('div');
-      left.className = 'lot-column';
-      left.innerHTML = `<div style="font-weight:700;margin-bottom:6px">Lot Parkir Pelawat — Bahagian Masuk</div>`;
-      const leftGrid = document.createElement('div');
-      leftGrid.className = 'lot-grid';
+      // Render a single compact lot list (no separate Masuk / Luar columns)
+      const singleList = document.createElement('div');
+      singleList.className = 'lot-list';
       masukSlots.forEach(slotId => {
         const data = slotCache[slotId] || {};
         const chip = document.createElement('button');
@@ -891,14 +1154,6 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
         chip.addEventListener('click', ()=> openSlotModal(slotId));
         leftGrid.appendChild(chip);
       });
-      left.appendChild(leftGrid);
-
-      // right: Luar
-      const right = document.createElement('div');
-      right.className = 'lot-column';
-      right.innerHTML = `<div style="font-weight:700;margin-bottom:6px">Lot Parkir Pelawat — Bahagian Luar</div>`;
-      const rightGrid = document.createElement('div');
-      rightGrid.className = 'lot-grid';
       luarSlots.forEach(slotId => {
         const data = slotCache[slotId] || {};
         const chip = document.createElement('button');
@@ -909,10 +1164,20 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
         chip.addEventListener('click', ()=> openSlotModal(slotId));
         rightGrid.appendChild(chip);
       });
-      right.appendChild(rightGrid);
+      // combine both masuk and luar into a single list (ordered)
+      const allSlots = masukSlots.concat(luarSlots);
+      allSlots.forEach(slotId => {
+        const data = slotCache[slotId] || {};
+        const chip = document.createElement('button');
+        chip.className = 'lot-chip' + (data.vehicle ? ' filled' : '');
+        chip.type = 'button';
+        chip.textContent = slotId + (data.vehicle ? ` • ${data.vehicle}` : ' • Kosong');
+        chip.dataset.slot = slotId;
+        chip.addEventListener('click', ()=> openSlotModal(slotId));
+        singleList.appendChild(chip);
+      });
 
-      cols.appendChild(left);
-      cols.appendChild(right);
+      cols.appendChild(singleList);
       wrapper.appendChild(cols);
     } catch (err) {
       console.error('[parking] renderParkingLotList err', err);
@@ -922,7 +1187,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
   // save single slot (create or merge) using deterministic doc id
   async function saveSlot(slotId, payload, applyToResponses = false){
     try {
-      const dateKey = filterDate.value || isoDateString(new Date());
+      const dateKey = getParkingDate();
       const docId = parkingDocIdFor(dateKey, slotId);
       const ref = doc(window.__FIRESTORE, 'parkingSlots', docId);
       await setDoc(ref, Object.assign({ slot: slotId, date: dateKey }, payload, { updatedAt: serverTimestamp() }), { merge: true });
@@ -932,7 +1197,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       // if user opted to apply the slot change to registration
       if (applyToResponses) {
         try {
-          const dateKey = filterDate.value || isoDateString(new Date());
+          const dateKey = getParkingDate();
           const result = await applySlotToResponses(dateKey, slotId, payload);
           if (result && result.updated) toast(`Kemas kini pendaftaran: ${result.updated} rekod`);
           else if (result && result.matched === 0) toast('Tiada pendaftaran sepadan ditemui', false);
@@ -950,7 +1215,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
   // clear single slot
   async function clearSlot(slotId){
     try {
-      const dateKey = filterDate.value || isoDateString(new Date());
+      const dateKey = getParkingDate();
       const docId = parkingDocIdFor(dateKey, slotId);
       const ref = doc(window.__FIRESTORE, 'parkingSlots', docId);
       await setDoc(ref, { slot: slotId, date: dateKey, vehicle:'', unit:'', eta:'', etd:'', updatedAt: serverTimestamp() }, { merge: true });
@@ -967,7 +1232,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
   async function saveParkingMeta(){
     try {
       const pkName = parkingPKName.value.trim();
-      const dateKey = filterDate.value || isoDateString(new Date());
+      const dateKey = getParkingDate();
       const metaId = `meta-${dateKey}`;
       const ref = doc(window.__FIRESTORE, 'parkingMeta', metaId);
       await setDoc(ref, { date: dateKey, pkName, updatedAt: serverTimestamp() }, { merge: true });
@@ -1009,6 +1274,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
   // nav: activate parking page
   if (navParking) {
     navParking.addEventListener('click', ()=> {
+      try { setSelectedNav(navParking); } catch(e) {}
       console.info('[navParking] clicked');
       document.getElementById('pageSummary').style.display = 'none';
       document.getElementById('pageCheckedIn').style.display = 'none';
@@ -1021,10 +1287,12 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       // KPIs are only shown on 'Senarai pendaftaran'
       try { kpiWrap.style.display = 'none'; } catch(e) {}
 
-      const ds = filterDate.value || isoDateString(new Date());
-      // hide the top filter date input/label for parking view (we show calendar only)
-      try { const lbl = document.querySelector('label[for="filterDate"]'); if (lbl) lbl.style.display = 'none'; if (filterDate) filterDate.style.display = 'none'; } catch(e) {}
+      const ds = getParkingDate();
+      // hide per-page summary/checked-in date controls since we're on parking view
+      try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
       console.info('[navParking] loading parking for date', ds);
+      // unsubscribe summary/checked-in snapshot while viewing parking to avoid unnecessary reads
+      try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
       setParkingDate(ds);
       // hide the old static parking card (clean the page for calendar + lot list)
       try {
@@ -1044,6 +1312,9 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
 
   // expose loader for external calls (used when filterDate changes)
   window.loadParkingForDate = loadParkingForDate;
+
+  // ensure we unsubscribe snapshot listeners when the page unloads
+  try { window.addEventListener('beforeunload', ()=>{ if (typeof window.__RESPONSES_UNSUB === 'function') { try { window.__RESPONSES_UNSUB(); } catch(e){} window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } if (timeTicker) { try { clearInterval(timeTicker); } catch(e){} timeTicker = null; } }); } catch(e) { /* ignore */ }
 
   // Apply slot update to matching responses for the same date (manual-confirmation flow)
   async function applySlotToResponses(dateKey, slotId, payload){
@@ -1115,7 +1386,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
   async function renderParkingLotSummary(dateStr){
     console.info('[parking] renderParkingLotSummary called', dateStr);
     try {
-      const ds = dateStr || filterDate.value || isoDateString(new Date());
+      const ds = dateStr || getParkingDate();
+      // record the current parking date and treat this as a user-driven change when a specific date is requested
+      parkingCurrentDate = ds;
+      filterDateUserChangedParking = true;
       const d = ds.split('-');
       if (d.length !== 3) return;
       const from = new Date(parseInt(d[0],10), parseInt(d[1],10)-1, parseInt(d[2],10), 0,0,0,0);
@@ -1218,7 +1492,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       const page = document.getElementById('pageParking');
       if (!page) return;
 
-      const ds = dateStr || filterDate.value || isoDateString(new Date());
+      const ds = dateStr || getParkingDate();
+      // ensure parkingCurrentDate reflects the rendered calendar (user navigation)
+      parkingCurrentDate = ds;
+      filterDateUserChangedParking = true;
       const wr = weekRangeFromDate(ds);
       const from = new Date(wr.start); const to = new Date(wr.start); to.setDate(to.getDate()+7);
 
@@ -1517,7 +1794,15 @@ document.addEventListener('DOMContentLoaded', ()=>{ /* ready */ });
       // optional: disable UI
       await assignLotTransaction(responseId, selectedLotId);
       toast(`Lot ${selectedLotId} berjaya diassign`);
-      await loadTodayList();
+      // update cache to reflect assigned lot immediately (snapshot will also sync)
+      if (responseCache.date && Array.isArray(responseCache.rows)) {
+        const idx = responseCache.rows.findIndex(r => r.id === responseId);
+        if (idx !== -1) {
+          responseCache.rows[idx] = Object.assign({}, responseCache.rows[idx], { parkingLot: selectedLotId, assignedAt: new Date() });
+          renderList(responseCache.rows, listAreaSummary, false);
+          renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In'));
+        }
+      }
     } catch (err) {
       const msg = err && err.message ? err.message : 'Gagal assign lot';
       toast(`Gagal assign lot: ${msg}`);

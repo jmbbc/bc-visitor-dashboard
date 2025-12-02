@@ -13,10 +13,40 @@
 
     .sidebar { padding: 12px; border-radius:8px; background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
     .sidebar nav { display:flex; flex-direction:column; gap:6px; }
-    .sidebar button.nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:var(--surface); cursor:pointer; color:var(--text-900); font-weight:600; transition: background .12s, color .12s; }
+    .sidebar .nav-group { display:flex; flex-direction:column; gap:6px; padding:8px; border-radius:8px; background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent); }
+    .sidebar button.nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:var(--surface); cursor:pointer; color:var(--text-900); font-weight:600; transition: background .12s, color .12s; font-size:14px; display:flex; align-items:center; gap:10px; }
+    .sidebar button.nav-item .nav-icon { font-size:18px; line-height:1; display:inline-flex; width:20px; justify-content:center; }
+    .sidebar button.nav-item .nav-label { display:inline-block; font-size:14px; }
     .sidebar button.nav-item.active { background: rgba(37,99,235,0.08); color: var(--text-900); border-color: transparent; }
     .sidebar button.nav-item.active:hover { background: rgba(37,99,235,0.10); }
     .sidebar button.nav-item:active { transform: translateY(1px); }
+
+    /* Selected / focused box visual (black 1px outer outline) — used for the main nav boxes */
+    .sidebar button.nav-item.selected { box-shadow: 0 0 0 1px #000000; }
+    /* Visible focus ring for keyboard users — matches the selected appearance but uses an accessible outline offset */
+    .sidebar button.nav-item:focus-visible { outline: 2px solid #000000; outline-offset: 2px; }
+
+    /* Distinct colours for the four primary buttons */
+    /* Summary (teal/green) - changed to solid soft-teal background */
+    /* stronger override to avoid being masked by other site CSS */
+    .sidebar .nav-group button#navSummary.nav-item { background: linear-gradient(180deg, rgba(6,182,212,0.14), rgba(6,182,212,0.12)) !important; border-color: rgba(6,182,212,0.18) !important; color: #042f2a !important; }
+    #navSummary.active { background: linear-gradient(180deg, rgba(6,182,212,0.22), rgba(6,182,212,0.18)); color: #042f2a; border-color: transparent; box-shadow: 0 2px 6px rgba(6,182,212,0.12); }
+    #navSummary:hover { background: linear-gradient(180deg, rgba(6,182,212,0.18), rgba(6,182,212,0.14)); }
+
+    /* Checked-in (indigo/violet) — stronger indigo background */
+    .sidebar .nav-group button#navCheckedIn.nav-item { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.10)) !important; border-color: rgba(79,70,229,0.18) !important; color: #111827 !important; }
+    #navCheckedIn.active { background: linear-gradient(180deg, rgba(79,70,229,0.18), rgba(79,70,229,0.14)); color: #0f172a; border-color: transparent; box-shadow: 0 2px 6px rgba(79,70,229,0.12); }
+    #navCheckedIn:hover { background: linear-gradient(180deg, rgba(79,70,229,0.14), rgba(79,70,229,0.10)); }
+
+    /* Parking (amber/orange) — warm amber background */
+    .sidebar .nav-group button#navParking.nav-item { background: linear-gradient(180deg, rgba(250,190,50,0.14), rgba(250,190,50,0.10)) !important; border-color: rgba(250,190,50,0.16) !important; color: #2b1808 !important; }
+    #navParking.active { background: linear-gradient(180deg, rgba(250,190,50,0.22), rgba(250,190,50,0.16)); color: #2b1808; border-color: transparent; box-shadow: 0 2px 6px rgba(250,190,50,0.12); }
+    #navParking:hover { background: linear-gradient(180deg, rgba(250,190,50,0.18), rgba(250,190,50,0.12)); }
+
+    /* Refresh (blue) — keep distinct but softer */
+    .sidebar button#reloadBtn.nav-item { background: linear-gradient(180deg, rgba(59,130,246,0.12), rgba(59,130,246,0.10)) !important; border-color: rgba(59,130,246,0.14) !important; color: #062a6c !important; }
+    #reloadBtn.active { background: linear-gradient(180deg, rgba(59,130,246,0.18), rgba(59,130,246,0.14)); color: #062a6c; border-color: transparent; box-shadow: 0 2px 6px rgba(59,130,246,0.12); }
+    #reloadBtn:hover { background: linear-gradient(180deg, rgba(59,130,246,0.14), rgba(59,130,246,0.12)); }
 
     .top-info { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
     .kpi { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -43,6 +73,31 @@
 
     /* Modal base (kept minimal; additional styles in css/style.css) */
     .modal.hidden { display:none !important; }
+
+    /* Page-level boxed headings (matches nav colors) */
+    /* Make heading box take full width and match approx 34.4px height while remaining responsive */
+    .page-heading-box {
+      display:flex; /* center content both vertically + horizontally */
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      width:100%;
+      box-sizing:border-box;
+      padding:0 16px; /* horizontal padding only to keep vertical centering exact */
+      height:34.4px; /* target visual height */
+      border-radius:10px;
+      font-weight:700;
+      margin-bottom:12px;
+      color: #07202b;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    #pageSummary > h3.page-heading-box { background: linear-gradient(180deg, rgba(6,182,212,0.12), rgba(6,182,212,0.08)); border: 1px solid rgba(6,182,212,0.14); color: #042f2a; }
+    #pageCheckedIn > h3.page-heading-box { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.08)); border: 1px solid rgba(79,70,229,0.14); color: #07102a; }
+    #pageParking > h3.page-heading-box { background: linear-gradient(180deg, rgba(250,190,50,0.12), rgba(250,190,50,0.08)); border: 1px solid rgba(250,190,50,0.14); color: #2b1808; }
+    /* On small screens, reduce height/padding so text wraps nicely */
+    @media (max-width: 480px) {
+      .page-heading-box { height: auto; padding:10px 12px; text-align:center; justify-content:center; align-items:center; }
+    }
   </style>
 </head>
 <body>
@@ -73,14 +128,16 @@
           </div>
 
           <nav>
-            <button id="navSummary" class="nav-item active">Senarai pendaftaran</button>
-            <button id="navCheckedIn" class="nav-item">Pelawat Checked In (Hari Ini)</button>
+            <div class="nav-group primary">
+              <button id="navSummary" class="nav-item active"><span class="nav-icon">📋</span><span class="nav-label">Senarai pendaftaran</span></button>
+              <button id="navCheckedIn" class="nav-item"><span class="nav-icon">✅</span><span class="nav-label">Pelawat Checked In (Hari Ini)</span></button>
+              <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
+            </div>
+
             <hr style="border:none;border-top:1px solid var(--input-border);margin:10px 0">
             <div class="muted-small">Alat</div>
             <button id="reloadBtn" class="nav-item">Refresh Data</button>
             <!-- Export CSV button removed as requested -->
-            <!-- Submenu baru -->
-            <button id="navParking" class="nav-item">Laporan Parkir Pelawat</button>
           </nav>
         </aside>
 
@@ -92,9 +149,17 @@
               <div id="kpiWrap" style="margin-top:8px" class="kpi"></div>
             </div>
 
-            <div style="display:flex;gap:8px;align-items:center">
-              <label for="filterDate" class="small muted">Tunjuk mengikut ETA</label>
-              <input id="filterDate" type="date" />
+            <!-- Per-page date filters: summary, checked-in and parking each have their own date input -->
+            <div id="dateFiltersWrap" style="display:flex;gap:8px;align-items:center">
+              <div id="summaryDateWrap" style="display:flex;align-items:center;gap:8px">
+                <label for="filterDateSummary" class="small muted">Tunjuk mengikut ETA</label>
+                <input id="filterDateSummary" type="date" />
+              </div>
+              <div id="checkedInDateWrap" style="display:none;align-items:center;gap:8px">
+                <label for="filterDateCheckedIn" class="small muted">Tunjuk Checked In</label>
+                <input id="filterDateCheckedIn" type="date" />
+              </div>
+              <!-- parking page uses the weekly navigator; no date input here -->
             </div>
           </div>
 
@@ -103,18 +168,20 @@
 
           <!-- Pages -->
           <div id="pageSummary">
+            <h3 class="page-heading-box" style="margin-top:6px">Senarai pendaftaran</h3>
             <div id="listAreaSummary" style="margin-top:8px"></div>
           </div>
 
           <div id="pageCheckedIn" style="display:none">
-            <h3 style="margin-top:6px">Pelawat Checked In — Hari Ini</h3>
+            <h3 class="page-heading-box" style="margin-top:6px">Pelawat Checked In — Hari Ini</h3>
             <div id="listAreaCheckedIn" style="margin-top:8px"></div>
           </div>
 
           <!-- Halaman Parkir: dua kolum, kad selari -->
           <div id="pageParking" style="display:none; margin-top:12px;">
+            <h3 class="page-heading-box" style="margin-top:6px">Laporan Parkir Pelawat</h3>
             <div class="card card-tight">
-              <h3 style="margin-top:0">Laporan Parkir Pelawat</h3>
+              <h4 style="margin-top:0">Ringkasan & kawalan</h4>
 
               <div class="parking-header">
                 <div class="ph-item">
@@ -134,17 +201,8 @@
                 </div>
               </div>
 
-              <div class="parking-grid">
-                <div class="card card-tight">
-                  <h4 class="parking-title">Lot Parkir Pelawat Bahagian Masuk</h4>
-                  <div id="parkingMasuk" class="parking-list"></div>
-                </div>
-
-                <div class="card card-tight">
-                  <h4 class="parking-title">Lot Parkir Pelawat Bahagian Luar</h4>
-                  <div id="parkingLuar" class="parking-list"></div>
-                </div>
-              </div>
+              <!-- parking grid removed per request: Masuk / Luar lot blocks omitted -->
+              <div id="parkingListArea" style="display:none; margin-top:8px"></div>
             </div>
           </div>
         </section>
