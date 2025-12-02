@@ -81,6 +81,9 @@ function waitForFirestore(timeout = 5000){
   });
 }
 
+// live clock for visitor form header
+let visitorTimeTicker = null;
+
 function toast(message, ok = true, opts = {}) {
   // opts.duration - ms to auto-dismiss (default 7000)
   const duration = typeof opts.duration === 'number' ? opts.duration : 7000;
@@ -790,6 +793,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ensure light theme only (dark mode removed)
   document.documentElement.classList.remove('dark');
+
+  // start a small live clock in the page header (visitor form) so users don't need to refresh
+  try {
+    const dateEl = document.getElementById('visitorDate');
+    const timeEl = document.getElementById('visitorTime');
+    const startClock = () => {
+      if (visitorTimeTicker) clearInterval(visitorTimeTicker);
+      // set immediately
+      const now = new Date();
+      if (dateEl) dateEl.textContent = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+      if (timeEl) timeEl.textContent = now.toLocaleTimeString();
+      visitorTimeTicker = setInterval(()=>{
+        const n = new Date();
+        if (timeEl) timeEl.textContent = n.toLocaleTimeString();
+        // update date if day boundary changed
+        if (dateEl) dateEl.textContent = `${String(n.getDate()).padStart(2,'0')}/${String(n.getMonth()+1).padStart(2,'0')}/${n.getFullYear()}`;
+      }, 1000);
+    };
+    startClock();
+    // stop the ticker on unload
+    window.addEventListener('beforeunload', ()=> { try { if (visitorTimeTicker) clearInterval(visitorTimeTicker); visitorTimeTicker = null; } catch(e){} });
+  } catch (e) { console.warn('visitor clock start failed', e); }
 
   (async () => {
     try { await waitForFirestore(); } catch (err) {
