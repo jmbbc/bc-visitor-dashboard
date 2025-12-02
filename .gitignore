@@ -1,0 +1,8 @@
+node_modules/
+dup-report.json
+serviceAccount.json
+.env
+/.idea/
+/.vscode/
+npm-debug.log
+package-lock.json
