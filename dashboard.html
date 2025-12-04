@@ -201,6 +201,54 @@
                 </div>
               </div>
 
+              <!-- Admin panel for Laporan Parkir Pelawat -->
+              <div id="parkingAdmin" style="margin-top:12px; border-top:1px dashed var(--input-border); padding-top:12px">
+                <h4 style="margin-top:0">Admin — Kemas Kini Unit</h4>
+                <div id="adminLoginWrap" style="display:block; margin-bottom:10px">
+                  <label>Password admin</label>
+                  <input id="adminPassword" type="password" placeholder="Masukkan kata laluan" />
+                  <div style="display:flex;gap:8px;margin-top:8px"><button id="adminLoginBtn" class="btn">Log Masuk (Admin)</button><button id="adminLogoutBtn" class="btn-ghost" style="display:none">Log Keluar</button></div>
+                  <div id="adminLoginMsg" class="small muted" style="margin-top:8px"></div>
+                </div>
+
+                <div id="adminControls" style="display:none">
+                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                    <input id="unitSearch" placeholder="Cari unit (A-12-03)" />
+                    <button id="unitAddBtn" class="btn">Tambah / Kemas Kini</button>
+                    <input id="csvFileInput" type="file" accept=".csv" style="display:inline-block" />
+                    <button id="csvPreviewBtn" class="btn-ghost">Pratonton CSV</button>
+                    <button id="csvImportBtn" class="btn">Import CSV</button>
+                  </div>
+                  <div id="csvPreviewArea" class="card card-tight small" style="display:none;max-height:260px;overflow:auto"></div>
+                  <div id="unitEditArea" style="display:none;margin-top:8px" class="card card-tight">
+                    <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center">
+                      <div>
+                        <label>Unit</label>
+                        <input id="unitEditId" placeholder="A-12-03" />
+                      </div>
+                      <div>
+                        <label>Arrears</label>
+                        <select id="unitEditArrears"><option value="false">Tiada</option><option value="true">Ada</option></select>
+                      </div>
+                      <div>
+                        <label>Kategori</label>
+                        <input id="unitEditCategory" placeholder="A / B / C" />
+                      </div>
+                      <div>
+                        <label>Jumlah (RM)</label>
+                        <input id="unitEditAmount" placeholder="0" type="number" step="0.01" />
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+                      <button id="saveUnitBtn" class="btn">Simpan Unit</button>
+                      <button id="cancelUnitBtn" class="btn-ghost">Batal</button>
+                    </div>
+                  </div>
+
+                  <div id="unitsListArea" style="margin-top:10px;overflow:auto;max-height:260px" class="card card-tight small"></div>
+                </div>
+              </div>
+
               <!-- parking grid removed per request: Masuk / Luar lot blocks omitted -->
               <div id="parkingListArea" style="display:none; margin-top:8px"></div>
             </div>
@@ -303,6 +351,8 @@
     document.head.appendChild(style);
   </script>
   <script type="module" src="js/firebase-init.js"></script>
+  <script src="config.local.js"></script>
+  <script src="config.example.js"></script>
   <script type="module" src="js/dashboard.js"></script>
 </body>
 </html>

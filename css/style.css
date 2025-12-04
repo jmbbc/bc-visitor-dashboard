@@ -259,6 +259,16 @@ button{
 .btn, button.primary{ background:var(--accent) !important; color:#fff !important; }
 .btn-ghost, button.ghost{ background:transparent !important; color:var(--text-900) !important; border:1px solid var(--input-border) !important; }
 button.btn-edit{ background:var(--warning) !important; color:#fff !important; border:0 !important; }
+
+/* Unit category badge used in registration table */
+.unit-cat-badge { display:inline-block; padding:6px 8px; border-radius:8px; background:linear-gradient(180deg, #f3f4f6, #fff); border:1px solid var(--input-border); font-weight:700; font-size:13px; }
+
+/* Admin parking panel styles */
+#parkingAdmin { margin-top:8px; }
+#parkingAdmin input[type="file"] { background:transparent; padding:6px; border:1px dashed var(--input-border); }
+#unitsListArea table { width:100%; border-collapse:collapse; }
+#unitsListArea table td, #unitsListArea table th { padding:6px; border-bottom:1px solid var(--input-border); }
+#csvPreviewArea pre { white-space:pre-wrap; font-size:13px; }
 button[disabled]{ opacity:.6; cursor:not-allowed; }
 
 /* -------------------------

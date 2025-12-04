@@ -70,6 +70,24 @@ const todayTime = document.getElementById('todayTime');
 const kpiWrap = document.getElementById('kpiWrap');
 const injectedControls = document.getElementById('injectedControls');
 
+// Units cache (unitId -> doc data) used to display unit category fallback
+const unitsCache = Object.create(null);
+
+function setAdminLoggedIn(val){
+  try { sessionStorage.setItem('admin_logged_in', val ? '1' : '0'); } catch(e) {}
+}
+function isAdminLoggedIn(){ try { return sessionStorage.getItem('admin_logged_in') === '1'; } catch(e){ return false; } }
+
+async function loadAllUnitsToCache(){
+  try{
+    if (!window.__FIRESTORE) return;
+    const col = collection(window.__FIRESTORE, 'units');
+    const snap = await getDocs(col);
+    snap.forEach(d => { unitsCache[d.id] = d.data(); });
+    console.info('[units] loaded', Object.keys(unitsCache).length);
+  } catch(e) { console.warn('[units] cache load failed', e); }
+}
+
 const navSummary = document.getElementById('navSummary');
 const navCheckedIn = document.getElementById('navCheckedIn');
 const navParking = document.getElementById('navParking');
@@ -251,6 +269,199 @@ async function loadTodayList(){
   const dateStr = (active === 'checkedin' && filterDateCheckedIn && filterDateCheckedIn.value) ? filterDateCheckedIn.value : ((filterDateSummary && filterDateSummary.value) ? filterDateSummary.value : isoDateString(new Date()));
   await loadListForDateStr(dateStr);
 }
+
+/* ---------- Admin: simple shared-password / units editor & CSV import ---------- */
+// password is taken from window.__APP_CONFIG?.adminPassword or fallback to 'admin'
+function adminPasswordIsCorrect(val){
+  try {
+    const cfg = window.__APP_CONFIG || {};
+    const expected = cfg.adminPassword || 'admin';
+    return String(val || '') === String(expected);
+  } catch(e) { return false; }
+}
+
+function renderUnitsList(){
+  const el = document.getElementById('unitsListArea');
+  if (!el) return;
+  const keys = Object.keys(unitsCache).sort();
+  if (!keys.length) { el.innerHTML = '<div class="small">Tiada unit dalam rekod.</div>'; return; }
+  let html = '<table><thead><tr><th>Unit</th><th>Kategori</th><th>Tunggakan</th><th>Jumlah (RM)</th><th>Terakhir</th><th></th></tr></thead><tbody>';
+  keys.forEach(k => {
+    const u = unitsCache[k] || {};
+    html += `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(u.category||'')}</td><td>${u.arrears ? 'Ya' : 'Tiada'}</td><td>${typeof u.arrearsAmount === 'number' ? 'RM'+String(u.arrearsAmount) : '-'}</td><td>${u.lastUpdatedAt ? formatDateOnly(u.lastUpdatedAt) : '-'}</td><td><button class="btn-ghost small" data-unit-edit="${escapeHtml(k)}">Edit</button></td></tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+  // wire up edit buttons
+  el.querySelectorAll('button[data-unit-edit]').forEach(b => {
+    b.addEventListener('click', (ev) => {
+      const id = b.getAttribute('data-unit-edit');
+      const u = unitsCache[id] || {};
+      document.getElementById('unitEditArea').style.display = 'block';
+      document.getElementById('unitEditId').value = id;
+      document.getElementById('unitEditCategory').value = u.category || '';
+      document.getElementById('unitEditArrears').value = u.arrears ? 'true' : 'false';
+      document.getElementById('unitEditAmount').value = typeof u.arrearsAmount === 'number' ? u.arrearsAmount : '';
+    });
+  });
+}
+
+async function adminLogin(password){
+  if (!adminPasswordIsCorrect(password)) return false;
+  setAdminLoggedIn(true);
+  document.getElementById('adminLoginWrap').style.display = 'none';
+  document.getElementById('adminControls').style.display = 'block';
+  document.getElementById('adminLogoutBtn').style.display = 'inline-block';
+  document.getElementById('adminLoginMsg').textContent = 'Log masuk sebagai admin.';
+  // load units into cache
+  await loadAllUnitsToCache();
+  renderUnitsList();
+  return true;
+}
+
+function adminLogout(){
+  setAdminLoggedIn(false);
+  document.getElementById('adminLoginWrap').style.display = 'block';
+  document.getElementById('adminControls').style.display = 'none';
+  document.getElementById('adminLogoutBtn').style.display = 'none';
+  document.getElementById('adminLoginMsg').textContent = '';
+}
+
+// CSV parsing (simple RFC4180-ish, returns array of objects using header row)
+function parseCSV(text){
+  const rows = [];
+  // split into lines, handle \r\n and quoted values roughly
+  const lines = text.replace(/\r/g,'').split('\n').filter(l => l.trim().length);
+  if (!lines.length) return rows;
+  const header = lines[0].split(',').map(h => h.trim());
+  for (let i=1;i<lines.length;i++){
+    const line = lines[i];
+    // basic split (does not handle embedded commas inside quotes reliably) — for most CSVs this is ok
+    const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g,''));
+    if (parts.length === 0) continue;
+    const obj = {};
+    for (let j=0;j<header.length;j++) obj[header[j]] = parts[j] || '';
+    rows.push(obj);
+  }
+  return rows;
+}
+
+async function saveUnitToFirestore(unitId, data){
+  if (!window.__FIRESTORE) throw new Error('firestore unavailable');
+  const ref = doc(window.__FIRESTORE, 'units', unitId);
+  const payload = Object.assign({}, data, { lastUpdatedAt: serverTimestamp(), lastUpdatedBy: who.textContent || 'admin' });
+  await setDoc(ref, payload, { merge: true });
+  // update cache
+  unitsCache[unitId] = Object.assign({}, unitsCache[unitId] || {}, data, { lastUpdatedAt: new Date() });
+  renderUnitsList();
+}
+
+async function importUnitsFromArray(rows){
+  if (!window.__FIRESTORE) throw new Error('firestore unavailable');
+  // rows: array of objects with unitId, category, arrears, arrearsAmount
+  const BATCH_SIZE = 200;
+  const batches = [];
+  let currentBatch = writeBatch(window.__FIRESTORE);
+  let count = 0, batchCount = 0;
+  for (const r of rows){
+    const id = (r.unitId || r.unit || r.Unit || '').trim();
+    if (!id) continue;
+    const data = { category: (r.category || '').trim(), arrears: String(r.arrears || '').toLowerCase() === 'true', arrearsAmount: r.arrearsAmount ? Number(r.arrearsAmount) : null };
+    const ref = doc(window.__FIRESTORE, 'units', id);
+    currentBatch.set(ref, Object.assign({}, data, { lastUpdatedAt: serverTimestamp(), lastUpdatedBy: who.textContent || 'admin' }), { merge: true });
+    count++;
+    if (count >= BATCH_SIZE){ batches.push(currentBatch); currentBatch = writeBatch(window.__FIRESTORE); count = 0; batchCount++; }
+  }
+  if (count > 0) batches.push(currentBatch);
+  let success = 0;
+  for (let i=0;i<batches.length;i++){
+    try { await batches[i].commit(); success++; } catch(e) { console.error('batch commit failed', e); }
+  }
+  // reload cache
+  await loadAllUnitsToCache();
+  renderUnitsList();
+  return { batches: batches.length, committed: success };
+}
+
+// wire admin UI when dashboard is initialized
+document.addEventListener('DOMContentLoaded', ()=>{
+  const loginBtnAdmin = document.getElementById('adminLoginBtn');
+  const logoutBtnAdmin = document.getElementById('adminLogoutBtn');
+  const adminMsg = document.getElementById('adminLoginMsg');
+  const passwordEl = document.getElementById('adminPassword');
+  const unitSearchEl = document.getElementById('unitSearch');
+  const unitAddBtnEl = document.getElementById('unitAddBtn');
+  const saveUnitBtn = document.getElementById('saveUnitBtn');
+  const cancelUnitBtn = document.getElementById('cancelUnitBtn');
+  const csvInput = document.getElementById('csvFileInput');
+  const csvPreviewBtn = document.getElementById('csvPreviewBtn');
+  const csvImportBtn = document.getElementById('csvImportBtn');
+  const csvPreviewArea = document.getElementById('csvPreviewArea');
+
+  if (!loginBtnAdmin) return;
+
+  // restore admin session if present
+  if (isAdminLoggedIn()) {
+    document.getElementById('adminLoginWrap').style.display = 'none';
+    document.getElementById('adminControls').style.display = 'block';
+    document.getElementById('adminLogoutBtn').style.display = 'inline-block';
+    loadAllUnitsToCache().then(()=> renderUnitsList());
+  }
+
+  loginBtnAdmin.addEventListener('click', async ()=>{
+    const ok = await adminLogin(passwordEl.value || '');
+    if (!ok) adminMsg.textContent = 'Password salah.';
+    else adminMsg.textContent = '';
+  });
+
+  logoutBtnAdmin.addEventListener('click', ()=>{ adminLogout(); });
+
+  unitAddBtnEl?.addEventListener('click', ()=>{
+    const v = (unitSearchEl?.value || '').trim();
+    if (!v) { document.getElementById('unitEditArea').style.display = 'block'; document.getElementById('unitEditId').value = ''; return; }
+    document.getElementById('unitEditArea').style.display = 'block'; document.getElementById('unitEditId').value = v;
+    const u = unitsCache[v] || {};
+    document.getElementById('unitEditCategory').value = u.category || '';
+    document.getElementById('unitEditArrears').value = u.arrears ? 'true' : 'false';
+    document.getElementById('unitEditAmount').value = typeof u.arrearsAmount === 'number' ? u.arrearsAmount : '';
+  });
+
+  cancelUnitBtn?.addEventListener('click', ()=>{ document.getElementById('unitEditArea').style.display = 'none'; });
+
+  saveUnitBtn?.addEventListener('click', async ()=>{
+    const id = (document.getElementById('unitEditId').value || '').trim();
+    if (!id) { alert('Unit ID kosong'); return; }
+    const cat = (document.getElementById('unitEditCategory').value || '').trim();
+    const arr = document.getElementById('unitEditArrears').value === 'true';
+    const amount = document.getElementById('unitEditAmount').value ? Number(document.getElementById('unitEditAmount').value) : null;
+    try { await saveUnitToFirestore(id, { category: cat, arrears: arr, arrearsAmount: amount }); toast('Unit disimpan'); document.getElementById('unitEditArea').style.display = 'none'; } catch(e) { console.error(e); toast('Gagal simpan unit', false); }
+  });
+
+  csvPreviewBtn?.addEventListener('click', ()=>{
+    if (!csvInput || !csvInput.files || !csvInput.files[0]) { csvPreviewArea.style.display = 'block'; csvPreviewArea.textContent = 'Sila pilih fail CSV terlebih dahulu.'; return; }
+    const f = csvInput.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rows = parseCSV(reader.result || '');
+      csvPreviewArea.style.display = 'block'; csvPreviewArea.innerHTML = '<div class="small">Pratonton (10 baris pertama)</div>';
+      const preview = rows.slice(0,10).map(r=> JSON.stringify(r)).join('\n');
+      const pre = document.createElement('pre'); pre.textContent = preview; csvPreviewArea.appendChild(pre);
+      csvPreviewArea._rows = rows;
+    };
+    reader.readAsText(f);
+  });
+
+  csvImportBtn?.addEventListener('click', async ()=>{
+    if (!csvPreviewArea || !csvPreviewArea._rows || !csvPreviewArea._rows.length) { alert('Sila pratonton CSV terlebih dahulu'); return; }
+    if (!confirm('Sahkan import CSV? Ini akan mengemas kini collection units (tidak mengubah rekod pendaftaran lama).')) return;
+    try {
+      document.getElementById('spinner').style.display = 'flex';
+      const res = await importUnitsFromArray(csvPreviewArea._rows);
+      toast('Import selesai: ' + (res.batches||0) + ' batch(es)');
+    } catch(e) { console.error(e); toast('Import gagal', false); }
+    finally { document.getElementById('spinner').style.display = 'none'; }
+  });
+});
 
 if (reloadBtn) reloadBtn.addEventListener('click', ()=> loadTodayList());
 if (filterDateSummary) filterDateSummary.addEventListener('change', ()=>{
@@ -505,6 +716,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     thead.innerHTML = `<tr>
       <th>Nama Pelawat</th>
       <th>Unit / Tuan Rumah</th>
+      <th>Kategori Unit</th>
       <th>ETA</th>
       <th>ETD</th>
       <th>Kenderaan</th>
@@ -540,6 +752,15 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     tr.innerHTML = `
       <td class="visitor-cell">${escapeHtml(r.visitorName || '')}${r.entryDetails ? '<div class="small">'+escapeHtml(r.entryDetails || '')+'</div>' : ''}${r.visitorPhone ? (function(){ const waHref = normalizePhoneForWhatsapp(r.visitorPhone); return '<div class="small visitor-phone"><a class="tel-link" href="'+waHref+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(r.visitorPhone)+'</a></div>'; })() : ''}</td>
       <td>${escapeHtml(r.hostUnit || '')}${hostContactHtml ? '<div class="small">'+hostContactHtml+'</div>' : ''}</td>
+      <td>${(function(){
+        // prefer embedded snapshot on the visitor doc, fall back to units cache
+        const uc = (r.unitCategory && String(r.unitCategory).trim()) ? String(r.unitCategory).trim() : (unitsCache[r.hostUnit] && unitsCache[r.hostUnit].category ? unitsCache[r.hostUnit].category : '—');
+        const arrears = (r.unitArrears === true) ? true : (unitsCache[r.hostUnit] && unitsCache[r.hostUnit].arrears === true);
+        const amount = (typeof r.unitArrearsAmount === 'number') ? r.unitArrearsAmount : (unitsCache[r.hostUnit] && typeof unitsCache[r.hostUnit].arrearsAmount === 'number' ? unitsCache[r.hostUnit].arrearsAmount : null);
+        const badge = `<span class="unit-cat-badge">${escapeHtml(String(uc))}</span>`;
+        const t = `${badge}${arrears ? ' <div class="small" style="margin-top:4px;color:#b91c1c">Tunggakan'+(amount ? ': RM'+String(amount) : '')+'</div>' : ''}`;
+        return t;
+      })()}</td>
       <td>${formatDateOnly(r.eta)}</td>
       <td>${formatDateOnly(r.etd)}</td>
       <td>${escapeHtml(vehicleDisplay)}</td>

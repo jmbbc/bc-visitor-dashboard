@@ -2,6 +2,7 @@ node_modules/
 dup-report.json
 serviceAccount.json
 .env
+config.local.js
 /.idea/
 /.vscode/
 npm-debug.log

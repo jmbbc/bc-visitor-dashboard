@@ -1,6 +1,6 @@
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
-  collection, serverTimestamp, Timestamp, doc, setDoc, runTransaction
+  collection, serverTimestamp, Timestamp, doc, setDoc, runTransaction, getDoc
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-functions.js";
 
@@ -1159,6 +1159,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const unitFound = units.includes(hostUnit);
       if (!unitFound) { const el = document.getElementById('hostUnit'); setFieldError(el, 'Unit tidak ditemui dalam senarai'); try { el.focus(); } catch(e) {} updateUnitStatus(el); showStatus('Unit tidak ditemui dalam senarai; pastikan ia betul.', false); return; }
 
+      // try to attach current unit metadata (snapshot) from units/{id} if available
+      let unitSnapshot = null;
+      try {
+        const unitRef = doc(window.__FIRESTORE, 'units', hostUnit);
+        const udoc = await getDoc(unitRef);
+        if (udoc && udoc.exists()) unitSnapshot = udoc.data();
+      } catch(e) { /* ignore if read fails */ }
+
       const payload = {
         hostUnit,
         hostUnitFound: unitFound,
@@ -1181,6 +1189,14 @@ document.addEventListener('DOMContentLoaded', () => {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
+
+      // if units/{hostUnit} exists, snapshot category/arrears into payload for future reference
+      if (unitSnapshot) {
+        payload.unitCategory = unitSnapshot.category || '';
+        payload.unitArrears = !!unitSnapshot.arrears;
+        if (typeof unitSnapshot.arrearsAmount === 'number') payload.unitArrearsAmount = unitSnapshot.arrearsAmount;
+        if (unitSnapshot.lastUpdatedAt) payload.unitLastUpdatedAt = unitSnapshot.lastUpdatedAt;
+      }
 
       // client-side duplicate guard: prevent same submission within short window
       const _fingerprint = clientFingerprintForSubmission({ etaDate, hostUnit, visitorPhone, visitorName });
