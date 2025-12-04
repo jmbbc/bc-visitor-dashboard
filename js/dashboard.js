@@ -309,10 +309,12 @@ function renderUnitsList(){
 async function adminLogin(password){
   if (!adminPasswordIsCorrect(password)) return false;
   setAdminLoggedIn(true);
-  document.getElementById('adminLoginWrap').style.display = 'none';
-  document.getElementById('adminControls').style.display = 'block';
-  document.getElementById('adminLogoutBtn').style.display = 'inline-block';
-  document.getElementById('adminLoginMsg').textContent = 'Log masuk sebagai admin.';
+  try { const a = document.getElementById('adminLoginWrap'); if (a) a.style.display = 'none'; } catch(e) {}
+  try { const p = document.getElementById('parkingLoginPage'); if (p) p.style.display = 'none'; } catch(e) {}
+  try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e) {}
+  try { const l = document.getElementById('adminLogoutBtn'); if (l) l.style.display = 'inline-block'; } catch(e) {}
+  try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Log masuk sebagai admin.'; } catch(e) {}
+  try { const pm = document.getElementById('parkingAdminMsg'); if (pm) pm.textContent = ''; } catch(e) {}
   // load units into cache
   await loadAllUnitsToCache();
   renderUnitsList();
@@ -321,10 +323,12 @@ async function adminLogin(password){
 
 function adminLogout(){
   setAdminLoggedIn(false);
-  document.getElementById('adminLoginWrap').style.display = 'block';
-  document.getElementById('adminControls').style.display = 'none';
-  document.getElementById('adminLogoutBtn').style.display = 'none';
-  document.getElementById('adminLoginMsg').textContent = '';
+  try { const a = document.getElementById('adminLoginWrap'); if (a) a.style.display = 'block'; } catch(e) {}
+  try { const p = document.getElementById('parkingLoginPage'); if (p) p.style.display = 'block'; } catch(e) {}
+  try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'none'; } catch(e) {}
+  try { const l = document.getElementById('adminLogoutBtn'); if (l) l.style.display = 'none'; } catch(e) {}
+  try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = ''; } catch(e) {}
+  try { const pm = document.getElementById('parkingAdminMsg'); if (pm) pm.textContent = ''; } catch(e) {}
 }
 
 // CSV parsing (simple RFC4180-ish, returns array of objects using header row)
@@ -387,6 +391,12 @@ async function importUnitsFromArray(rows){
 document.addEventListener('DOMContentLoaded', ()=>{
   const loginBtnAdmin = document.getElementById('adminLoginBtn');
   const logoutBtnAdmin = document.getElementById('adminLogoutBtn');
+  const sidebarLoginBtn = document.getElementById('sidebarAdminLoginBtn');
+  const sidebarLogoutBtn = document.getElementById('sidebarAdminLogoutBtn');
+  const sidebarPwd = document.getElementById('sidebarAdminPassword');
+  const sidebarMsg = document.getElementById('sidebarAdminLoginMsg');
+  const parkingLoginBtnEl = document.getElementById('parkingAdminLoginBtn');
+  const parkingLogoutBtnEl = document.getElementById('parkingAdminLogoutBtn');
   const adminMsg = document.getElementById('adminLoginMsg');
   const passwordEl = document.getElementById('adminPassword');
   const unitSearchEl = document.getElementById('unitSearch');
@@ -398,23 +408,49 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const csvImportBtn = document.getElementById('csvImportBtn');
   const csvPreviewArea = document.getElementById('csvPreviewArea');
 
-  if (!loginBtnAdmin) return;
+  // proceed if any admin-login control exists (sidebar or parking)
+  if (!loginBtnAdmin && !sidebarLoginBtn && !parkingLoginBtnEl) return;
 
   // restore admin session if present
   if (isAdminLoggedIn()) {
-    document.getElementById('adminLoginWrap').style.display = 'none';
-    document.getElementById('adminControls').style.display = 'block';
-    document.getElementById('adminLogoutBtn').style.display = 'inline-block';
+    try { const pLogin = document.getElementById('parkingLoginPage'); if (pLogin) pLogin.style.display = 'none'; } catch(e) {}
+    try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e) {}
+    try { if (sidebarLoginBtn) sidebarLoginBtn.style.display = 'none'; if (sidebarLogoutBtn) sidebarLogoutBtn.style.display = 'inline-block'; } catch(e) {}
+    try { if (parkingLogoutBtnEl) parkingLogoutBtnEl.style.display = 'inline-block'; } catch(e) {}
     loadAllUnitsToCache().then(()=> renderUnitsList());
   }
 
-  loginBtnAdmin.addEventListener('click', async ()=>{
+  if (loginBtnAdmin) loginBtnAdmin.addEventListener('click', async ()=>{
     const ok = await adminLogin(passwordEl.value || '');
     if (!ok) adminMsg.textContent = 'Password salah.';
     else adminMsg.textContent = '';
   });
 
-  logoutBtnAdmin.addEventListener('click', ()=>{ adminLogout(); });
+  // Parking-specific login button (shown when navParking is clicked)
+  const parkingLoginBtn = document.getElementById('parkingAdminLoginBtn');
+  const parkingPwd = document.getElementById('parkingAdminPassword');
+  const parkingMsg = document.getElementById('parkingAdminMsg');
+  const parkingLoginPage = document.getElementById('parkingLoginPage');
+  if (parkingLoginBtn) {
+    parkingLoginBtn.addEventListener('click', async ()=>{
+      const ok = await adminLogin(parkingPwd?.value || '');
+      if (!ok) {
+        if (parkingMsg) parkingMsg.textContent = 'Kata laluan salah';
+      } else {
+        if (parkingMsg) parkingMsg.textContent = '';
+        // hide the login page and ensure parking view shows admin controls
+        if (parkingLoginPage) parkingLoginPage.style.display = 'none';
+        document.getElementById('adminControls').style.display = 'block';
+      }
+    });
+  }
+  const parkingCancelBtn = document.getElementById('parkingAdminCancelBtn');
+  if (parkingCancelBtn) parkingCancelBtn.addEventListener('click', ()=>{ if (parkingLoginPage) parkingLoginPage.style.display = 'none'; });
+
+  // parking/logout button inside adminControls
+  if (parkingLogoutBtnEl) parkingLogoutBtnEl.addEventListener('click', ()=>{ adminLogout();
+    try { if (sidebarLoginBtn) sidebarLoginBtn.style.display = 'inline-block'; if (sidebarLogoutBtn) sidebarLogoutBtn.style.display = 'none'; } catch(e) {}
+  });
 
   unitAddBtnEl?.addEventListener('click', ()=>{
     const v = (unitSearchEl?.value || '').trim();
@@ -461,6 +497,30 @@ document.addEventListener('DOMContentLoaded', ()=>{
     } catch(e) { console.error(e); toast('Import gagal', false); }
     finally { document.getElementById('spinner').style.display = 'none'; }
   });
+
+  // wire sidebar admin quick-login controls (if present)
+  if (sidebarLoginBtn) {
+    sidebarLoginBtn.addEventListener('click', async () => {
+      const ok = await adminLogin(sidebarPwd?.value || '');
+      if (!ok) {
+        if (sidebarMsg) sidebarMsg.textContent = 'Password salah.';
+      } else {
+        if (sidebarMsg) sidebarMsg.textContent = '';
+        // reflect login state to sidebar controls
+        if (sidebarLoginBtn) sidebarLoginBtn.style.display = 'none';
+        if (sidebarLogoutBtn) sidebarLogoutBtn.style.display = 'inline-block';
+      }
+    });
+  }
+  if (sidebarLogoutBtn) {
+    sidebarLogoutBtn.addEventListener('click', () => {
+      adminLogout();
+      if (sidebarLoginBtn) sidebarLoginBtn.style.display = 'inline-block';
+      if (sidebarLogoutBtn) sidebarLogoutBtn.style.display = 'none';
+      if (sidebarMsg) sidebarMsg.textContent = '';
+      try { if (sidebarPwd) sidebarPwd.value = ''; } catch(e){}
+    });
+  }
 });
 
 if (reloadBtn) reloadBtn.addEventListener('click', ()=> loadTodayList());
@@ -1525,6 +1585,18 @@ document.addEventListener('DOMContentLoaded', ()=>{
         try { console.info('[navParking] renderParkingWeekCalendar after load'); renderParkingWeekCalendar(ds); } catch(e){ console.warn('[navParking] calendar render failed', e); }
         if (typeof renderParkingLotSummary === 'function') { console.info('[navParking] scheduling renderParkingLotSummary'); setTimeout(()=>renderParkingLotSummary(ds), 100); }
       }).catch(err=>{ console.warn('[navParking] loadParkingForDate error', err); });
+      // if admin not logged in, show dedicated parking login page
+      try {
+        const pLogin = document.getElementById('parkingLoginPage');
+        const controls = document.getElementById('adminControls');
+        if (!isAdminLoggedIn()) {
+          if (pLogin) pLogin.style.display = 'block';
+          if (controls) controls.style.display = 'none';
+        } else {
+          if (pLogin) pLogin.style.display = 'none';
+          if (controls) controls.style.display = 'block';
+        }
+      } catch(e) { /* ignore */ }
     });
   }
 
