@@ -91,6 +91,7 @@ async function loadAllUnitsToCache(){
 const navSummary = document.getElementById('navSummary');
 const navCheckedIn = document.getElementById('navCheckedIn');
 const navParking = document.getElementById('navParking');
+const navUnitAdmin = document.getElementById('navUnitAdmin');
 const exportCSVBtn = document.getElementById('exportCSVBtn');
 
 // auto-refresh timer handle
@@ -133,6 +134,7 @@ function getActivePageKey(){
     if (navSummary && navSummary.classList.contains('active')) return 'summary';
     if (navCheckedIn && navCheckedIn.classList.contains('active')) return 'checkedin';
     if (navParking && navParking.classList.contains('active')) return 'parking';
+    if (navUnitAdmin && navUnitAdmin.classList.contains('active')) return 'unitadmin';
   } catch(e){}
   return 'summary';
 }
@@ -414,9 +416,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // restore admin session if present
   if (isAdminLoggedIn()) {
     try { const pLogin = document.getElementById('parkingLoginPage'); if (pLogin) pLogin.style.display = 'none'; } catch(e) {}
+    try { const newLogin = document.getElementById('adminLoginBox'); if (newLogin) newLogin.style.display = 'none'; } catch(e) {}
     try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e) {}
     try { if (sidebarLoginBtn) sidebarLoginBtn.style.display = 'none'; if (sidebarLogoutBtn) sidebarLogoutBtn.style.display = 'inline-block'; } catch(e) {}
     try { if (parkingLogoutBtnEl) parkingLogoutBtnEl.style.display = 'inline-block'; } catch(e) {}
+    try { if (document.getElementById('adminLogoutBtn')) document.getElementById('adminLogoutBtn').style.display = 'inline-block'; } catch(e) {}
     loadAllUnitsToCache().then(()=> renderUnitsList());
   }
 
@@ -539,6 +543,7 @@ if (filterDateCheckedIn) filterDateCheckedIn.addEventListener('change', ()=>{
 // parking date is managed by the parking module's week navigator -> no DOM date input change handler
 if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary'); });
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
+if (navUnitAdmin) navUnitAdmin.addEventListener('click', ()=> { try { setSelectedNav(navUnitAdmin); } catch(e){}; showPage('unitadmin'); });
 if (exportCSVBtn) exportCSVBtn.addEventListener('click', ()=> { exportCSVForToday(); });
 
 /* ---------- core fetch ---------- */
@@ -1247,6 +1252,19 @@ function showPage(key){
     try { setSelectedNav(navCheckedIn); } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = ''; } catch(e) {}
     if (navParking) navParking.classList.remove('active');
+  }
+  else if (key === 'unitadmin') {
+    document.getElementById('pageSummary').style.display = 'none';
+    document.getElementById('pageCheckedIn').style.display = 'none';
+    document.getElementById('pageParking').style.display = 'none';
+    const page = document.getElementById('pageUnitAdmin'); if (page) page.style.display = '';
+    // update nav active states
+    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.add('active'); } catch(e){}
+    // hide KPIs
+    try { kpiWrap.style.display = 'none'; } catch(e) {}
+    try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
+    // unsubscribe summary/checked-in snapshot
+    try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
   }
   // If user navigates away from registration views (eg. parking) unsubscribe snapshot listeners
   if (key !== 'summary' && key !== 'checkedin') {
