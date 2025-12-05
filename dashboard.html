@@ -389,8 +389,9 @@
     document.head.appendChild(style);
   </script>
   <script type="module" src="js/firebase-init.js"></script>
-  <script src="config.local.js"></script>
+  <!-- Load defaults first, then override with a local config if present -->
   <script src="config.example.js"></script>
+  <script src="config.local.js"></script>
   <script type="module" src="js/dashboard.js"></script>
 </body>
 </html>
