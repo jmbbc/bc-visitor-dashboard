@@ -312,6 +312,8 @@ async function adminLogin(password){
   if (!adminPasswordIsCorrect(password)) return false;
   setAdminLoggedIn(true);
   try { const a = document.getElementById('adminLoginWrap'); if (a) a.style.display = 'none'; } catch(e) {}
+  try { const modal = document.getElementById('adminLoginModal'); if (modal) modal.style.display = 'none'; } catch(e) {}
+  try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'none'; } catch(e) {}
   try { const p = document.getElementById('parkingLoginPage'); if (p) p.style.display = 'none'; } catch(e) {}
   try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e) {}
   try { const l = document.getElementById('adminLogoutBtn'); if (l) l.style.display = 'inline-block'; } catch(e) {}
@@ -326,10 +328,13 @@ async function adminLogin(password){
 function adminLogout(){
   setAdminLoggedIn(false);
   try { const a = document.getElementById('adminLoginWrap'); if (a) a.style.display = 'block'; } catch(e) {}
+  try { const modal = document.getElementById('adminLoginModal'); if (modal) modal.style.display = 'none'; } catch(e) {}
+  try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'inline-block'; } catch(e) {}
   try { const p = document.getElementById('parkingLoginPage'); if (p) p.style.display = 'block'; } catch(e) {}
   try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'none'; } catch(e) {}
   try { const l = document.getElementById('adminLogoutBtn'); if (l) l.style.display = 'none'; } catch(e) {}
   try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = ''; } catch(e) {}
+  try { const pm = document.getElementById('adminModalPassword'); if (pm) pm.value = ''; } catch(e) {}
   try { const pm = document.getElementById('parkingAdminMsg'); if (pm) pm.textContent = ''; } catch(e) {}
 }
 
@@ -393,6 +398,13 @@ async function importUnitsFromArray(rows){
 document.addEventListener('DOMContentLoaded', ()=>{
   const loginBtnAdmin = document.getElementById('adminLoginBtn');
   const logoutBtnAdmin = document.getElementById('adminLogoutBtn');
+  const adminOpenLoginBtn = document.getElementById('adminOpenLoginBtn');
+  const adminModal = document.getElementById('adminLoginModal');
+  const adminModalLoginBtn = document.getElementById('adminModalLoginBtn');
+  const adminModalCancelBtn = document.getElementById('adminModalCancelBtn');
+  const adminModalClose = document.getElementById('adminModalClose');
+  const adminModalPassword = document.getElementById('adminModalPassword');
+  const adminModalMsg = document.getElementById('adminModalMsg');
   const sidebarLoginBtn = document.getElementById('sidebarAdminLoginBtn');
   const sidebarLogoutBtn = document.getElementById('sidebarAdminLogoutBtn');
   const sidebarPwd = document.getElementById('sidebarAdminPassword');
@@ -410,13 +422,14 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const csvImportBtn = document.getElementById('csvImportBtn');
   const csvPreviewArea = document.getElementById('csvPreviewArea');
 
-  // proceed if any admin-login control exists (sidebar or parking)
-  if (!loginBtnAdmin && !sidebarLoginBtn && !parkingLoginBtnEl) return;
+  // proceed if any admin-login control exists (sidebar, modal, or parking)
+  if (!adminOpenLoginBtn && !loginBtnAdmin && !sidebarLoginBtn && !parkingLoginBtnEl) return;
 
   // restore admin session if present
   if (isAdminLoggedIn()) {
     try { const pLogin = document.getElementById('parkingLoginPage'); if (pLogin) pLogin.style.display = 'none'; } catch(e) {}
-    try { const newLogin = document.getElementById('adminLoginBox'); if (newLogin) newLogin.style.display = 'none'; } catch(e) {}
+    try { const modal = document.getElementById('adminLoginModal'); if (modal) modal.style.display = 'none'; } catch(e) {}
+    try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'none'; } catch(e) {}
     try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e) {}
     try { if (sidebarLoginBtn) sidebarLoginBtn.style.display = 'none'; if (sidebarLogoutBtn) sidebarLogoutBtn.style.display = 'inline-block'; } catch(e) {}
     try { if (parkingLogoutBtnEl) parkingLogoutBtnEl.style.display = 'inline-block'; } catch(e) {}
@@ -424,11 +437,29 @@ document.addEventListener('DOMContentLoaded', ()=>{
     loadAllUnitsToCache().then(()=> renderUnitsList());
   }
 
-  if (loginBtnAdmin) loginBtnAdmin.addEventListener('click', async ()=>{
-    const ok = await adminLogin(passwordEl.value || '');
-    if (!ok) adminMsg.textContent = 'Password salah.';
-    else adminMsg.textContent = '';
-  });
+  // wire new modal-login open button (in-page) — opens login modal
+  if (adminOpenLoginBtn) {
+    adminOpenLoginBtn.addEventListener('click', () => {
+      try { if (adminModal) adminModal.style.display = 'flex'; if (adminModalPassword) adminModalPassword.focus(); } catch(e){}
+    });
+  }
+
+  // modal login handler
+  if (adminModalLoginBtn) {
+    adminModalLoginBtn.addEventListener('click', async ()=>{
+      const ok = await adminLogin(adminModalPassword?.value || '');
+      if (!ok) {
+        if (adminModalMsg) adminModalMsg.textContent = 'Password salah.';
+      } else {
+        if (adminModalMsg) adminModalMsg.textContent = '';
+        try { if (adminModal) adminModal.style.display = 'none'; } catch(e){}
+        try { if (adminOpenLoginBtn) adminOpenLoginBtn.style.display = 'none'; } catch(e){}
+      }
+    });
+  }
+
+  if (adminModalCancelBtn) adminModalCancelBtn.addEventListener('click', ()=>{ try{ if (adminModal) adminModal.style.display = 'none'; }catch(e){} });
+  if (adminModalClose) adminModalClose.addEventListener('click', ()=>{ try{ if (adminModal) adminModal.style.display = 'none'; }catch(e){} });
 
   // Parking-specific login button (shown when navParking is clicked)
   const parkingLoginBtn = document.getElementById('parkingAdminLoginBtn');
@@ -455,6 +486,16 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if (parkingLogoutBtnEl) parkingLogoutBtnEl.addEventListener('click', ()=>{ adminLogout();
     try { if (sidebarLoginBtn) sidebarLoginBtn.style.display = 'inline-block'; if (sidebarLogoutBtn) sidebarLogoutBtn.style.display = 'none'; } catch(e) {}
   });
+
+  // handle adminOpenLoginBtn presence if available — leave as a fallback to open modal
+  if (adminOpenLoginBtn && !adminModalLoginBtn && loginBtnAdmin) {
+    // legacy handler: keep old behavior (if modal not present)
+    adminOpenLoginBtn.addEventListener('click', async ()=>{
+      const ok = await adminLogin(passwordEl?.value || '');
+      if (!ok) adminMsg.textContent = 'Password salah.';
+      else adminMsg.textContent = '';
+    });
+  }
 
   unitAddBtnEl?.addEventListener('click', ()=>{
     const v = (unitSearchEl?.value || '').trim();

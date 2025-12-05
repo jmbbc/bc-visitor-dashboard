@@ -223,16 +223,15 @@
           <div id="pageUnitAdmin" style="display:none; margin-top:12px;">
             <h3 class="page-heading-box" style="margin-top:6px">Kemas Kini Unit — (CSV / Manual)</h3>
             <div class="card card-tight" style="max-width:920px;">
-              <div id="adminLoginBox" class="card" style="max-width:520px;margin:12px auto;padding:18px;display:block;text-align:left">
-                <h4 style="margin-top:0">Log masuk — Kemas Kini Unit</h4>
-                <div class="small muted" style="margin-bottom:8px">Sila log masuk menggunakan kata laluan admin untuk akses dan import CSV.</div>
-                <label for="adminPassword">Kata laluan</label>
-                <input id="adminPassword" type="password" placeholder="Masukkan kata laluan admin" />
-                <div style="display:flex;gap:8px;margin-top:8px">
-                  <button id="adminLoginBtn" class="btn">Log Masuk</button>
-                  <button id="adminCancelBtn" class="btn-ghost">Batal</button>
+              <div style="max-width:920px;margin:6px auto;padding:6px;text-align:left;display:flex;align-items:center;gap:12px;">
+                <div style="flex:1">
+                  <div style="font-weight:700">Kemas Kini Unit</div>
+                  <div class="small muted">Gunakan halaman ini untuk import CSV atau mengemaskini unit secara manual. Klik butang Log Masuk untuk akses pentadbir.</div>
                 </div>
-                <div id="adminLoginMsg" class="small muted" style="margin-top:8px"></div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <button id="adminOpenLoginBtn" class="btn">Log Masuk (Admin)</button>
+                </div>
+                <div id="adminLoginMsg" class="small muted" style="margin-left:12px"></div>
               </div>
 
               <div id="adminControls" style="display:none; margin-top:6px;">
@@ -274,6 +273,22 @@
 
                 <div id="unitsListArea" style="margin-top:10px;overflow:auto;max-height:260px" class="card card-tight small"></div>
               </div>
+            </div>
+          </div>
+
+          <!-- Login modal for Admin (shared-password) -->
+          <div id="adminLoginModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:12010;">
+            <div class="card" style="width:420px;max-width:95%;padding:18px;">
+              <button id="adminModalClose" aria-label="Tutup" style="position:absolute;right:14px;top:14px;border:0;background:transparent;font-weight:700;cursor:pointer">×</button>
+              <h3 style="margin-top:0">Admin Parkir — Log Masuk</h3>
+              <div class="small muted" style="margin-bottom:8px">Masukkan kata laluan pentadbir untuk akses dan import CSV.</div>
+              <label for="adminModalPassword">Password</label>
+              <input id="adminModalPassword" type="password" placeholder="Kata laluan admin" />
+              <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">
+                <button id="adminModalLoginBtn" class="btn">Log Masuk</button>
+                <button id="adminModalCancelBtn" class="btn-ghost">Batal</button>
+              </div>
+              <div id="adminModalMsg" class="small muted" style="margin-top:8px"></div>
             </div>
           </div>
         </section>
