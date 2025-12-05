@@ -1298,13 +1298,14 @@ function showPage(key){
     document.getElementById('pageSummary').style.display = 'none';
     document.getElementById('pageCheckedIn').style.display = 'none';
     document.getElementById('pageParking').style.display = 'none';
-    const page = document.getElementById('pageUnitAdmin'); if (page) page.style.display = '';
+    // show the sidebar-only admin panel
+    const sidePanel = document.getElementById('sidebarUnitAdmin'); if (sidePanel) sidePanel.style.display = '';
     // update nav active states
     try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.add('active'); } catch(e){}
     // hide KPIs
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
-    // unsubscribe summary/checked-in snapshot
+    // ensure snapshot unsubscribed
     try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
   }
   // If user navigates away from registration views (eg. parking) unsubscribe snapshot listeners
@@ -1325,6 +1326,8 @@ function showPage(key){
   }
   // KPIs are only relevant for the registration summary view
   try { kpiWrap.style.display = (key === 'summary') ? '' : 'none'; } catch(e) { /* ignore if missing */ }
+  // hide sidebar admin panel for other pages
+  try { const sidePanel = document.getElementById('sidebarUnitAdmin'); if (sidePanel && key !== 'unitadmin') sidePanel.style.display = 'none'; } catch(e) {}
   // Show/hide the right per-page date input already handled above
 }
 

@@ -144,6 +144,50 @@
               <button id="navUnitAdmin" class="nav-item"><span class="nav-icon">🧾</span><span class="nav-label">Kemas Kini Unit (CSV)</span></button>
             </div>
 
+            <!-- Sidebar-only Unit Admin panel (hidden until navUnitAdmin selected) -->
+            <div id="sidebarUnitAdmin" style="display:none;margin-top:10px;padding:8px;border-radius:8px;background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,250,250,0.98));">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <div style="flex:1;font-weight:700">Kemas Kini Unit</div>
+                <div><button id="adminOpenLoginBtn" class="btn">Log Masuk (Admin)</button></div>
+              </div>
+              <div id="adminControls" style="display:none">
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+                  <input id="unitSearch" placeholder="Cari unit (A-12-03)" />
+                  <button id="unitAddBtn" class="btn">Tambah / Kemas Kini</button>
+                  <input id="csvFileInput" type="file" accept=".csv" style="display:inline-block" />
+                  <button id="csvPreviewBtn" class="btn-ghost">Pratonton CSV</button>
+                  <button id="csvImportBtn" class="btn">Import CSV</button>
+                  <button id="adminLogoutBtn" class="btn-ghost" style="margin-left:auto;display:none">Log Keluar</button>
+                </div>
+                <div id="csvPreviewArea" class="card card-tight small" style="display:none;max-height:200px;overflow:auto"></div>
+                <div id="unitEditArea" style="display:none;margin-top:8px" class="card card-tight small">
+                  <div style="display:grid;grid-template-columns:1fr 80px;gap:8px;align-items:center">
+                    <div>
+                      <label>Unit</label>
+                      <input id="unitEditId" placeholder="A-12-03" />
+                    </div>
+                    <div>
+                      <label>Arrears</label>
+                      <select id="unitEditArrears"><option value="false">Tiada</option><option value="true">Ada</option></select>
+                    </div>
+                    <div>
+                      <label>Kategori</label>
+                      <input id="unitEditCategory" placeholder="A / B / C" />
+                    </div>
+                    <div>
+                      <label>Jumlah (RM)</label>
+                      <input id="unitEditAmount" placeholder="0" type="number" step="0.01" />
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+                    <button id="saveUnitBtn" class="btn">Simpan Unit</button>
+                    <button id="cancelUnitBtn" class="btn-ghost">Batal</button>
+                  </div>
+                </div>
+                <div id="unitsListArea" style="margin-top:10px;overflow:auto;max-height:200px" class="card card-tight small"></div>
+              </div>
+            </div>
+
             <hr style="border:none;border-top:1px solid var(--input-border);margin:10px 0">
             <div class="muted-small">Alat</div>
             <button id="reloadBtn" class="nav-item">Refresh Data</button>
@@ -219,62 +263,7 @@
             </div>
           </div>
 
-          <!-- Dedicated Unit Admin page: login, CSV import and unit editor -->
-          <div id="pageUnitAdmin" style="display:none; margin-top:12px;">
-            <h3 class="page-heading-box" style="margin-top:6px">Kemas Kini Unit — (CSV / Manual)</h3>
-            <div class="card card-tight" style="max-width:920px;">
-              <div style="max-width:920px;margin:6px auto;padding:6px;text-align:left;display:flex;align-items:center;gap:12px;">
-                <div style="flex:1">
-                  <div style="font-weight:700">Kemas Kini Unit</div>
-                  <div class="small muted">Gunakan halaman ini untuk import CSV atau mengemaskini unit secara manual. Klik butang Log Masuk untuk akses pentadbir.</div>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <button id="adminOpenLoginBtn" class="btn">Log Masuk (Admin)</button>
-                </div>
-                <div id="adminLoginMsg" class="small muted" style="margin-left:12px"></div>
-              </div>
-
-              <div id="adminControls" style="display:none; margin-top:6px;">
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-                  <div style="margin-left:auto">
-                    <button id="adminLogoutBtn" class="btn-ghost" style="display:none">Log Keluar</button>
-                  </div>
-                  <input id="unitSearch" placeholder="Cari unit (A-12-03)" />
-                  <button id="unitAddBtn" class="btn">Tambah / Kemas Kini</button>
-                  <input id="csvFileInput" type="file" accept=".csv" style="display:inline-block" />
-                  <button id="csvPreviewBtn" class="btn-ghost">Pratonton CSV</button>
-                  <button id="csvImportBtn" class="btn">Import CSV</button>
-                </div>
-                <div id="csvPreviewArea" class="card card-tight small" style="display:none;max-height:260px;overflow:auto"></div>
-                <div id="unitEditArea" style="display:none;margin-top:8px" class="card card-tight">
-                  <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center">
-                    <div>
-                      <label>Unit</label>
-                      <input id="unitEditId" placeholder="A-12-03" />
-                    </div>
-                    <div>
-                      <label>Arrears</label>
-                      <select id="unitEditArrears"><option value="false">Tiada</option><option value="true">Ada</option></select>
-                    </div>
-                    <div>
-                      <label>Kategori</label>
-                      <input id="unitEditCategory" placeholder="A / B / C" />
-                    </div>
-                    <div>
-                      <label>Jumlah (RM)</label>
-                      <input id="unitEditAmount" placeholder="0" type="number" step="0.01" />
-                    </div>
-                  </div>
-                  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
-                    <button id="saveUnitBtn" class="btn">Simpan Unit</button>
-                    <button id="cancelUnitBtn" class="btn-ghost">Batal</button>
-                  </div>
-                </div>
-
-                <div id="unitsListArea" style="margin-top:10px;overflow:auto;max-height:260px" class="card card-tight small"></div>
-              </div>
-            </div>
-          </div>
+          <!-- Unit Admin was moved into sidebar (shows in sidebar when navUnitAdmin is active) -->
 
           <!-- Login modal for Admin (shared-password) -->
           <div id="adminLoginModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:12010;">
