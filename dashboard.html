@@ -71,9 +71,15 @@
 
     .table-wrap { overflow-x:auto; }
 
+    /* Admin controls row tweaks */
+    .admin-controls-row input[type="text"], .admin-controls-row input[type="search"], .admin-controls-row input[type="date"], .admin-controls-row input[type="number"] { min-height:36px; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); }
+    .admin-controls-row .btn, .admin-controls-row .btn-ghost { min-height:36px; padding:8px 12px; }
+    .csv-controls .file-input-label { font-weight:600; }
+
     @media (max-width: 640px) {
       .login-box { margin:8px 0; }
       .actions button { min-width:72px; padding:8px 6px; }
+      .admin-controls-row { gap:6px; }
     }
 
     /* Modal base (kept minimal; additional styles in css/style.css) */
@@ -149,6 +155,7 @@
             <hr style="border:none;border-top:1px solid var(--input-border);margin:10px 0">
             <div class="muted-small">Alat</div>
             <button id="reloadBtn" class="nav-item">Refresh Data</button>
+            <button id="exportAllCSVBtn" class="nav-item">Eksport CSV (Semua)</button>
             <!-- quick admin login removed — admin controls live in 'Kemas Kini Unit' page -->
             <!-- Export CSV button removed as requested -->
           </nav>
@@ -181,6 +188,9 @@
 
           <!-- Pages -->
           <div id="pageSummary">
+            <div id="summarySearchWrap" style="margin-top:6px; margin-bottom:6px; display:flex; justify-content:flex-end;">
+              <input id="summarySearch" type="search" placeholder="Cari nama / unit / telefon / kenderaan / kategori" style="min-width:260px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari senarai pendaftaran" />
+            </div>
             <h3 class="page-heading-box" style="margin-top:6px">Senarai pendaftaran</h3>
             <div id="listAreaSummary" style="margin-top:8px"></div>
           </div>
@@ -237,17 +247,28 @@
               </div>
 
               <div id="adminControls" style="display:none; margin-top:6px;">
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-                  <div style="margin-left:auto">
+                <div class="admin-controls-row" style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+                  <!-- Left group: logout + search + add/update -->
+                  <div style="display:flex;gap:8px;align-items:center;flex:1;min-width:260px">
                     <button id="adminLogoutBtn" class="btn-ghost" style="display:none">Log Keluar</button>
+                    <input id="unitSearch" placeholder="Cari unit (A-12-03)" style="flex:1;min-width:160px" />
+                    <button id="unitAddBtn" class="btn" style="white-space:nowrap">Tambah / Kemas Kini</button>
                   </div>
-                  <input id="unitSearch" placeholder="Cari unit (A-12-03)" />
-                  <button id="unitAddBtn" class="btn">Tambah / Kemas Kini</button>
-                  <input id="csvFileInput" type="file" accept=".csv" style="display:inline-block" />
-                  <button id="csvPreviewBtn" class="btn-ghost">Pratonton CSV</button>
-                  <button id="csvImportBtn" class="btn">Import CSV</button>
+
+                  <!-- Right group: CSV actions (file input + preview + import) -->
+                  <div class="csv-controls" style="display:flex;gap:8px;align-items:center">
+                    <label for="csvFileInput" class="file-input-label btn-ghost" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:8px 12px;border-radius:8px;border:1px solid var(--input-border);background:var(--surface)">📁 <span id="csvFileLabel">Choose File</span></label>
+                    <input id="csvFileInput" type="file" accept=".csv" style="display:none" />
+                    <button id="csvPreviewBtn" class="btn-ghost" style="white-space:nowrap">Pratonton CSV</button>
+                    <button id="csvImportBtn" class="btn" style="white-space:nowrap">Import CSV</button>
+                    <button id="csvForceWriteBtn" class="btn" style="white-space:nowrap">Tulis Dari CSV (Force)</button>
+                    <!-- Migration controls: preview & apply migration of legacy/misnamed fields -->
+                    <button id="migratePreviewBtn" class="btn-ghost" style="white-space:nowrap">Pratonton Migrasi</button>
+                    <button id="migrateApplyBtn" class="btn" style="white-space:nowrap">Jalankan Migrasi</button>
+                  </div>
                 </div>
                 <div id="csvPreviewArea" class="card card-tight small" style="display:none;max-height:260px;overflow:auto"></div>
+                <div id="migrationPreviewArea" class="card card-tight small" style="display:none;max-height:320px;overflow:auto;margin-top:8px"></div>
                 <div id="unitEditArea" style="display:none;margin-top:8px" class="card card-tight">
                   <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center">
                     <div>
@@ -274,6 +295,7 @@
                 </div>
 
                 <div id="unitsListArea" style="margin-top:10px;overflow:auto;max-height:260px" class="card card-tight small"></div>
+                <div id="unitRawArea" class="card card-tight small" style="display:none;margin-top:8px;max-height:200px;overflow:auto;"></div>
               </div>
             </div>
           </div>
@@ -394,6 +416,8 @@
   <!-- Load defaults first, then override with a local config if present -->
   <script src="config.example.js"></script>
   <script src="config.local.js"></script>
+  <!-- Static units list used by admin views -->
+  <script src="js/units-list.js"></script>
   <script type="module" src="js/dashboard.js"></script>
 </body>
 </html>

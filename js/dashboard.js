@@ -24,9 +24,42 @@ function formatDateOnly(ts){
 }
 function isoDateString(d){ const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const yy = d.getFullYear(); return `${yy}-${mm}-${dd}`; }
 function showLoginMsg(el, m, ok=true){ el.textContent = m; el.style.color = ok ? 'green' : 'red'; }
-function toast(msg, ok = true){ const t = document.createElement('div'); t.className = `msg ${ok ? 'ok' : 'err'}`; t.textContent = msg; // a11y
+function toast(msg, ok = true, opts = {}){
+  // opts.duration ms (default 3000)
+  const duration = typeof opts.duration === 'number' ? opts.duration : 3000;
+  // ensure container exists
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    document.body.appendChild(container);
+  }
+  const t = document.createElement('div');
+  t.className = `msg ${ok ? 'ok' : 'err'} show`;
+  t.textContent = msg; // a11y
   t.setAttribute('role','status'); t.setAttribute('aria-live','polite'); t.setAttribute('aria-atomic','true');
-  document.body.appendChild(t); setTimeout(()=>t.remove(),3000); }
+
+  // allow optional close button for errors (improves accessibility)
+  if (!ok) {
+    const close = document.createElement('button');
+    close.className = 'toast-close';
+    close.type = 'button';
+    close.setAttribute('aria-label','Tutup pemberitahuan');
+    close.textContent = '×';
+    close.addEventListener('click', ()=>{ if (!t._removed) { t._removed = true; t.classList.add('fade'); setTimeout(()=> t.remove(), 220); } });
+    // add as last child (keep message readable)
+    t.appendChild(close);
+  }
+
+  container.appendChild(t);
+  // schedule auto-dismiss
+  const hide = ()=>{ if (!t._removed) { t._removed = true; t.classList.add('fade'); setTimeout(()=> t.remove(), 220); } };
+  let timer = setTimeout(hide, duration);
+  // pause on hover
+  t.addEventListener('mouseenter', ()=>{ clearTimeout(timer); });
+  t.addEventListener('mouseleave', ()=>{ timer = setTimeout(hide, 1200); });
+  return t;
+}
 function escapeHtml(s){ if (!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function normalizePhoneForWhatsapp(raw){
   let p = String(raw || '').trim();
@@ -58,6 +91,7 @@ const who = document.getElementById('who');
 const listAreaSummary = document.getElementById('listAreaSummary');
 const listAreaCheckedIn = document.getElementById('listAreaCheckedIn');
 const reloadBtn = document.getElementById('reloadBtn');
+const summarySearch = document.getElementById('summarySearch');
 // per-page date inputs (summary, checked-in, parking)
 const filterDateSummary = document.getElementById('filterDateSummary');
 const filterDateCheckedIn = document.getElementById('filterDateCheckedIn');
@@ -72,11 +106,50 @@ const injectedControls = document.getElementById('injectedControls');
 
 // Units cache (unitId -> doc data) used to display unit category fallback
 const unitsCache = Object.create(null);
+// Flag set when reading units collection fails due to insufficient permissions
+let unitsLoadPermissionDenied = false;
 
 function setAdminLoggedIn(val){
   try { sessionStorage.setItem('admin_logged_in', val ? '1' : '0'); } catch(e) {}
+  try {
+    // Enable/disable admin-only controls
+    const enable = !!val;
+    const csvImportBtn = document.getElementById('csvImportBtn'); if (csvImportBtn) csvImportBtn.disabled = !enable;
+    const csvForceWriteBtn = document.getElementById('csvForceWriteBtn'); if (csvForceWriteBtn) csvForceWriteBtn.disabled = !enable;
+    const migrateApplyBtn = document.getElementById('migrateApplyBtn'); if (migrateApplyBtn) migrateApplyBtn.disabled = !enable;
+    const saveUnitBtn = document.getElementById('saveUnitBtn'); if (saveUnitBtn) saveUnitBtn.disabled = !enable;
+    const unitAddBtn = document.getElementById('unitAddBtn'); if (unitAddBtn) unitAddBtn.disabled = !enable;
+
+    // Also toggle visibility of admin containers/buttons so "Log Keluar" is present when using admin claim
+    const adminControls = document.getElementById('adminControls'); if (adminControls) adminControls.style.display = enable ? 'block' : 'none';
+    const adminOpenLoginBtn = document.getElementById('adminOpenLoginBtn'); if (adminOpenLoginBtn) adminOpenLoginBtn.style.display = enable ? 'none' : 'inline-block';
+    const adminLogoutButton = document.getElementById('adminLogoutBtn'); if (adminLogoutButton) adminLogoutButton.style.display = enable ? 'inline-block' : 'none';
+    const sidebarLoginBtn = document.getElementById('sidebarAdminLoginBtn'); if (sidebarLoginBtn) sidebarLoginBtn.style.display = enable ? 'none' : 'inline-block';
+    const sidebarLogoutBtn = document.getElementById('sidebarAdminLogoutBtn'); if (sidebarLogoutBtn) sidebarLogoutBtn.style.display = enable ? 'inline-block' : 'none';
+    const parkingLogoutBtnEl = document.getElementById('parkingAdminLogoutBtn'); if (parkingLogoutBtnEl) parkingLogoutBtnEl.style.display = enable ? 'inline-block' : 'none';
+  } catch(e) { /* ignore */ }
 }
 function isAdminLoggedIn(){ try { return sessionStorage.getItem('admin_logged_in') === '1'; } catch(e){ return false; } }
+
+function handlePermissionDenied(e, friendlyMsg){
+  try {
+    const code = e && e.code ? e.code : '';
+    if (String(code).toLowerCase().includes('permission-denied') || String(e).toLowerCase().includes('missing or insufficient permissions')) {
+      unitsLoadPermissionDenied = true;
+      toast(friendlyMsg || 'Kebenaran tidak mencukupi untuk operasi ini. Log masuk sebagai admin atau gunakan skrip admin.', false);
+      // set admin login msg (helpful inline hint)
+      try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Amaran: Tiada kebenaran tulis pada collection units.'; } catch(err){}
+      // disable write controls
+      try { const csvImportBtn = document.getElementById('csvImportBtn'); if (csvImportBtn) csvImportBtn.disabled = true; } catch(e){}
+      try { const csvForceWriteBtn = document.getElementById('csvForceWriteBtn'); if (csvForceWriteBtn) csvForceWriteBtn.disabled = true; } catch(e){}
+      try { const migrateApplyBtn = document.getElementById('migrateApplyBtn'); if (migrateApplyBtn) migrateApplyBtn.disabled = true; } catch(e){}
+      try { const saveUnitBtn = document.getElementById('saveUnitBtn'); if (saveUnitBtn) saveUnitBtn.disabled = true; } catch(e){}
+      try { const unitAddBtn = document.getElementById('unitAddBtn'); if (unitAddBtn) unitAddBtn.disabled = true; } catch(e){}
+      return true;
+    }
+  } catch(err){}
+  return false;
+}
 
 async function loadAllUnitsToCache(){
   try{
@@ -85,7 +158,24 @@ async function loadAllUnitsToCache(){
     const snap = await getDocs(col);
     snap.forEach(d => { unitsCache[d.id] = d.data(); });
     console.info('[units] loaded', Object.keys(unitsCache).length);
-  } catch(e) { console.warn('[units] cache load failed', e); }
+  } catch(e) {
+    console.warn('[units] cache load failed', e);
+    // detect permission-denied and show a friendly hint in the UI
+    try {
+      const code = e && e.code ? e.code : '';
+      if (code === 'permission-denied' || String(e).includes('Missing or insufficient permissions')) {
+        unitsLoadPermissionDenied = true;
+        toast('Tidak dapat baca units collection — semak Firestore rules (permission-denied)', false);
+        try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Amaran: Tiada kebenaran baca units collection.'; } catch(e){}
+        // disable write controls when permissions are insufficient
+        try { const csvImportBtn = document.getElementById('csvImportBtn'); if (csvImportBtn) csvImportBtn.disabled = true; } catch(e){}
+        try { const csvForceWriteBtn = document.getElementById('csvForceWriteBtn'); if (csvForceWriteBtn) csvForceWriteBtn.disabled = true; } catch(e){}
+        try { const migrateApplyBtn = document.getElementById('migrateApplyBtn'); if (migrateApplyBtn) migrateApplyBtn.disabled = true; } catch(e){}
+        try { const saveUnitBtn = document.getElementById('saveUnitBtn'); if (saveUnitBtn) saveUnitBtn.disabled = true; } catch(e){}
+        try { const unitAddBtn = document.getElementById('unitAddBtn'); if (unitAddBtn) unitAddBtn.disabled = true; } catch(e){}
+      }
+    } catch(e) {}
+  }
 }
 
 const navSummary = document.getElementById('navSummary');
@@ -93,6 +183,7 @@ const navCheckedIn = document.getElementById('navCheckedIn');
 const navParking = document.getElementById('navParking');
 const navUnitAdmin = document.getElementById('navUnitAdmin');
 const exportCSVBtn = document.getElementById('exportCSVBtn');
+const exportAllCSVBtn = document.getElementById('exportAllCSVBtn');
 
 // auto-refresh timer handle
 let autoRefreshTimer = null;
@@ -108,6 +199,38 @@ let filterDateUserChangedParking = false;
 const responseCache = { date: null, rows: [] };
 // weekCache keyed by week start date (yyyy-mm-dd) -> rows for that week
 const weekResponseCache = Object.create(null);
+
+function filterRowsBySearch(rows, term){
+  const q = (term || '').trim().toLowerCase();
+  if (!q) return rows;
+  return (rows || []).filter(r => {
+    const plates = [];
+    if (r.vehicleNo) plates.push(String(r.vehicleNo));
+    if (Array.isArray(r.vehicleNumbers)) plates.push(...r.vehicleNumbers.map(String));
+    else if (typeof r.vehicleNumbers === 'string') plates.push(String(r.vehicleNumbers));
+
+    const parts = [
+      r.visitorName,
+      r.hostName,
+      r.hostUnit,
+      r.visitorPhone,
+      r.hostPhone,
+      r.category,
+      r.status,
+      r.entryDetails,
+      plates.join(' '),
+      r.unitCategory,
+    ];
+    return parts.some(p => p && String(p).toLowerCase().includes(q));
+  });
+}
+
+function renderSummaryWithSearch(rows){
+  responseCache.rows = rows || [];
+  const term = summarySearch ? summarySearch.value : '';
+  const filtered = filterRowsBySearch(responseCache.rows, term);
+  renderList(filtered, listAreaSummary, false);
+}
 
 function startAutoRefresh(intervalMs = 600_000){
   try{
@@ -169,6 +292,7 @@ console.info('dashboard.js loaded. __AUTH?', !!window.__AUTH, '__FIRESTORE?', !!
 
 /* ---------- auth handlers ---------- */
 loginBtn.addEventListener('click', async ()=>{
+  if (!window.__AUTH) { showLoginMsg(loginMsg, 'Firebase auth belum tersedia — cuba semula sebentar lagi.', false); return; }
   const email = document.getElementById('loginEmail').value.trim();
   const pass = document.getElementById('loginPass').value;
   showLoginMsg(loginMsg, 'Log masuk...');
@@ -203,6 +327,23 @@ onAuthStateChanged(window.__AUTH, user => {
     dashboardArea.style.display = 'block';
     who.textContent = user.email || user.uid;
     logoutBtn.style.display = 'inline-block';
+
+    // Load units cache for all signed-in users so arrears/category display is up-to-date
+    try { loadAllUnitsToCache().catch(()=>{}); } catch(e) {}
+
+    // Check for custom claim 'admin' and enable admin controls automatically
+    try {
+      // getIdTokenResult is available on user; it contains claims
+      user.getIdTokenResult().then(token => {
+        const isAdminClaim = token && token.claims && token.claims.admin === true;
+        if (isAdminClaim) {
+          setAdminLoggedIn(true);
+          try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e){}
+          try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'none'; } catch(e){}
+          try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Log masuk sebagai admin (claim).'; } catch(e){}
+        }
+      }).catch(err => { /* ignore token errors */ });
+    } catch(e) { /* ignore */ }
 
 
     const now = new Date();
@@ -285,12 +426,29 @@ function adminPasswordIsCorrect(val){
 function renderUnitsList(){
   const el = document.getElementById('unitsListArea');
   if (!el) return;
-  const keys = Object.keys(unitsCache).sort();
-  if (!keys.length) { el.innerHTML = '<div class="small">Tiada unit dalam rekod.</div>'; return; }
-  let html = '<table><thead><tr><th>Unit</th><th>Kategori</th><th>Tunggakan</th><th>Jumlah (RM)</th><th>Terakhir</th><th></th></tr></thead><tbody>';
-  keys.forEach(k => {
-    const u = unitsCache[k] || {};
-    html += `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(u.category||'')}</td><td>${u.arrears ? 'Ya' : 'Tiada'}</td><td>${typeof u.arrearsAmount === 'number' ? 'RM'+String(u.arrearsAmount) : '-'}</td><td>${u.lastUpdatedAt ? formatDateOnly(u.lastUpdatedAt) : '-'}</td><td><button class="btn-ghost small" data-unit-edit="${escapeHtml(k)}">Edit</button></td></tr>`;
+  // Merge Firestore-backed units cache with the static canonical list (window.UNITS_STATIC)
+  const staticList = Array.isArray(window.UNITS_STATIC) ? window.UNITS_STATIC.slice() : [];
+  // build canonical ordered list: preserve static order first, then append any keys missing from static list
+  const cacheKeys = Object.keys(unitsCache);
+  const combined = staticList.concat(cacheKeys.filter(k => !staticList.includes(k))).sort((a,b) => {
+    // Keep the static ordering if both indices exist there, otherwise alphabetical fallback
+    const ia = staticList.indexOf(a), ib = staticList.indexOf(b);
+    if (ia >= 0 && ib >= 0) return ia - ib;
+    if (ia >= 0) return -1;
+    if (ib >= 0) return 1;
+    return a.localeCompare(b);
+  });
+  if (!combined.length) { el.innerHTML = '<div class="small">Tiada unit dalam rekod.</div>'; return; }
+
+  function fmtAmount(v){ if (typeof v !== 'number') return null; return 'RM'+Number(v).toFixed(2); }
+
+  let html = '<table><thead><tr><th style="width:56px">No.</th><th>Unit</th><th style="width:220px">Tunggakan</th><th>Kategori Unit</th><th></th></tr></thead><tbody>';
+  combined.forEach((unitId, idx) => {
+    const u = unitsCache[unitId] || {};
+    const amount = (typeof u.arrearsAmount === 'number') ? u.arrearsAmount : null;
+    const arrearsDisplay = (u.arrears === true) ? `Ya${amount !== null ? ' ('+fmtAmount(amount)+')' : ''}` : `Tiada${amount !== null ? ' ('+fmtAmount(amount)+')' : ''}`;
+    const category = u.category || '—';
+    html += `<tr><td>${idx+1}</td><td>${escapeHtml(unitId)}</td><td>${escapeHtml(arrearsDisplay)}</td><td>${escapeHtml(category)}</td><td><div style="display:flex;gap:6px"><button class="btn-ghost small" data-unit-edit="${escapeHtml(unitId)}">Edit</button><button class="btn-ghost small" data-unit-view="${escapeHtml(unitId)}">View</button></div></td></tr>`;
   });
   html += '</tbody></table>';
   el.innerHTML = html;
@@ -306,13 +464,26 @@ function renderUnitsList(){
       document.getElementById('unitEditAmount').value = typeof u.arrearsAmount === 'number' ? u.arrearsAmount : '';
     });
   });
+  // wire view buttons
+  el.querySelectorAll('button[data-unit-view]').forEach(b => {
+    b.addEventListener('click', (ev) => {
+      const id = b.getAttribute('data-unit-view');
+      const rawEl = document.getElementById('unitRawArea');
+      if (!rawEl) return;
+      const u = unitsCache[id];
+      rawEl.style.display = 'block';
+      rawEl.innerHTML = `<div style="font-weight:700;margin-bottom:6px">Raw document: ${escapeHtml(id)}</div><pre style="white-space:pre-wrap;word-break:break-word">${escapeHtml(JSON.stringify(u, null, 2) || '—')}</pre>`;
+      // scroll into view
+      try { rawEl.scrollIntoView({behavior:'smooth', block:'nearest'}); } catch(e){}
+    });
+  });
 }
 
 async function adminLogin(password){
   if (!adminPasswordIsCorrect(password)) return false;
   setAdminLoggedIn(true);
   try { const a = document.getElementById('adminLoginWrap'); if (a) a.style.display = 'none'; } catch(e) {}
-  try { const modal = document.getElementById('adminLoginModal'); if (modal) modal.style.display = 'none'; } catch(e) {}
+  try { const modal = document.getElementById('adminLoginModal'); if (modal) { modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); } } catch(e) {}
   try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'none'; } catch(e) {}
   try { const p = document.getElementById('parkingLoginPage'); if (p) p.style.display = 'none'; } catch(e) {}
   try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e) {}
@@ -328,7 +499,7 @@ async function adminLogin(password){
 function adminLogout(){
   setAdminLoggedIn(false);
   try { const a = document.getElementById('adminLoginWrap'); if (a) a.style.display = 'block'; } catch(e) {}
-  try { const modal = document.getElementById('adminLoginModal'); if (modal) modal.style.display = 'none'; } catch(e) {}
+  try { const modal = document.getElementById('adminLoginModal'); if (modal) { modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); } } catch(e) {}
   try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'inline-block'; } catch(e) {}
   try { const p = document.getElementById('parkingLoginPage'); if (p) p.style.display = 'block'; } catch(e) {}
   try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'none'; } catch(e) {}
@@ -336,22 +507,94 @@ function adminLogout(){
   try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = ''; } catch(e) {}
   try { const pm = document.getElementById('adminModalPassword'); if (pm) pm.value = ''; } catch(e) {}
   try { const pm = document.getElementById('parkingAdminMsg'); if (pm) pm.textContent = ''; } catch(e) {}
+  // also sign out firebase auth if present (best-effort)
+  try { if (window.__AUTH) signOut(window.__AUTH).catch(()=>{}); } catch(e) {}
 }
 
-// CSV parsing (simple RFC4180-ish, returns array of objects using header row)
+// CSV parsing (RFC4180-friendly-ish) — returns array of objects using header row
+// This parser normalizes header names and maps common localised headers
+// -> Unit / unit / unitId  => 'unit'
+// -> Amaun / amount / arrearsAmount => 'arrearsAmount'
+// It also supports quoted fields containing commas and will trim whitespace.
 function parseCSV(text){
+  if (!text || !text.trim()) return [];
+  // split lines, support both CRLF and LF
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l=>l.trim().length);
+
+  // helper: parse a single CSV line into fields handling quotes
+  function parseLine(line){
+    const fields = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i=0;i<line.length;i++){
+      const ch = line[i];
+      if (ch === '"'){
+        // If double-quote inside quoted field, and next char is quote -> escaped quote
+        if (inQuotes && line[i+1] === '"') { cur += '"'; i++; continue; }
+        inQuotes = !inQuotes; continue;
+      }
+      if (ch === ',' && !inQuotes){
+        fields.push(cur);
+        cur = '';
+        continue;
+      }
+      cur += ch;
+    }
+    fields.push(cur);
+    return fields.map(f => f.trim());
+  }
+
+  // normalize header token to simplified key
+  function normalizeHeader(h){
+    if (!h) return '';
+    const s = String(h).trim().toLowerCase();
+    const compact = s.replace(/\s+/g,'').replace(/[^a-z0-9]/g,'');
+    if (['unit','unitid','units','rumah'].includes(compact)) return 'unit';
+    if (['amaun','amount','arrearsamount','amt','jumlah'].includes(compact)) return 'arrearsAmount';
+    if (['category','kategori','kategoriunit'].includes(compact)) return 'category';
+    if (['arrears','tunggakan'].includes(compact)) return 'arrears';
+    // fallback to original trimmed header
+    return h.trim();
+  }
+
+  const headerFields = parseLine(lines[0]).map(normalizeHeader);
   const rows = [];
-  // split into lines, handle \r\n and quoted values roughly
-  const lines = text.replace(/\r/g,'').split('\n').filter(l => l.trim().length);
-  if (!lines.length) return rows;
-  const header = lines[0].split(',').map(h => h.trim());
   for (let i=1;i<lines.length;i++){
-    const line = lines[i];
-    // basic split (does not handle embedded commas inside quotes reliably) — for most CSVs this is ok
-    const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g,''));
-    if (parts.length === 0) continue;
-    const obj = {};
-    for (let j=0;j<header.length;j++) obj[header[j]] = parts[j] || '';
+    const parts = parseLine(lines[i]);
+    if (!parts.length) continue;
+    // if header wasn't meaningful (eg first row of file was data like {"A-10-1":"981.60"})
+    // we attempt to detect two-column simple files where first col looks like a unit id
+    let obj = {};
+    if (headerFields.length === 0 || headerFields.every(h => !h)){
+      // fallback: assume first col = unit, second col = arrearsAmount
+      if (parts.length >= 2) obj.unit = parts[0], obj.arrearsAmount = parts[1];
+      else continue;
+    } else {
+      for (let j=0;j<headerFields.length;j++){
+        const key = headerFields[j] || (`col${j}`);
+        obj[key] = parts[j] || '';
+      }
+    }
+
+    // coerce types: arrearsAmount -> number when possible
+    if (obj.arrearsAmount !== undefined && obj.arrearsAmount !== null && obj.arrearsAmount !== ''){
+      const n = Number(String(obj.arrearsAmount).replace(/[^0-9\-\.]/g,''));
+      obj.arrearsAmount = Number.isFinite(n) ? n : null;
+    } else {
+      obj.arrearsAmount = null;
+    }
+
+    // compute boolean arrears if not present: true when arrearsAmount > 0
+    if (obj.arrears === undefined || obj.arrears === null || String(obj.arrears).trim() === ''){
+      obj.arrears = (typeof obj.arrearsAmount === 'number') ? (obj.arrearsAmount > 0) : false;
+    } else {
+      // coerce explicit truthy values
+      obj.arrears = String(obj.arrears).toLowerCase().trim() === 'true';
+    }
+
+    // ensure unit id trimming
+    if (obj.unit) obj.unit = String(obj.unit).trim();
+
     rows.push(obj);
   }
   return rows;
@@ -361,7 +604,16 @@ async function saveUnitToFirestore(unitId, data){
   if (!window.__FIRESTORE) throw new Error('firestore unavailable');
   const ref = doc(window.__FIRESTORE, 'units', unitId);
   const payload = Object.assign({}, data, { lastUpdatedAt: serverTimestamp(), lastUpdatedBy: who.textContent || 'admin' });
-  await setDoc(ref, payload, { merge: true });
+  try {
+    await setDoc(ref, payload, { merge: true });
+  } catch (e) {
+    console.error('saveUnitToFirestore error', e);
+    const code = e && e.code ? e.code : '';
+    if (String(code).toLowerCase().includes('permission-denied') || String(e).toLowerCase().includes('missing or insufficient permissions')) {
+      unitsLoadPermissionDenied = true; toast('Gagal simpan unit — kebenaran tidak mencukupi. Log masuk sebagai admin atau semak Firestore rules.', false);
+    }
+    throw e;
+  }
   // update cache
   unitsCache[unitId] = Object.assign({}, unitsCache[unitId] || {}, data, { lastUpdatedAt: new Date() });
   renderUnitsList();
@@ -377,7 +629,8 @@ async function importUnitsFromArray(rows){
   for (const r of rows){
     const id = (r.unitId || r.unit || r.Unit || '').trim();
     if (!id) continue;
-    const data = { category: (r.category || '').trim(), arrears: String(r.arrears || '').toLowerCase() === 'true', arrearsAmount: r.arrearsAmount ? Number(r.arrearsAmount) : null };
+    const amount = (r.arrearsAmount !== undefined && r.arrearsAmount !== null && r.arrearsAmount !== '') ? Number(r.arrearsAmount) : null;
+    const data = { category: (r.category || '').trim(), arrears: String(r.arrears || '').toLowerCase() === 'true', arrearsAmount: amount };
     const ref = doc(window.__FIRESTORE, 'units', id);
     currentBatch.set(ref, Object.assign({}, data, { lastUpdatedAt: serverTimestamp(), lastUpdatedBy: who.textContent || 'admin' }), { merge: true });
     count++;
@@ -386,10 +639,27 @@ async function importUnitsFromArray(rows){
   if (count > 0) batches.push(currentBatch);
   let success = 0;
   for (let i=0;i<batches.length;i++){
-    try { await batches[i].commit(); success++; } catch(e) { console.error('batch commit failed', e); }
+    try { await batches[i].commit(); success++; } catch(e) {
+      console.error('batch commit failed', e);
+      // If permission denied, set flag and inform user so UI can show fallback behavior
+      try {
+        if (handlePermissionDenied(e, 'Gagal menulis ke collection units — kebenaran tidak mencukupi. Log masuk sebagai admin atau semak Firestore rules.')) break; // abort further batches
+      } catch(err){}
+    }
   }
-  // reload cache
-  await loadAllUnitsToCache();
+  // try reload cache — if reads are forbidden, update local cache from the imported rows so UI reflects changes
+  try {
+    await loadAllUnitsToCache();
+  } catch(e) {
+    console.warn('reload cache failed after import — applying local cache updates', e);
+    // copy imported rows into unitsCache so the list shows intended updates
+    rows.forEach(r => {
+      const id = (r.unitId || r.unit || r.Unit || '').trim();
+      if (!id) return;
+      const udata = { category: (r.category || '').trim(), arrears: String(r.arrears || '').toLowerCase() === 'true', arrearsAmount: (r.arrearsAmount !== undefined && r.arrearsAmount !== null && r.arrearsAmount !== '') ? Number(r.arrearsAmount) : null, lastUpdatedAt: new Date() };
+      unitsCache[id] = Object.assign({}, unitsCache[id] || {}, udata);
+    });
+  }
   renderUnitsList();
   return { batches: batches.length, committed: success };
 }
@@ -420,7 +690,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const csvInput = document.getElementById('csvFileInput');
   const csvPreviewBtn = document.getElementById('csvPreviewBtn');
   const csvImportBtn = document.getElementById('csvImportBtn');
+  const csvForceWriteBtn = document.getElementById('csvForceWriteBtn');
   const csvPreviewArea = document.getElementById('csvPreviewArea');
+  const migratePreviewBtn = document.getElementById('migratePreviewBtn');
+  const migrateApplyBtn = document.getElementById('migrateApplyBtn');
+  const migrationPreviewArea = document.getElementById('migrationPreviewArea');
+  const csvFileLabel = document.getElementById('csvFileLabel');
+
+  // Load units cache early so arrears/category uses latest data even before admin login
+  try { loadAllUnitsToCache().then(()=>{ try { if (getActivePageKey() === 'summary') renderUnitsList(); } catch(e){} }); } catch(e) {}
 
   // proceed if any admin-login control exists (sidebar, modal, or parking)
   if (!adminOpenLoginBtn && !loginBtnAdmin && !sidebarLoginBtn && !parkingLoginBtnEl) return;
@@ -436,13 +714,23 @@ document.addEventListener('DOMContentLoaded', ()=>{
     try { if (document.getElementById('adminLogoutBtn')) document.getElementById('adminLogoutBtn').style.display = 'inline-block'; } catch(e) {}
     loadAllUnitsToCache().then(()=> renderUnitsList());
   }
+  // ensure admin-only controls are disabled if not admin
+  try { setAdminLoggedIn(isAdminLoggedIn()); } catch(e) {}
 
   // wire new modal-login open button (in-page) — opens login modal
   if (adminOpenLoginBtn) {
     adminOpenLoginBtn.addEventListener('click', () => {
-      try { if (adminModal) adminModal.style.display = 'flex'; if (adminModalPassword) adminModalPassword.focus(); } catch(e){}
+      try {
+        if (adminModal) { adminModal.classList.remove('hidden'); adminModal.setAttribute('aria-hidden','false'); }
+        if (adminModalPassword) adminModalPassword.focus();
+      } catch(e){}
     });
   }
+
+  // wire admin logout buttons (modal/sidebar/parking) to clear admin session
+  if (logoutBtnAdmin) logoutBtnAdmin.addEventListener('click', ()=>{ try { adminLogout(); toast('Anda telah log keluar dari mod pentadbir.'); } catch(e){} });
+  if (sidebarLogoutBtn) sidebarLogoutBtn.addEventListener('click', ()=>{ try { adminLogout(); toast('Anda telah log keluar dari mod pentadbir.'); } catch(e){} });
+  if (parkingLogoutBtnEl) parkingLogoutBtnEl.addEventListener('click', ()=>{ try { adminLogout(); toast('Anda telah log keluar dari mod pentadbir.'); } catch(e){} });
 
   // modal login handler
   if (adminModalLoginBtn) {
@@ -452,14 +740,23 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if (adminModalMsg) adminModalMsg.textContent = 'Password salah.';
       } else {
         if (adminModalMsg) adminModalMsg.textContent = '';
-        try { if (adminModal) adminModal.style.display = 'none'; } catch(e){}
+        try { if (adminModal) { adminModal.classList.add('hidden'); adminModal.setAttribute('aria-hidden','true'); } } catch(e){}
         try { if (adminOpenLoginBtn) adminOpenLoginBtn.style.display = 'none'; } catch(e){}
       }
     });
   }
 
-  if (adminModalCancelBtn) adminModalCancelBtn.addEventListener('click', ()=>{ try{ if (adminModal) adminModal.style.display = 'none'; }catch(e){} });
-  if (adminModalClose) adminModalClose.addEventListener('click', ()=>{ try{ if (adminModal) adminModal.style.display = 'none'; }catch(e){} });
+  // show chosen CSV file name (nicer UX) and support clicking label to open file dialog
+  if (csvInput && csvFileLabel) {
+    csvInput.addEventListener('change', ()=>{
+      const f = csvInput.files && csvInput.files[0];
+      csvFileLabel.textContent = f ? `${f.name}` : 'Choose File';
+    });
+    // clicking the label should focus the file input (it exists as <label for=> in HTML)
+  }
+
+  if (adminModalCancelBtn) adminModalCancelBtn.addEventListener('click', ()=>{ try{ if (adminModal) { adminModal.classList.add('hidden'); adminModal.setAttribute('aria-hidden','true'); } }catch(e){} });
+  if (adminModalClose) adminModalClose.addEventListener('click', ()=>{ try{ if (adminModal) { adminModal.classList.add('hidden'); adminModal.setAttribute('aria-hidden','true'); } }catch(e){} });
 
   // Parking-specific login button (shown when navParking is clicked)
   const parkingLoginBtn = document.getElementById('parkingAdminLoginBtn');
@@ -543,6 +840,189 @@ document.addEventListener('DOMContentLoaded', ()=>{
     finally { document.getElementById('spinner').style.display = 'none'; }
   });
 
+  // Force-write: write all parsed CSV rows to units/* (uses importUnitsFromArray under the hood)
+  csvForceWriteBtn?.addEventListener('click', async ()=>{
+    if (!csvPreviewArea || !csvPreviewArea._rows || !csvPreviewArea._rows.length) { alert('Sila pratonton fail CSV terlebih dahulu'); return; }
+    if (!confirm('Sahkah anda mahu menulis semua baris CSV ke collection units (force)?')) return;
+    try {
+      document.getElementById('spinner').style.display = 'flex';
+      // ensure rows are transformed into expected import shape
+      const rows = csvPreviewArea._rows.map(r => {
+        return {
+          unit: (r.unit || r.unitId || r.Unit || '').trim(),
+          category: (r.category || r.Kategori || '').trim(),
+          arrears: (r.arrears !== undefined) ? r.arrears : ((typeof r.arrearsAmount === 'number') ? (r.arrearsAmount > 0) : ''),
+          arrearsAmount: r.arrearsAmount !== undefined ? r.arrearsAmount : (r.Amaun || r.amount || r.Amaun || '')
+        };
+      });
+      const res = await importUnitsFromArray(rows);
+      toast('Tulis CSV selesai: ' + (res.committed || 0) + ' batch(es)');
+    } catch(e) {
+      console.error('force write failed', e);
+      if (!handlePermissionDenied(e, 'Tulis CSV gagal: kebenaran tidak mencukupi. Log masuk sebagai admin atau gunakan skrip import tempatan -- lihat docs ADMIN_SETUP.md.')) {
+        toast('Tulis CSV gagal: ' + (e && e.message ? e.message : String(e)), false);
+      }
+    } finally { document.getElementById('spinner').style.display = 'none'; }
+  });
+
+  // --- Migration: preview & apply ---
+  async function findMigrationCandidates(){
+    if (!window.__FIRESTORE) throw new Error('firestore unavailable');
+    const col = collection(window.__FIRESTORE, 'units');
+    const snap = await getDocs(col);
+    const rows = [];
+    snap.forEach(d => {
+      const id = d.id;
+      const data = d.data() || {};
+      // find possible legacy amount fields
+      const keys = Object.keys(data || {});
+      const amountKeys = keys.filter(k => /amaun|amount|jumlah|rm|arrearsamount/i.test(k));
+      // ignore if already has 'arrearsAmount' and a proper numeric value
+      const hasArrearsAmount = (typeof data.arrearsAmount === 'number');
+      // choose best candidate value for amount (prefer existing arrearsAmount if numeric)
+      let candidateVal = null;
+      let usedKey = null;
+      if (hasArrearsAmount) { candidateVal = data.arrearsAmount; usedKey = 'arrearsAmount'; }
+      else if (amountKeys.length) {
+        // prefer keys that exactly match 'amaun' or 'amount' ignoring case, otherwise first match
+        const exact = amountKeys.find(k=>/^amaun$/i.test(k) || /^amount$/i.test(k) || /^arrearsamount$/i.test(k) || /^jumlah$/i.test(k));
+        usedKey = exact || amountKeys[0];
+        const raw = data[usedKey];
+        if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+          const n = Number(String(raw).replace(/[^0-9\-\.]/g,''));
+          candidateVal = Number.isFinite(n) ? n : null;
+        }
+      }
+
+      // determine current arrears boolean
+      const currentArrears = (data.arrears === true) || (data.arrears === 'true');
+      // proposed values
+      const proposed = { arrearsAmount: candidateVal, arrears: (typeof candidateVal === 'number') ? (candidateVal > 0) : Boolean(currentArrears) };
+
+      // pick only if there is something to migrate (either candidateVal exists and differs from arrearsAmount OR arrears missing/mismatch)
+      const needAmount = (candidateVal !== null) && (data.arrearsAmount !== candidateVal);
+      const needArrearsBool = (typeof data.arrears !== 'boolean') || (Boolean(data.arrears) !== Boolean(proposed.arrears));
+      if (needAmount || needArrearsBool) {
+        rows.push({ id, data, usedKey, proposed });
+      }
+    });
+    return rows;
+  }
+
+  migratePreviewBtn?.addEventListener('click', async ()=>{
+    try {
+      migrationPreviewArea.style.display = 'block';
+      migrationPreviewArea.innerHTML = '<div class="small">Mencari dokumen ...</div>';
+      let rows = [];
+      try { rows = await findMigrationCandidates(); } catch(e) { console.warn('findMigrationCandidates failed, will fallback to CSV if available', e); rows = []; }
+      // if no candidates in Firestore, try using the CSV that's currently loaded in the preview (if any)
+      if ((!rows || !rows.length) && csvPreviewArea && csvPreviewArea._rows && csvPreviewArea._rows.length) {
+        // use CSV rows as migration source
+        const csvRows = csvPreviewArea._rows;
+        rows = [];
+        csvRows.forEach(r => {
+          const id = (r.unit || r.unitId || r.Unit || r['Unit'] || r['unitId'] || '').trim();
+          if (!id) return;
+          // find amount in parsed row fields (parser normalizes 'amaun' -> arrearsAmount)
+          let amount = null;
+          if (typeof r.arrearsAmount === 'number') amount = r.arrearsAmount;
+          else {
+            const candidateKey = Object.keys(r).find(k => /amaun|amount|jumlah|rm|arrearsamount/i.test(k));
+            if (candidateKey) {
+              const raw = r[candidateKey];
+              if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+                const n = Number(String(raw).replace(/[^0-9\-\.]/g,''));
+                amount = Number.isFinite(n) ? n : null;
+              }
+            }
+          }
+          const storeData = unitsCache[id] || {};
+          const proposed = { arrearsAmount: amount, arrears: (typeof amount === 'number') ? (amount > 0) : (storeData.arrears === true) };
+          // show candidate only if we have something to change or create
+          const needAmount = (amount !== null) && (storeData.arrearsAmount !== amount);
+          const needArrearsBool = (typeof storeData.arrears !== 'boolean') || (Boolean(storeData.arrears) !== Boolean(proposed.arrears));
+          if (needAmount || needArrearsBool) {
+            rows.push({ id, data: storeData, usedKey: 'csv', proposed, csvRow: r });
+          }
+        });
+      }
+      if (!rows || !rows.length) { migrationPreviewArea.innerHTML = '<div class="small">Tiada dokumen perlukan migrasi.</div>'; return; }
+      let html = `<div class="small" style="font-weight:700;margin-bottom:6px">Dijangka dikemaskini ${rows.length} dokumen</div>`;
+      html += '<table style="width:100%;border-collapse:collapse"><thead><tr><th>Unit</th><th>Hadapan</th><th>Cadangan</th></tr></thead><tbody>';
+      rows.slice(0,200).forEach(r => {
+        const oldAmt = r.data.arrearsAmount !== undefined ? r.data.arrearsAmount : (r.usedKey ? r.data[r.usedKey] : '-') ;
+        html += `<tr><td style="padding:6px;border-bottom:1px solid var(--input-border)">${escapeHtml(r.id)}</td><td style="padding:6px;border-bottom:1px solid var(--input-border)">amount: ${escapeHtml(String(oldAmt))}<br>arrears:${escapeHtml(String(r.data.arrears||''))}</td><td style="padding:6px;border-bottom:1px solid var(--input-border)">arrearsAmount: ${r.proposed.arrearsAmount === null? '-' : 'RM'+Number(r.proposed.arrearsAmount).toFixed(2)}<br>arrears: ${r.proposed.arrears}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      if (rows.length > 200) html += `<div class="small muted" style="margin-top:6px">Paparan terhad kepada 200 baris — ${rows.length - 200} dokumen lagi</div>`;
+      migrationPreviewArea.innerHTML = html;
+      migrationPreviewArea._candidates = rows;
+    } catch(e) {
+      console.error('migratePreview err', e);
+      migrationPreviewArea.innerHTML = '<div class="small err">Gagal cari dokumen untuk migrasi.</div>';
+    }
+  });
+
+  migrateApplyBtn?.addEventListener('click', async ()=>{
+    try {
+      const rows = migrationPreviewArea && migrationPreviewArea._candidates ? migrationPreviewArea._candidates : null;
+      if (!rows || !rows.length) { if (migrationPreviewArea) migrationPreviewArea.innerHTML = '<div class="small">Sila pratonton migrasi terlebih dahulu.</div>'; return; }
+      if (!confirm(`Anda pasti mahu jalankan migrasi pada ${rows.length} dokumen? Ini akan mengemaskini medan 'arrearsAmount' dan 'arrears' pada dokumen units/*`)) return;
+      document.getElementById('spinner').style.display = 'flex';
+      // commit batched updates
+      const BATCH_SIZE = 200;
+      let batch = writeBatch(window.__FIRESTORE);
+      let applied = 0, ops = 0;
+      for (let i=0;i<rows.length;i++){
+        const r = rows[i];
+        const ref = doc(window.__FIRESTORE, 'units', r.id);
+        const payload = Object.assign({}, r.proposed, { lastUpdatedAt: serverTimestamp(), lastUpdatedBy: who.textContent || 'admin' });
+        batch.set(ref, payload, { merge: true });
+        applied++;
+        ops++;
+        if (ops >= BATCH_SIZE) {
+          try {
+            await batch.commit();
+          } catch(e) {
+            console.error('batch commit failed', e);
+            if (handlePermissionDenied(e, 'Gagal tulis migrasi: kebenaran tidak mencukupi. Log masuk sebagai admin atau gunakan skrip lokal untuk import.') ) break;
+          }
+          batch = writeBatch(window.__FIRESTORE); ops = 0;
+        }
+      }
+      if (ops > 0) {
+        try {
+          await batch.commit();
+        } catch(e) {
+          console.error('batch commit failed', e);
+          if (handlePermissionDenied(e, 'Gagal tulis migrasi: kebenaran tidak mencukupi. Log masuk sebagai admin atau gunakan skrip lokal untuk import.') ) ;
+        }
+      }
+      // reload cache and render; if reload fails due to permissions, update in-memory cache from applied rows
+      try {
+        await loadAllUnitsToCache();
+      } catch(e) {
+        console.warn('reload cache failed after migration — applying local cache updates', e);
+        // update unitsCache from the applied rows (rows array contains id/proposed)
+        rows.forEach(r => {
+          try {
+            const id = r.id;
+            const udata = Object.assign({}, unitsCache[id] || {}, r.proposed || {} , { lastUpdatedAt: new Date() });
+            unitsCache[id] = udata;
+          } catch(e) {}
+        });
+      }
+      renderUnitsList();
+      migrationPreviewArea.innerHTML = `<div class="small">Migrasi selesai — ${applied} dokumen dikemaskini.</div>`;
+      toast(`Migrasi selesai — ${applied} dokumen dikemaskini`);
+    } catch(e) {
+      console.error('migrateApply err', e);
+      if (!handlePermissionDenied(e, 'Migrasi gagal: kebenaran tidak mencukupi untuk menulis ke `units`. Sila gunakan skrip admin atau set klaim `admin`.')) {
+        toast('Migrasi gagal', false);
+      }
+    } finally { document.getElementById('spinner').style.display = 'none'; }
+  });
+
   // wire sidebar admin quick-login controls (if present)
   if (sidebarLoginBtn) {
     sidebarLoginBtn.addEventListener('click', async () => {
@@ -569,6 +1049,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 if (reloadBtn) reloadBtn.addEventListener('click', ()=> loadTodayList());
+if (summarySearch) summarySearch.addEventListener('input', () => {
+  renderSummaryWithSearch(responseCache.rows || []);
+});
 if (filterDateSummary) filterDateSummary.addEventListener('change', ()=>{
   const todayKey = isoDateString(new Date());
   filterDateUserChangedSummary = (filterDateSummary.value !== todayKey);
@@ -586,6 +1069,7 @@ if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary');
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
 if (navUnitAdmin) navUnitAdmin.addEventListener('click', ()=> { try { setSelectedNav(navUnitAdmin); } catch(e){}; showPage('unitadmin'); });
 if (exportCSVBtn) exportCSVBtn.addEventListener('click', ()=> { exportCSVForToday(); });
+if (exportAllCSVBtn) exportAllCSVBtn.addEventListener('click', ()=> { exportCSVAll(); });
 
 /* ---------- core fetch ---------- */
 async function loadListForDateStr(yyyymmdd){
@@ -616,7 +1100,7 @@ async function loadListForDateStr(yyyymmdd){
       renderKPIs(pending, checkedIn, checkedOut);
 
       // render pages from cached rows
-      renderList(rows, listAreaSummary, false);
+      renderSummaryWithSearch(rows);
       renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
       console.info('[loadListForDateStr] used cache for instant render', yyyymmdd, 'rows:', rows.length);
       // continue — we will set up a snapshot listener below (or reuse existing) to get real-time updates
@@ -660,7 +1144,7 @@ async function loadListForDateStr(yyyymmdd){
               else if (r.status === 'Checked Out') checkedOut++;
             });
             renderKPIs(pending, checkedIn, checkedOut);
-            renderList(freshRows, listAreaSummary, false);
+            renderSummaryWithSearch(freshRows);
             renderCheckedInList(freshRows.filter(r => r.status === 'Checked In'));
           }, err => console.error('[onSnapshot] error', err));
         }
@@ -759,7 +1243,7 @@ async function loadListForDateStr(yyyymmdd){
     }
 
     // render pages (snapshot listener will keep the UI fresh). Show the current rows we have.
-    renderList(rows, listAreaSummary, false);
+    renderSummaryWithSearch(rows);
     renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
     console.info('[loadListForDateStr] rendered summary + checked-in lists, rows:', rows.length);
   } catch (err) {
@@ -859,12 +1343,13 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       <td class="visitor-cell">${escapeHtml(r.visitorName || '')}${r.entryDetails ? '<div class="small">'+escapeHtml(r.entryDetails || '')+'</div>' : ''}${r.visitorPhone ? (function(){ const waHref = normalizePhoneForWhatsapp(r.visitorPhone); return '<div class="small visitor-phone"><a class="tel-link" href="'+waHref+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(r.visitorPhone)+'</a></div>'; })() : ''}</td>
       <td>${escapeHtml(r.hostUnit || '')}${hostContactHtml ? '<div class="small">'+hostContactHtml+'</div>' : ''}</td>
       <td>${(function(){
-        // prefer embedded snapshot on the visitor doc, fall back to units cache
-        const uc = (r.unitCategory && String(r.unitCategory).trim()) ? String(r.unitCategory).trim() : (unitsCache[r.hostUnit] && unitsCache[r.hostUnit].category ? unitsCache[r.hostUnit].category : '—');
-        const arrears = (r.unitArrears === true) ? true : (unitsCache[r.hostUnit] && unitsCache[r.hostUnit].arrears === true);
-        const amount = (typeof r.unitArrearsAmount === 'number') ? r.unitArrearsAmount : (unitsCache[r.hostUnit] && typeof unitsCache[r.hostUnit].arrearsAmount === 'number' ? unitsCache[r.hostUnit].arrearsAmount : null);
+        // Prefer live units data for up-to-date arrears/category; fallback to embedded snapshot
+        const live = unitsCache[r.hostUnit] || {};
+        const uc = (live.category && String(live.category).trim()) ? String(live.category).trim() : ((r.unitCategory && String(r.unitCategory).trim()) ? String(r.unitCategory).trim() : '—');
+        const arrears = (typeof live.arrears === 'boolean') ? live.arrears : (r.unitArrears === true);
+        const amount = (typeof live.arrearsAmount === 'number') ? live.arrearsAmount : ((typeof r.unitArrearsAmount === 'number') ? r.unitArrearsAmount : null);
         const badge = `<span class="unit-cat-badge">${escapeHtml(String(uc))}</span>`;
-        const t = `${badge}${arrears ? ' <div class="small" style="margin-top:4px;color:#b91c1c">Tunggakan'+(amount ? ': RM'+String(amount) : '')+'</div>' : ''}`;
+        const t = `${badge}${arrears ? ' <div class="small" style="margin-top:4px;color:#b91c1c">Tunggakan'+(amount !== null ? ': RM'+String(amount) : '')+'</div>' : ''}`;
         return t;
       })()}</td>
       <td>${formatDateOnly(r.eta)}</td>
@@ -1042,7 +1527,7 @@ async function doStatusUpdate(docId, newStatus){
         });
         // re-render immediately
         renderKPIs(pending, checkedIn, checkedOut);
-        renderList(rows, listAreaSummary, false);
+        renderSummaryWithSearch(rows);
         renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
       }
     }
@@ -1063,7 +1548,7 @@ async function doStatusUpdate(docId, newStatus){
       toast('Gagal kemaskini status ke server. Cuba lagi', false);
       if (originalRow && responseCache.date && Array.isArray(responseCache.rows)) {
         const i2 = responseCache.rows.findIndex(r => r.id === docId);
-        if (i2 !== -1) { responseCache.rows[i2] = originalRow; renderList(responseCache.rows, listAreaSummary, false); renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In')); }
+        if (i2 !== -1) { responseCache.rows[i2] = originalRow; renderSummaryWithSearch(responseCache.rows); renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In')); }
       }
       return;
     }
@@ -1098,7 +1583,7 @@ async function doStatusUpdate(docId, newStatus){
     // revert optimistic update if we previously set it
     if (originalRow && responseCache.date && Array.isArray(responseCache.rows)) {
       const i2 = responseCache.rows.findIndex(r => r.id === docId);
-      if (i2 !== -1) { responseCache.rows[i2] = originalRow; renderList(responseCache.rows, listAreaSummary, false); renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In')); }
+      if (i2 !== -1) { responseCache.rows[i2] = originalRow; renderSummaryWithSearch(responseCache.rows); renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In')); }
     }
   }
 }
@@ -1153,6 +1638,88 @@ async function exportCSVForToday(){
   } catch (err) {
     console.error('export csv err', err);
     toast('Gagal eksport CSV. Semak konsol.');
+  }
+}
+
+/* Export all responses (no date filter) and include repeated-submission counts (dupGroupSize)
+   This exports every document in `responses` collection and keeps duplicate docs as-is.
+*/
+async function exportCSVAll(){
+  try {
+    if (!window.__FIRESTORE) { toast('Firestore belum tersedia', false); return; }
+    const col = collection(window.__FIRESTORE, 'responses');
+    const snap = await getDocs(col);
+    const rows = [];
+    snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+
+    if (!rows.length) { toast('Tiada rekod untuk eksport'); return; }
+
+    // Build fingerprint groups (same logic as UI duplicate detection)
+    const fingerprintGroups = {};
+    function mkNameKey(name) { if (!name) return ''; return String(name).trim().toLowerCase().replace(/\s+/g,'_').slice(0,64); }
+    function normalizePhoneLocal(p) { return (p || '').replace(/[^0-9+]/g,''); }
+    function getDateKeyFromEta(eta) {
+      if (!eta) return 'null';
+      const d = eta && eta.toDate ? eta.toDate() : (typeof eta === 'string' ? new Date(eta) : new Date(eta));
+      if (!d || isNaN(d.getTime())) return 'null';
+      const yy = d.getFullYear(); const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    rows.forEach(r => {
+      try {
+        const fpDate = getDateKeyFromEta(r.eta);
+        const hostUnit = (r.hostUnit || '').replace(/\s+/g,'') || 'null';
+        const phone = normalizePhoneLocal(r.visitorPhone || '');
+        const nameK = mkNameKey(r.visitorName || '');
+        const idKey = phone || nameK || 'noid';
+        const fp = `${fpDate}|${hostUnit}|${idKey}`;
+        fingerprintGroups[fp] = fingerprintGroups[fp] || [];
+        fingerprintGroups[fp].push(r.id);
+      } catch(e) { /* ignore individual err */ }
+    });
+
+    const idDupCounts = {};
+    Object.keys(fingerprintGroups).forEach(fp => { const arr = fingerprintGroups[fp] || []; arr.forEach(id => idDupCounts[id] = arr.length); });
+
+    const header = ['id','hostUnit','hostName','hostPhone','visitorName','visitorPhone','category','eta','etd','vehicleNo','vehicleNumbers','status','dupGroupSize','createdAt','updatedAt'];
+    const csv = [header.join(',')];
+    rows.forEach(r => {
+      const created = (r.createdAt && r.createdAt.toDate) ? r.createdAt.toDate().toISOString() : (r.createdAt ? new Date(r.createdAt).toISOString() : '');
+      const updated = (r.updatedAt && r.updatedAt.toDate) ? r.updatedAt.toDate().toISOString() : (r.updatedAt ? new Date(r.updatedAt).toISOString() : '');
+      const line = [
+        r.id || '',
+        (r.hostUnit||'').replace(/,/g,''),
+        (r.hostName||'').replace(/,/g,''),
+        (r.hostPhone||'').replace(/,/g,''),
+        (r.visitorName||'').replace(/,/g,''),
+        (r.visitorPhone||'').replace(/,/g,''),
+        (r.category||'').replace(/,/g,''),
+        (r.eta && r.eta.toDate) ? r.eta.toDate().toISOString() : (r.eta ? new Date(r.eta).toISOString() : ''),
+        (r.etd && r.etd.toDate) ? r.etd.toDate().toISOString() : (r.etd ? new Date(r.etd).toISOString() : ''),
+        (r.vehicleNo||'').replace(/,/g,''),
+        (Array.isArray(r.vehicleNumbers) ? r.vehicleNumbers.join(';') : (r.vehicleNumbers||'')).replace(/,/g,''),
+        (r.status||'').replace(/,/g,''),
+        String(idDupCounts[r.id] || 0),
+        created,
+        updated
+      ];
+      csv.push(line.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(','));
+    });
+
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `responses_all_${isoDateString(new Date())}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+  } catch (err) {
+    console.error('export csv all err', err);
+    toast('Gagal eksport CSV. Semak konsol.', false);
   }
 }
 
@@ -1261,7 +1828,7 @@ document.getElementById('saveEditBtn').addEventListener('click', async (ev) => {
       if (idx !== -1) {
         const existing = responseCache.rows[idx] || {};
         responseCache.rows[idx] = Object.assign({}, existing, payload);
-        renderList(responseCache.rows, listAreaSummary, false);
+        renderSummaryWithSearch(responseCache.rows);
         renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In'));
       }
     }
@@ -1299,7 +1866,11 @@ function showPage(key){
     document.getElementById('pageCheckedIn').style.display = 'none';
     document.getElementById('pageParking').style.display = 'none';
     // show the main Unit Admin page
-    const page = document.getElementById('pageUnitAdmin'); if (page) page.style.display = '';
+    const page = document.getElementById('pageUnitAdmin'); if (page) {
+      page.style.display = '';
+      // ensure the Unit Admin page is scrolled into view so it is not hidden below other content
+      try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    }
     // update nav active states
     try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.add('active'); } catch(e){}
     // hide KPIs
@@ -1425,14 +1996,55 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // render all slots (defensive: make sure containers exist)
   function renderAllSlots(){
     try {
-      if (!parkingMasuk || !parkingLuar) {
-        console.warn('[parking] container missing', {parkingMasuk: !!parkingMasuk, parkingLuar: !!parkingLuar});
+      // Ensure containers exist. Some page variants don't include separate Masuk/Luar
+      // slots DOM nodes; fall back to the single compact list area (`parkingListArea`).
+      let masukEl = document.getElementById('parkingMasuk');
+      let luarEl = document.getElementById('parkingLuar');
+      const fallback = document.getElementById('parkingListArea');
+
+      if (!masukEl && !luarEl && !fallback) {
+        // No Masuk/Luar containers and no existing parkingListArea — create a fallback
+        try {
+          const created = document.createElement('div');
+          created.id = 'parkingListArea';
+          created.style.marginTop = '8px';
+          // append into pageParking if available, otherwise fallback to body
+          if (pageParking) pageParking.appendChild(created);
+          else document.body.appendChild(created);
+          // update variables so subsequent code uses the created element
+          masukEl = document.getElementById('parkingMasuk');
+          luarEl = document.getElementById('parkingLuar');
+          // ensure we reference the newly created fallback
+          fallback = document.getElementById('parkingListArea');
+        } catch (err) {
+          console.warn('[parking] could not create fallback slot container', err);
+          return;
+        }
+      }
+
+      // If both Masuk/Luar present use the original layout
+      if (masukEl && luarEl) {
+        masukEl.innerHTML = '';
+        luarEl.innerHTML = '';
+        masukSlots.forEach(s => renderSlotRow(s, masukEl));
+        luarSlots.forEach(s => renderSlotRow(s, luarEl));
+        // also render compact lot list for quick overview
+        try { renderParkingLotList(); } catch(e) { /* ignore if not present */ }
         return;
       }
-      parkingMasuk.innerHTML = '';
-      parkingLuar.innerHTML = '';
-      masukSlots.forEach(s => renderSlotRow(s, parkingMasuk));
-      luarSlots.forEach(s => renderSlotRow(s, parkingLuar));
+
+      // Fallback: render all slots into a single compact list area
+      try {
+        const container = fallback || masukEl || luarEl;
+        if (!container) return;
+        container.innerHTML = '';
+        const single = document.createElement('div'); single.className = 'lot-list';
+        const allSlots = masukSlots.concat(luarSlots);
+        allSlots.forEach(slotId => renderSlotRow(slotId, single));
+        container.appendChild(single);
+        // ensure fallback container is visible (some pages initially hide it)
+        try { container.style.display = ''; } catch(e) {}
+      } catch (err) { console.error('[parking] fallback renderAllSlots err', err); }
 
       // also render compact lot list for quick overview
       try { renderParkingLotList(); } catch(e) { /* ignore if not present */ }
@@ -1453,18 +2065,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
     openModal(modal, '#slotVehicle');
   }
 
-  // quick-edit by lot number control (inserts tiny control at top of parking page)
-  try {
-    const pageParkingEl = document.getElementById('pageParking');
-    if (pageParkingEl) {
-      // create a compact lot list container (top of page)
-      const lotListWrap = document.createElement('div');
-      lotListWrap.id = 'parkingLotListWrap';
-      pageParkingEl.insertAdjacentElement('afterbegin', lotListWrap);
-    }
-  } catch (e) {
-    console.warn('[parking] parking list container failed to create', e);
-  }
+  // NOTE: the top-of-page compact lot list `#parkingLotListWrap` was removed
+  // per user request. We keep renderParkingLotList() safe (it returns early
+  // if the wrapper is not present) and rely on either the Masuk/Luar columns
+  // or the `#parkingListArea` fallback for slot rendering.
 
   // render a compact list / grid view of all lots with status
   function renderParkingLotList(){
@@ -1484,6 +2088,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
       const cols = document.createElement('div');
       cols.className = 'lot-columns';
 
+      // Create separate containers for Masuk / Luar quick-list + a combined compact list
+      const leftGrid = document.createElement('div'); leftGrid.className = 'lot-list left-grid';
+      const rightGrid = document.createElement('div'); rightGrid.className = 'lot-list right-grid';
       // Render a single compact lot list (no separate Masuk / Luar columns)
       const singleList = document.createElement('div');
       singleList.className = 'lot-list';
@@ -1520,6 +2127,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
         singleList.appendChild(chip);
       });
 
+      cols.appendChild(leftGrid);
+      cols.appendChild(rightGrid);
       cols.appendChild(singleList);
       wrapper.appendChild(cols);
     } catch (err) {
@@ -1621,6 +2230,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
       console.info('[navParking] clicked');
       document.getElementById('pageSummary').style.display = 'none';
       document.getElementById('pageCheckedIn').style.display = 'none';
+      // ensure Unit Admin page is hidden when switching to Parking view
+      try { const p = document.getElementById('pageUnitAdmin'); if (p) p.style.display = 'none'; } catch(e) {}
       pageParking.style.display = '';
 
       navSummary.classList.remove('active');
@@ -1870,39 +2481,107 @@ document.addEventListener('DOMContentLoaded', ()=>{
       // Only Pelawat category AND staying over (Bermalam)
       const pelawat = rows.filter(r => determineCategory(r) === 'Pelawat' && String((r.stayOver || '').toLowerCase()) === 'yes');
 
-      // Build per-plate counts across the week (count of distinct days a plate appears on)
-      // We'll use this to mark plates that appear on multiple days
-      const plateDays = {}; // plate -> Set of dayKeys
+      // Build per-plate counts across the week (count of total occurrences in the week)
+      // We'll use this to mark plates that appear more than once in the rendered Monday–Sunday week
+      // Also track the distinct days a plate spans, so multi-day stays are flagged as duplicates too.
+      const plateCounts = {}; // plate -> occurrence count
+      const plateDayMap = {}; // plate -> Set of dayKeys it appears on
       pelawat.forEach(r => {
-        // gather all plates for this registration
+        // gather all plates for this registration (dedupe within a registration)
         const plates = new Set();
         if (r.vehicleNo) plates.add(String(r.vehicleNo).trim());
         if (Array.isArray(r.vehicleNumbers)) r.vehicleNumbers.forEach(x => plates.add(String(x).trim()));
         if (typeof r.vehicleNumbers === 'string' && !r.vehicleNo) plates.add(String(r.vehicleNumbers).trim());
-        // if none, skip
+        const eta = r.eta && r.eta.toDate ? r.eta.toDate() : (r.eta ? new Date(r.eta) : new Date());
+        const etd = r.etd && r.etd.toDate ? r.etd.toDate() : (r.etd ? new Date(r.etd) : eta);
+        // span each day from eta..etd (inclusive), but only within the week window
+        const spanStart = dayStart(eta);
+        const spanEnd = dayStart(etd);
         plates.forEach(pl => {
           if (!pl) return;
-          const key = dayKey(r.eta && r.eta.toDate ? r.eta.toDate() : (r.eta ? new Date(r.eta) : new Date()));
-          plateDays[pl] = plateDays[pl] || new Set();
-          plateDays[pl].add(key);
+          plateCounts[pl] = (plateCounts[pl] || 0) + 1;
+          plateDayMap[pl] = plateDayMap[pl] || new Set();
+          const cursor = new Date(spanStart);
+          while (cursor.getTime() <= spanEnd.getTime() && cursor.getTime() < to.getTime()) {
+            plateDayMap[pl].add(dayKey(cursor));
+            cursor.setDate(cursor.getDate() + 1);
+          }
         });
       });
 
-      // convert to counts map for quick lookup
-      const plateCounts = {};
-      Object.keys(plateDays).forEach(p => { plateCounts[p] = plateDays[p].size; });
+      // Compute plates that appear on consecutive days within the week
+      const plateConsecutiveDays = {}; // plate -> Set of dayKeys that are part of a consecutive streak
+      Object.keys(plateDayMap).forEach(p => {
+        const days = Array.from(plateDayMap[p]);
+        days.sort();
+        const set = new Set();
+        for (let i = 1; i < days.length; i++) {
+          const prev = new Date(days[i-1]);
+          const curr = new Date(days[i]);
+          const diffDays = Math.round((curr - prev) / (24*60*60*1000));
+          if (diffDays === 1) {
+            set.add(days[i-1]);
+            set.add(days[i]);
+          }
+        }
+        if (set.size) plateConsecutiveDays[p] = set;
+      });
+
+      // --- Detect duplicate submissions (same-date | same-hostUnit | same phone-or-name)
+      // Use similar fingerprint logic as scripts/find-duplicates.js so UI flags repeated
+      // submissions of identical data (server-side dedupe key: dateKey|hostUnit|phone-or-name)
+      const fingerprintGroups = {}; // fingerprint -> array of response ids
+      const idDupCounts = {}; // response id -> duplicate group size
+      function mkNameKey(name) {
+        if (!name) return '';
+        return String(name).trim().toLowerCase().replace(/\s+/g,'_').slice(0,64);
+      }
+      function normalizePhoneLocal(p) { return (p || '').replace(/[^0-9+]/g,''); }
+
+      pelawat.forEach(r => {
+        try {
+          const fpDate = r.eta ? dayKey(r.eta && r.eta.toDate ? r.eta.toDate() : (r.eta ? new Date(r.eta) : new Date())) : 'null';
+          const hostUnit = (r.hostUnit || '').replace(/\s+/g,'') || 'null';
+          const phone = normalizePhoneLocal(r.visitorPhone || '');
+          const nameK = mkNameKey(r.visitorName || '');
+          const idKey = phone || nameK || 'noid';
+          const fp = `${fpDate}|${hostUnit}|${idKey}`;
+          fingerprintGroups[fp] = fingerprintGroups[fp] || [];
+          fingerprintGroups[fp].push(r.id);
+        } catch(e) { /* ignore individual row errors */ }
+      });
+
+      Object.keys(fingerprintGroups).forEach(fp => {
+        const arr = fingerprintGroups[fp] || [];
+        arr.forEach(id => { idDupCounts[id] = arr.length; });
+      });
 
       // build calendar container
       let calWrap = document.getElementById('parkingWeekCalendar');
       if (!calWrap){ calWrap = document.createElement('div'); calWrap.id = 'parkingWeekCalendar'; calWrap.className = 'card'; calWrap.style.marginTop = '12px'; }
       calWrap.innerHTML = '';
 
-      // helper: stable color mapping per plate (simple hash -> palette)
-      const dupPalette = ['#FB7185','#60A5FA','#F59E0B','#34D399','#A78BFA','#F97316','#60A5FA','#FCA5A5','#86EFAC'];
-      function colorForPlate(plate) {
-        if (!plate) return dupPalette[0];
-        let h = 0; for (let i=0;i<plate.length;i++) h = ((h<<5)-h) + plate.charCodeAt(i), h |= 0;
-        const idx = Math.abs(h) % dupPalette.length; return dupPalette[idx];
+      // helper: palette keyed per plate (not per count) so different plates get different colors
+      const platePalette = ['#FB7185','#60A5FA','#F59E0B','#34D399','#A78BFA','#F97316','#06B6D4','#10B981','#F472B6','#9CA3AF'];
+      const plateColorMap = {};
+      function colorForPlate(plate){
+        if (!plate) return null;
+        const key = String(plate).trim().toUpperCase();
+        if (!plateColorMap[key]) {
+          const idx = Object.keys(plateColorMap).length % platePalette.length;
+          plateColorMap[key] = platePalette[idx];
+        }
+        return plateColorMap[key];
+      }
+
+      function hexToRgba(hex, alpha){
+        if (!hex) return null;
+        // support #RRGGBB
+        const h = hex.replace('#','');
+        const r = parseInt(h.substring(0,2),16);
+        const g = parseInt(h.substring(2,4),16);
+        const b = parseInt(h.substring(4,6),16);
+        return `rgba(${r},${g},${b},${alpha})`;
       }
 
       const header = document.createElement('div');
@@ -2007,25 +2686,93 @@ document.addEventListener('DOMContentLoaded', ()=>{
             const key = `${p.plate}||${p.unit}`;
             if (!seen.has(key)) { seen.add(key); unique.push(p); }
           });
+          // sort so duplicates appear first, then alphabetical by first word of the plate
+          const firstWord = (plate) => {
+            const s = String(plate || '').trim();
+            if (!s) return '';
+            const token = s.split(/\s+/)[0];
+            return token.toLowerCase();
+          };
+          unique.sort((a, b) => {
+            const daySpanA = plateDayMap[a.plate] ? plateDayMap[a.plate].size : 0;
+            const daySpanB = plateDayMap[b.plate] ? plateDayMap[b.plate].size : 0;
+            const dupA = ((plateCounts[a.plate] || 0) > 1 || daySpanA > 1) ? 1 : 0;
+            const dupB = ((plateCounts[b.plate] || 0) > 1 || daySpanB > 1) ? 1 : 0;
+            if (dupA !== dupB) return dupB - dupA; // duplicates first
+            const fa = firstWord(a.plate);
+            const fb = firstWord(b.plate);
+            const cmp = fa.localeCompare(fb, undefined, { sensitivity: 'base' });
+            if (cmp !== 0) return cmp;
+            return String(a.plate || '').localeCompare(String(b.plate || ''), undefined, { sensitivity: 'base' });
+          });
+
 
           unique.forEach(r => {
-            const item = document.createElement('div'); item.className = 'pw-vehicle-item';
-            const unit = r.unit ? ` — ${r.unit}` : '';
-            // if plate appears on more than one day this week, mark it
-            const count = plateCounts[r.plate] || 0;
-            item.textContent = `${r.plate}${unit}`;
-            if (count > 1) {
-              item.classList.add('pw-vehicle-duplicate');
-              item.setAttribute('data-dup-count', String(count));
-              // store plate on element for later color mapping
-              item.setAttribute('data-plate', r.plate);
-              // assign consistent color for this plate
-              const pcolor = colorForPlate(r.plate);
-              try { item.style.setProperty('--dup-color', pcolor); } catch(e) {}
-              // add small icon for duplication visibility
-              const icon = document.createElement('span'); icon.className = 'dup-icon'; icon.textContent = '🔁'; icon.setAttribute('aria-hidden','true');
-              item.insertBefore(icon, item.firstChild);
-            }
+              const item = document.createElement('div'); item.className = 'pw-vehicle-item';
+              // build left-side content matching the provided sample: small dot, rounded icon, plate text + unit
+              const left = document.createElement('div'); left.className = 'pw-vehicle-left';
+              // vehicle badge removed per request (no icon)
+              const plateSpan = document.createElement('span'); plateSpan.className = 'pw-plate-text';
+              const unit = r.unit ? ` — ${r.unit}` : '';
+              plateSpan.textContent = `${r.plate}${unit}`;
+              // left dot removed per request
+              // badge removed; no longer append an icon here
+              left.appendChild(plateSpan);
+              item.appendChild(left);
+              // compute per-plate count for multi-day highlighting
+              const count = plateCounts[r.plate] || 0;
+              const daySpan = plateDayMap[r.plate] ? plateDayMap[r.plate].size : 0;
+              const isDup = (count > 1) || (daySpan > 1);
+              const isConsecutive = plateConsecutiveDays[r.plate] && plateConsecutiveDays[r.plate].has(k);
+              if (isDup) {
+                item.classList.add('pw-vehicle-duplicate');
+                item.classList.add('pw-week-duplicate');
+                // show day span when it spans multiple days; otherwise show occurrence count
+                const dupCountVal = (daySpan > 1) ? daySpan : count;
+                item.setAttribute('data-dup-count', String(dupCountVal));
+                if (daySpan > 3) item.classList.add('pw-dup-long');
+                // store plate on element for later color mapping
+                item.setAttribute('data-plate', r.plate);
+                // choose color per plate so each distinct plate uses its own tint
+                const pcolor = colorForPlate(r.plate);
+                if (pcolor) {
+                  try {
+                    const bg = hexToRgba(pcolor, 0.12);
+                    const border = hexToRgba(pcolor, 0.45);
+                    const shadow = hexToRgba(pcolor, 0.18);
+                    item.style.setProperty('background', `linear-gradient(180deg, ${bg}, rgba(255,255,255,0.96))`, 'important');
+                    item.style.setProperty('border', `1px solid ${border}`, 'important');
+                  } catch(e) {}
+                }
+                // add small icon for duplication visibility (retain previous icon for parity)
+                // multi-day duplicate icon removed per request
+              }
+              if (isConsecutive) {
+                item.classList.add('pw-consecutive');
+              }
+            // mark if the underlying registration(s) for this displayed plate+unit
+            // represent repeated submissions of identical data (same-date|unit|phone-or-name)
+            try {
+              // If the underlying registration(s) for this displayed plate+unit
+              // represent repeated submissions of identical data (same-date|unit|phone-or-name)
+              // we still mark the element with the class so it can be styled, but
+              // we intentionally do not append a right-side exclamation icon (removed).
+              const subCount = idDupCounts[r.id] || 0;
+              if (subCount > 1) {
+                item.classList.add('pw-submission-duplicate');
+              }
+
+              // combine duplicate reasons (week-level plate occurrences + submission duplicates)
+              const reasons = [];
+              if ((count || 0) > 1) reasons.push(`Plate appears ${count} time${count>1?'s':''} this week`);
+              else if (daySpan > 1) reasons.push(`Plate spans ${daySpan} day${daySpan>1?'s':''} this week`);
+              if (isConsecutive) reasons.push('Plate appears on consecutive days this week');
+              if (subCount > 1) reasons.push(`Registration duplicated ${subCount} time${subCount>1?'s':''}`);
+              if (reasons.length) {
+                item.classList.add('pw-duplicate');
+                try { item.setAttribute('title', reasons.join(' — ')); } catch(e){}
+              }
+            } catch(e) { /* ignore */ }
             // attempt to open matching response id if available
             item.addEventListener('click', ()=>{ try{ const id = r.id; if (id) openEditModalFor && typeof openEditModalFor === 'function' ? openEditModalFor(id) : toast('Buka butiran pendaftaran (fungsi tidak tersedia)', false); } catch(e) { console.warn(e); } });
             list.appendChild(item);
@@ -2154,7 +2901,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         const idx = responseCache.rows.findIndex(r => r.id === responseId);
         if (idx !== -1) {
           responseCache.rows[idx] = Object.assign({}, responseCache.rows[idx], { parkingLot: selectedLotId, assignedAt: new Date() });
-          renderList(responseCache.rows, listAreaSummary, false);
+          renderSummaryWithSearch(responseCache.rows);
           renderCheckedInList(responseCache.rows.filter(r => r.status === 'Checked In'));
         }
       }

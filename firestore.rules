@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow reads for core collections used by the dashboard
+    match /units/{unitId} {
+      allow get, list: if true;
+
+      // Allow admins (custom claim `admin`) to create/update/delete units
+      allow create, update, delete: if request.auth != null
+        && request.auth.token.admin == true
+        && isValidUnit(request.resource.data);
+    }
+
+    // Parking data: require authenticated reads; restrict writes to admins
+    match /parkingSlots/{slotId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.admin == true;
+    }
+    match /parkingMeta/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Visitor form responses: allow public create with strict validation
+    match /responses/{respId} {
+      allow create: if isValidResponse(request.resource.data);
+      allow read, update, delete: if request.auth != null;
+    }
+
+    // Audit logs: authenticated users may write and read; deletes disabled
+    match /audit/{docId} {
+      allow create, read: if request.auth != null;
+      allow delete: if false;
+      allow update: if false;
+    }
+
+    // Deny everything else by default (explicit)
+    match /{document=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // Validation helper for a unit doc
+    function isValidUnit(data) {
+      return data is map
+        && (data.keys().hasAll(['arrears', 'arrearsAmount', 'category', 'lastUpdatedAt', 'lastUpdatedBy'])
+            || data.keys().hasAny(['arrears','arrearsAmount','category','originalUnit']))
+        && (data.arrears is bool)
+        && (data.arrearsAmount is number || data.arrearsAmount == null)
+        && (data.category is string || !('category' in data))
+        && (data.lastUpdatedAt is timestamp || !('lastUpdatedAt' in data))
+        && (data.lastUpdatedBy is string || !('lastUpdatedBy' in data));
+    }
+
+    // Validation helper for a visitor response doc
+    function isValidResponse(data) {
+      return data is map
+        // required keys
+        && data.keys().hasAll(['hostUnit','hostName','category','visitorName','eta','createdAt','updatedAt','status'])
+        // allowed optional keys
+        && data.keys().hasOnly([
+          'hostUnit','hostUnitFound','hostName','hostPhone','category','subCategory','entryDetails','companyName',
+          'visitorName','visitorPhone','stayOver','eta','etd','vehicleNo','vehicleNumbers','vehicleType',
+          'subCategoryHelp','status','createdAt','updatedAt',
+          // unit snapshot fields
+          'unitCategory','unitArrears','unitArrearsAmount','unitLastUpdatedAt'
+        ])
+        // type checks
+        && (data.hostUnit is string)
+        && (data.hostUnitFound is bool || !('hostUnitFound' in data))
+        && (data.hostName is string)
+        && (data.hostPhone is string || !('hostPhone' in data))
+        && (data.category is string)
+        && (data.subCategory is string || !('subCategory' in data))
+        && (data.entryDetails is string || !('entryDetails' in data))
+        && (data.companyName is string || !('companyName' in data))
+        && (data.visitorName is string)
+        && (data.visitorPhone is string || !('visitorPhone' in data))
+        && (data.stayOver is string || !('stayOver' in data))
+        && (data.eta is timestamp)
+        && (data.etd is timestamp || data.etd == null || !('etd' in data))
+        && (data.vehicleNo is string || !('vehicleNo' in data))
+        && (data.vehicleNumbers is list || !('vehicleNumbers' in data))
+        && (data.vehicleType is string || !('vehicleType' in data))
+        && (data.subCategoryHelp is string || !('subCategoryHelp' in data))
+        && (data.status is string)
+        && (data.createdAt is timestamp)
+        && (data.updatedAt is timestamp)
+        // unit snapshot optional types
+        && (data.unitCategory is string || !('unitCategory' in data))
+        && (data.unitArrears is bool || !('unitArrears' in data))
+        && (data.unitArrearsAmount is number || !('unitArrearsAmount' in data))
+        && (data.unitLastUpdatedAt is timestamp || !('unitLastUpdatedAt' in data));
+    }
+  }
+}

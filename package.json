@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "import-units": "node scripts/import-units.js --file",
+    "seed-cooldown-policy": "node scripts/seed-cooldown-policy.js"
+  },
   "dependencies": {
     "firebase-admin": "^13.6.0",
     "minimist": "^1.2.8"

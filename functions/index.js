@@ -6,7 +6,8 @@ const db = admin.firestore();
 
 // Dedupe time window (minutes) - server will treat any existing dedupe key younger than
 // this window as a duplicate and prevent additional submissions. Default is 5 minutes.
-const DEDUPE_WINDOW_MIN = Number(process.env.DEDUPE_WINDOW_MIN) || 1;
+// Default dedupe window now 2 minutes (can override via env DEDUPE_WINDOW_MIN)
+const DEDUPE_WINDOW_MIN = Number(process.env.DEDUPE_WINDOW_MIN) || 2;
 const DEDUPE_WINDOW_MS = DEDUPE_WINDOW_MIN * 60 * 1000;
 
 function isoDateOnlyKey(d) {
@@ -42,6 +43,43 @@ exports.createResponseWithDedupe = functions.https.onCall(async (data, context) 
   const dedupeRef = db.doc(`dedupeKeys/${dedupeKey}`);
   const respRef = db.doc(`responses/${responseId}`);
 
+  // Policy-driven cooldown for certain units (e.g., with arrears)
+  // Read unit and optional policy doc to determine if a cooldown applies
+  const hostUnitId = (payload.hostUnit || '').replace(/\s+/g,'');
+  const unitRef = db.doc(`units/${hostUnitId}`);
+  let cooldownDays = 0;
+  try {
+    const [unitSnap, policySnap] = await Promise.all([
+      unitRef.get(),
+      db.doc('parkingMeta/cooldownPolicy').get().catch(() => null)
+    ]);
+    const u = unitSnap && unitSnap.exists ? unitSnap.data() : {};
+    const policy = (policySnap && policySnap.exists) ? (policySnap.data() || {}) : {};
+    const arrears = !!u.arrears;
+    const amount = (u && typeof u.arrearsAmount === 'number') ? u.arrearsAmount : 0;
+    const enabled = (typeof policy.enabled === 'boolean') ? policy.enabled : true;
+    if (enabled) {
+      const highThresh = (typeof policy.highArrearsThreshold === 'number') ? policy.highArrearsThreshold : 400;
+      const highCd = (typeof policy.highArrearsCooldownDays === 'number') ? policy.highArrearsCooldownDays : 0; // often charged instead of cooldown
+      const lowCd = (typeof policy.arrearsCooldownDays === 'number') ? policy.arrearsCooldownDays : 3;
+      const noArrearsCd = (typeof policy.noArrearsCooldownDays === 'number') ? policy.noArrearsCooldownDays : 0;
+      if (arrears && amount > 0) {
+        cooldownDays = (amount >= highThresh) ? highCd : lowCd;
+      } else {
+        cooldownDays = noArrearsCd;
+      }
+    }
+    // Admin override: allowed only when callable is invoked by an authenticated admin context
+    if (payload && payload.override === true && context && context.auth && context.auth.token && context.auth.token.admin === true) {
+      cooldownDays = 0;
+    }
+  } catch (e) {
+    // If policy read fails, default to no cooldown to avoid false blocks
+    cooldownDays = 0;
+  }
+
+  const cooldownRef = db.doc(`cooldowns/unit-${hostUnitId}`);
+
   try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(dedupeRef);
@@ -64,6 +102,35 @@ exports.createResponseWithDedupe = functions.https.onCall(async (data, context) 
           if (e instanceof functions.https.HttpsError) throw e;
           throw new functions.https.HttpsError('already-exists', 'Duplicate');
         }
+      }
+
+      // Enforce cooldown when configured
+      if (cooldownDays > 0) {
+        const coolSnap = await tx.get(cooldownRef);
+        const now = new Date();
+        if (coolSnap.exists) {
+          try {
+            const cd = coolSnap.data();
+            const until = cd && cd.until && cd.until.toDate ? cd.until.toDate() : (cd && cd.until ? new Date(cd.until) : null);
+            if (until && until.getTime() > now.getTime()) {
+              // include an easily-parsed marker in message for client display
+              throw new functions.https.HttpsError('failed-precondition', `cooldown_until:${until.toISOString()}`);
+            }
+          } catch (e) {
+            if (e instanceof functions.https.HttpsError) throw e;
+            // if parsing fails, be conservative and block briefly (1 hour)
+            const untilDate = new Date(now.getTime() + 60*60*1000);
+            throw new functions.https.HttpsError('failed-precondition', `cooldown_until:${untilDate.toISOString()}`);
+          }
+        }
+        // set/extend cooldown starting now
+        const untilDate = new Date(now.getTime() + cooldownDays * 24 * 60 * 60 * 1000);
+        tx.set(cooldownRef, {
+          unit: hostUnitId,
+          until: admin.firestore.Timestamp.fromDate(untilDate),
+          lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          reason: 'policy'
+        }, { merge: true });
       }
 
       tx.set(dedupeRef, {
@@ -95,6 +162,10 @@ exports.createResponseWithDedupe = functions.https.onCall(async (data, context) 
     // Already-exists becomes a clear duplicate status
     if (err && err.code === 'already-exists') {
       throw new functions.https.HttpsError('already-exists', 'Duplicate');
+    }
+    // Cooldown precondition
+    if (err && err.code === 'failed-precondition' && /cooldown_until:/i.test(String(err.message||''))) {
+      throw new functions.https.HttpsError('failed-precondition', err.message);
     }
     console.error('createResponseWithDedupe error', err);
     // Include the underlying error message to aid diagnosing an 'internal' error from client logs.

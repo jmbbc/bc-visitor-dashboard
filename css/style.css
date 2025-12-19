@@ -108,16 +108,30 @@ body{
 .pw-date-cell { width: 220px; min-width:160px; max-width:260px; }
 .pw-date-cell .pw-day-header { font-weight:700; }
 .pw-items-cell .pw-vehicle-list { display:flex; flex-direction:column; gap:6px; }
-.pw-vehicle-item { padding:6px 8px; border-radius:8px; background:var(--surface); border:1px solid rgba(0,0,0,0.04); display:inline-block; cursor:pointer; }
-.pw-vehicle-item .dup-icon { margin-right:6px; opacity:0.92; }
+.pw-vehicle-item { padding:6px 8px; border-radius:8px; background:var(--surface); border:1px solid rgba(0,0,0,0.04); display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; position:relative; }
+.pw-vehicle-item .dup-icon { display:none !important; }
 .pw-vehicle-duplicate { position:relative; padding-left:8px; }
-.pw-vehicle-duplicate::before { content: ""; display:inline-block; width:8px; height:8px; border-radius:99px; margin-right:8px; vertical-align:middle; background: var(--dup-color, #2563eb);} 
+/* Ensure duplicate items do not have a colored background; keep only the left border accent */
+.pw-vehicle-item.pw-vehicle-duplicate { background: var(--surface) !important; }
+.pw-vehicle-duplicate::before { display:none !important; }
 .pw-vehicle-duplicate[data-dup-count]:after { content: attr(data-dup-count); display:inline-block; font-size:11px; margin-left:8px; color:var(--muted); background:transparent; border-radius:8px; padding:0 4px; vertical-align:middle; }
+.pw-vehicle-duplicate.pw-dup-long[data-dup-count]:after { color:#b91c1c; font-weight:700; background:rgba(185,28,28,0.08); }
 
 /* color mapping will be applied inline at render-time via style.background or border-color; fallback */
 .pw-vehicle-duplicate { border-left: 4px solid var(--dup-color, rgba(0,0,0,0.06)); }
 .pw-vehicle-duplicate .dup-icon { display:inline-block; width:14px; text-align:center; }
+/* duplicate submission (same-data) - visually distinct from plate-across-days duplicates */
+/* mark submission duplicates (same-data) visually, but do not show the right-side exclamation icon */
+.pw-submission-duplicate { border-left: 4px solid var(--warning); position:relative; }
+/* show a small exclamation icon pinned on the right of the box */
+
 .pw-vehicle-list.multi-cols { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+
+/* left area: dot, rounded badge, plate text */
+.pw-vehicle-left { display:flex; align-items:center; gap:8px; min-width:0; }
+.pw-left-dot { display:none !important; }
+.pw-veh-badge { display:none !important; }
+.pw-plate-text { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:700; }
 .pw-vehicle-item:hover { background: rgba(37,99,235,0.04); }
 
 /* Make parking vehicle item text denser specifically in the Parking page (web page mode) */
@@ -177,6 +191,24 @@ body{
 #pageParking .pw-items-cell {
   padding: 0 12px 12px 12px;
 }
+#pageParking .pw-vehicle-item.pw-week-duplicate {
+  background: linear-gradient(180deg, rgba(251, 113, 133, 0.1), rgba(255, 255, 255, 0.95));
+  border: 1px solid rgba(251, 113, 133, 0.4);
+  border-radius: 10px;
+}
+
+#pageParking .pw-vehicle-item.pw-consecutive {
+  border-left: 6px solid rgba(14, 165, 233, 0.55);
+  background: linear-gradient(180deg, rgba(14,165,233,0.08), rgba(255,255,255,0.96));
+}
+
+#pageParking .pw-vehicle-item.pw-duplicate:not(.pw-week-duplicate) {
+  /* if it's a duplicate for submission reasons only, highlight with amber left border */
+  border-left: 6px solid rgba(245,158,11,0.6);
+  padding-left: 8px;
+}
+
+
 
 /* -------------------------
    Typography & small utilities
@@ -534,12 +566,16 @@ form textarea[placeholder] {
 .autocomplete-header { padding: 8px 10px; font-weight:700; color:var(--muted); }
 
 /* Toast styles: floating and non-blocking */
-.toast, .msg { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(8px); z-index: 24000; padding: 12px 18px; border-radius: 12px; box-shadow: 0 8px 30px rgba(6,6,15,0.12); display:flex; align-items:center; gap:12px; font-weight:700; min-width: 220px; max-width: min(92%, 640px); }
+.toast, .msg { padding: 12px 18px; border-radius: 12px; box-shadow: 0 8px 30px rgba(6,6,15,0.12); display:flex; align-items:center; gap:12px; font-weight:700; min-width: 220px; max-width: min(92%, 640px); }
 .toast.ok, .msg.ok{ background:var(--ok); color:#042e17; }
 .toast.err, .msg.err{ background:var(--danger); color:#fff; }
 .toast { transition: transform .22s ease, opacity .22s ease; padding-right: 10px; }
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast.fade, .msg.fade { opacity: 0; transform: translateX(-50%) translateY(20px); }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.fade, .msg.fade { opacity: 0; transform: translateY(20px); }
+
+/* toast container: stack messages so they don't overlap */
+#toastContainer { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); display:flex; flex-direction: column-reverse; gap:10px; align-items:center; z-index:24000; pointer-events: none; width:100%; max-width:960px; padding: 0 12px; box-sizing: border-box; }
+#toastContainer .msg, #toastContainer .toast { pointer-events: auto; }
 /* toast content and close button */
 .toast .toast-content { flex: 1; padding-right: 6px; }
 .toast .toast-close { background: transparent; border: 0; color: inherit; font-size: 20px; padding: 6px 8px; cursor: pointer; line-height: 1; border-radius: 8px; }

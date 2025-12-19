@@ -3,6 +3,7 @@
 // IMPORTANT: DO NOT commit config.local.js (it's added to .gitignore) — it may contain secrets.
 
 window.__APP_CONFIG = window.__APP_CONFIG || {};
-window.__APP_CONFIG.adminPassword = 'changeme'; // replace with a strong password
+// Default admin password for local development. Change this in config.local.js in production.
+window.__APP_CONFIG.adminPassword = 'admin';
 
 // Optional: other runtime config can go here

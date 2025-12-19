@@ -110,7 +110,10 @@ function toast(message, ok = true, opts = {}) {
 
   el.appendChild(content);
   el.appendChild(closeBtn);
-  document.body.appendChild(el);
+  // ensure toast container exists so toasts stack instead of overlapping
+  let container = document.getElementById('toastContainer');
+  if (!container) { container = document.createElement('div'); container.id = 'toastContainer'; document.body.appendChild(container); }
+  container.appendChild(el);
 
   // show then schedule auto-dismiss
   // tiny delay so CSS transition can run
@@ -134,6 +137,87 @@ function clearAllToasts() {
     const toasts = Array.from(document.querySelectorAll('.toast'));
     toasts.forEach(t => { if (!t._removed) { t._removed = true; t.classList.add('fade'); setTimeout(()=> t.remove(), 220); } else { t.remove(); } });
   } catch (e) { /* ignore */ }
+}
+
+// Floating memo overlay shown before user can fill the form
+function showFloatMemo(message, opts = {}){
+  const storageKey = (opts && 'storageKey' in opts) ? opts.storageKey : 'visitorMemoDismissed';
+  // Only skip showing if a storageKey is provided and previously dismissed
+  try { if (storageKey && localStorage.getItem(storageKey) === '1') return; } catch(e) {}
+  const overlay = document.createElement('div');
+  overlay.id = 'visitorMemoOverlay';
+  overlay.style.position = 'fixed'; overlay.style.inset = '0'; overlay.style.background = 'rgba(0,0,0,0.35)';
+  overlay.style.zIndex = '99999'; overlay.style.display = 'flex'; overlay.style.alignItems = 'center'; overlay.style.justifyContent = 'center';
+  const memo = document.createElement('div'); memo.className = 'card'; memo.setAttribute('role','dialog'); memo.setAttribute('aria-modal','true'); memo.setAttribute('aria-labelledby','visitorMemoTitle');
+  memo.style.width = '520px'; memo.style.maxWidth = '95%'; memo.style.padding = '16px'; memo.style.position = 'relative'; memo.style.background = 'var(--card, #fff)'; memo.style.borderRadius = '12px'; memo.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)';
+  // Allow scroll for long content
+  memo.style.maxHeight = '80vh';
+  memo.style.overflow = 'auto';
+  const close = document.createElement('button'); close.id = 'visitorMemoClose'; close.setAttribute('aria-label','Tutup memo'); close.textContent = '×'; close.style.position = 'absolute'; close.style.right = '12px'; close.style.top = '10px'; close.style.border = '0'; close.style.background = 'transparent'; close.style.fontWeight = '700'; close.style.cursor = 'pointer';
+  const title = document.createElement('h3'); title.id = 'visitorMemoTitle'; title.style.marginTop = '0'; title.textContent = 'Makluman';
+  const body = document.createElement('div'); body.className = 'small'; body.style.whiteSpace = 'pre-wrap'; body.style.marginTop = '6px'; body.style.lineHeight = '1.5'; body.textContent = message || 'Sila baca makluman ini sebelum isi borang.';
+  if (opts && opts.imageSrc) {
+    const img = document.createElement('img');
+    img.src = opts.imageSrc;
+    img.alt = 'Maklumat tambahan';
+    img.style.display = 'block';
+    img.style.maxWidth = '100%';
+    img.style.marginTop = '10px';
+    img.style.borderRadius = '8px';
+    img.loading = 'lazy';
+    // Fallback: if the provided image fails to load, try a known asset path and then hide
+    img.addEventListener('error', () => {
+      try {
+        if (img._triedFallback) { img.style.display = 'none'; return; }
+        img._triedFallback = true;
+        img.src = 'assets/visitor_parking_charges.jpeg';
+      } catch(e) { img.style.display = 'none'; }
+    });
+    // Click-to-zoom: open image in full-screen overlay
+    img.style.cursor = 'zoom-in';
+    img.addEventListener('click', () => {
+      try {
+        const fullOverlay = document.createElement('div');
+        fullOverlay.style.position = 'fixed';
+        fullOverlay.style.inset = '0';
+        fullOverlay.style.background = 'rgba(0,0,0,0.8)';
+        fullOverlay.style.zIndex = '100000';
+        fullOverlay.style.display = 'flex';
+        fullOverlay.style.alignItems = 'center';
+        fullOverlay.style.justifyContent = 'center';
+
+        const bigImg = document.createElement('img');
+        bigImg.src = img.src;
+        bigImg.alt = img.alt || 'Imej';
+        bigImg.style.maxWidth = '95vw';
+        bigImg.style.maxHeight = '95vh';
+        bigImg.style.borderRadius = '8px';
+        bigImg.style.boxShadow = '0 8px 24px rgba(0,0,0,0.4)';
+        bigImg.style.cursor = 'zoom-out';
+
+        // Close interactions: click anywhere or press Escape
+        const closeOverlay = () => { try { fullOverlay.remove(); } catch(e) {} };
+        fullOverlay.addEventListener('click', closeOverlay);
+        fullOverlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
+        fullOverlay.tabIndex = 0; // allow key events
+
+        fullOverlay.appendChild(bigImg);
+        document.body.appendChild(fullOverlay);
+        setTimeout(() => { try { fullOverlay.focus(); } catch(e) {} }, 0);
+      } catch(e) { /* ignore click zoom errors */ }
+    });
+    body.appendChild(img);
+  }
+  const ok = document.createElement('button'); ok.className = 'btn'; ok.textContent = 'Saya faham'; ok.style.marginTop = '10px';
+  memo.appendChild(close); memo.appendChild(title); memo.appendChild(body); memo.appendChild(ok); overlay.appendChild(memo); document.body.appendChild(overlay);
+  const block = opts.blockUntilClose !== false; let formEl = null; try { formEl = document.getElementById('visitorForm') || document.querySelector('form'); } catch(e) {}
+  if (block && formEl) {
+    const blocker = document.createElement('div'); blocker.id = 'visitorFormBlocker'; blocker.style.position = 'absolute';
+    const rect = formEl.getBoundingClientRect(); blocker.style.left = rect.left + window.scrollX + 'px'; blocker.style.top = rect.top + window.scrollY + 'px'; blocker.style.width = rect.width + 'px'; blocker.style.height = rect.height + 'px';
+    blocker.style.background = 'rgba(255,255,255,0.0)'; blocker.style.zIndex = '9999'; blocker.style.cursor = 'not-allowed'; blocker.setAttribute('aria-hidden','true'); document.body.appendChild(blocker);
+  }
+  function dismiss(){ try { if (storageKey) localStorage.setItem(storageKey, '1'); } catch(e) {} try { overlay.remove(); } catch(e) {} try { const b = document.getElementById('visitorFormBlocker'); if (b) b.remove(); } catch(e) {} }
+  close.addEventListener('click', dismiss); ok.addEventListener('click', dismiss);
 }
 
 // Field-level helpers for showing validation visually
@@ -218,6 +302,90 @@ function dateFromInputDateOnly(val){
   return isNaN(dt.getTime()) ? null : dt;
 }
 
+function computeArrearsCategory(amount){
+  if (typeof amount !== 'number' || isNaN(amount)) return null;
+  if (amount <= 1) return 1;
+  if (amount <= 400) return 2;
+  return 3;
+}
+
+function freeDaysForCategory(cat){
+  if (cat === 1) return 3;
+  if (cat === 2) return 1;
+  return 0; // cat 3 and others default to none
+}
+
+function showUnitNoticeModal({ category, amount }){
+  return new Promise((resolve) => {
+    try { const prev = document.getElementById('unitNoticeOverlay'); if (prev) prev.remove(); } catch(e) {}
+    const overlay = document.createElement('div');
+    overlay.id = 'unitNoticeOverlay';
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(0,0,0,0.4)';
+    overlay.style.zIndex = '100000';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.setAttribute('role','dialog');
+    card.setAttribute('aria-modal','true');
+    card.setAttribute('aria-labelledby','unitNoticeTitle');
+    card.style.background = 'var(--card, #fff)';
+    card.style.padding = '18px';
+    card.style.borderRadius = '12px';
+    card.style.boxShadow = '0 10px 30px rgba(0,0,0,0.25)';
+    card.style.maxWidth = '520px';
+    card.style.width = '94%';
+
+    const title = document.createElement('h3');
+    title.id = 'unitNoticeTitle';
+    title.textContent = 'Makluman Tunggakan';
+    title.style.marginTop = '0';
+
+    const body = document.createElement('div');
+    body.className = 'small';
+    body.style.lineHeight = '1.55';
+    const freeDays = freeDaysForCategory(category);
+    const freeText = freeDays > 0 ? `${freeDays} hari` : 'Tiada';
+    body.innerHTML = [
+      '<p>Untuk makluman, unit ini mempunyai tunggakan. (Sila rujuk kepada pihak pengurusan untuk dapatkan tunggakan terkini)</p>',
+      `<p><strong>Kategori Unit Tunggakan : ${category}</strong></p>`,
+      `<p><strong>Jumlah hari yang di benarkan parkir percuma : ${freeText}</strong></p>`,
+      '<p>Sekiranya pemohon ingin meneruskan menggunakan perkhidmatan petak parkir pelawat, pihak pengurusan akan mengenakan caj berdasarkan jadual yang ditetapkan.</p>'
+    ].join('');
+
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.gap = '10px';
+    actions.style.marginTop = '14px';
+    actions.style.justifyContent = 'flex-end';
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'btn btn-ghost';
+    cancel.textContent = 'Batal';
+    cancel.addEventListener('click', () => { try { overlay.remove(); } catch(e) {} resolve(false); });
+
+    const ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'btn';
+    ok.textContent = 'Saya faham, teruskan';
+    ok.addEventListener('click', () => { try { overlay.remove(); } catch(e) {} resolve(true); });
+
+    actions.appendChild(cancel);
+    actions.appendChild(ok);
+    card.appendChild(title);
+    card.appendChild(body);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    try { ok.focus(); } catch(e) {}
+  });
+}
+
 /* ---------- duplicate submission check ---------- */
 /*
  * Transaction-based dedupe + create response
@@ -250,6 +418,20 @@ async function createResponseWithDedupe(payload){
     // duplicate error returned from server-side transaction (explicit duplicate) -> bubble up
     if (String(code).toLowerCase().includes('already-exists') || String(err).toLowerCase().includes('duplicate')) {
       const e = new Error('duplicate'); e.code = 'DUPLICATE'; throw e;
+    }
+
+    // cooldown enforcement from server: don't attempt client fallback, surface to UI
+    const codeStr = String(code).toLowerCase();
+    const msgStr = String(err && (err.message || err)).toLowerCase();
+    if (codeStr.includes('failed-precondition') || msgStr.includes('cooldown_until')) {
+      const rawMsg = String(err && (err.message || err)) || '';
+      const m = rawMsg.match(/cooldown_until:([^\s]+)/i);
+      const iso = m && m[1] ? m[1] : null;
+      const until = iso ? new Date(iso) : null;
+      const e = new Error('cooldown');
+      e.code = 'COOLDOWN';
+      if (until && !isNaN(until.getTime())) { e.until = until; e.untilISO = iso; }
+      throw e;
     }
 
     // If the callable failed for permission reasons (client can't touch dedupeKeys) or
@@ -295,7 +477,8 @@ async function createResponseWithDedupe(payload){
 // Client-side duplicate protection: keep last-submission fingerprints in localStorage
 // so we can prevent accidental immediate re-submits (improves UX). This is a
 // convenience layer only; server-side checks are authoritative.
-const CLIENT_DEDUPE_WINDOW_MIN = 1;
+// Client-side guard: block rapid repeat submits within 2 minutes (matches server)
+const CLIENT_DEDUPE_WINDOW_MIN = 2;
 function clientIsoDateOnlyKey(d) {
   if (!d) return null;
   const yy = d.getFullYear();
@@ -545,7 +728,7 @@ function isPatternValidUnit(val) {
 /* ---------- subcategory/company/etd logic ---------- */
 const companyCategories = new Set(['Kontraktor','Penghantaran Barang','Pindah Rumah']);
 // For certain categories ETD (tarikh keluar) isn't applicable — include Pelawat Khas
-const categoriesEtdDisabled = new Set(['Kontraktor','Penghantaran Barang','Pindah Rumah', 'Pelawat Khas']);
+const categoriesEtdDisabled = new Set(['Kontraktor','Penghantaran Barang','Pindah Rumah', 'Pelawat Khas', 'Drop-off']);
 
 const subCategoryMap = {
   'Penghantaran Barang': [
@@ -567,16 +750,25 @@ const subCategoryMap = {
 };
 
 const subCategoryHelpMap = {
-  'Penghantaran Masuk': 'Penghantaran masuk ke premis — nyatakan pihak penghantar dan penerima; pastikan masa muat turun dicatat.',
-  'Penghantaran Keluar': 'Penghantaran keluar dari premis — nyatakan penerima di luar dan butiran kenderaan jika ada.',
-  'Pindah Masuk': 'Kemasukan barangan pindah ke unit; sila nyatakan anggaran jumlah barangan dan nombor lori jika ada.',
-  'Pindah Keluar': 'Pengeluaran barangan pindah dari unit; rekod nombor lori dan masa anggaran.',
-  'Renovasi': 'Kerja-kerja pengubahsuaian (contoh: cat, tukar jubin). Pastikan kontraktor bawa dokumen kelulusan dan senarai pekerja.',
-  'Telekomunikasi': 'Kerja pemasangan/servis telekomunikasi. Sertakan nombor projek/PO dan waktu kerja jangkaan.',
-  'Kerja Servis': 'Servis berkala seperti penyelenggaraan lif, AC, atau sistem mekanikal. Nyatakan alat yang dibawa jika perlu.',
+  'Penghantaran Masuk': 'Penghantaran barang masuk ke dalam Banjaria Court',
+  'Penghantaran Keluar': 'Penghantaran barang keluar ke dari Banjaria Court',
+  'Pindah Masuk': 'Urusan pindah masuk ke Banjaria Court',
+  'Pindah Keluar': 'Urusan pindah keluar dari Banjaria Court.',
+  'Renovasi': 'Kerja-kerja pengubahsuaian (contoh: kerja yang melibatkan penggantian paip sinki, cat, jubin lantai).',
+  'Telekomunikasi': 'Pemasangan baru bagi Astro, TM, Time, Maxis)',
+  'Kerja Servis': 'Pemasangan baru atau servis seperti COWAY, Cucko, Air-Cond.',
   'Kawalan Serangga Perosak': 'Rawatan kawalan perosak. Pastikan kawasan yang terlibat dan langkah keselamatan diberi tahu.',
-  'Kerja Pembaikan': 'Pembaikan kecil/struktur. Nyatakan skop kerja ringkas dan akses yang diperlukan.',
-  'Pemeriksaan': 'Pemeriksaan keselamatan/inspeksi; sertakan pihak yang melakukan pemeriksaan dan tujuan pemeriksaan.'
+  'Kerja Pembaikan': 'Pembaikan seperti pendawaian, perkakasan elektrik, ',
+  'Pemeriksaan': 'Pemeriksaan di rumah utiliti TNB, Air Selangor, TM, TIME,'
+};
+
+const categoryHelpMap = {
+  'Pelawat': 'Pendaftaran untuk pelawat yang bermalam / tidak bermalam.',
+  'Kontraktor': 'Pendaftaran untuk beri kebenaran kepada kontraktor untuk masuk ke Banjaria Court.',
+  'Penghantaran Barang': 'Penggunaan lif yang minima (1x pengunaan sahaja).',
+  'Pindah Rumah': 'Penggunaan lif berulang kali (mengunci lif bagi kerja pemindahan barang).',
+  'Pelawat Khas': 'Pendaftaran untuk penghuni yang menganjurkan majlis yang melibatkan ramai pelawat.',
+  'Drop-off': 'Pendaftaran untuk mengambil atau menghantar penghuni di dalam Banjaria Court. (Maksimum 15 minit waktu yang dibenarkan untuk berada di dalam Banjaria Court)'
 };
 
 function setCompanyFieldState(show) {
@@ -661,6 +853,26 @@ function showSubCategoryHelp() {
   }
 }
 
+function showCategoryHelp(){
+  const select = document.getElementById('category');
+  const val = select?.value || '';
+  const helpWrap = document.getElementById('categoryHelpWrap');
+  const helpEl = document.getElementById('categoryHelp');
+  if (!helpEl || !helpWrap) return;
+
+  if (val && categoryHelpMap[val]){
+    helpEl.textContent = categoryHelpMap[val];
+    helpWrap.classList.remove('hidden');
+    helpWrap.removeAttribute('aria-hidden');
+    try { helpWrap.style.removeProperty('display'); } catch(e) { helpWrap.style.display = ''; }
+  } else {
+    helpEl.textContent = '';
+    helpWrap.classList.add('hidden');
+    helpWrap.setAttribute('aria-hidden','true');
+    try { helpWrap.style.setProperty('display','none','important'); } catch(e) { helpWrap.style.display = 'none'; }
+  }
+}
+
 /* ---------- WhatsApp quick-send helpers (admin link) ---------- */
 function normalizeForWaLink(raw){
   if (!raw) return null;
@@ -709,6 +921,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const wrapper = input?.closest('.autocomplete-wrap');
   const listEl = document.getElementById('unitSuggestions');
   const confirmAgreeEl = document.getElementById('confirmAgree');
+
+  // Show floating memo before allowing form fill (once per browser)
+  try {
+    // Show every time: pass storageKey: null so it doesn't persist dismissal
+    const memoText = [
+      'Pihak Pengurusan akan mula melaksanakan Pelaksanaan SOP Kemasukan Pelawat & Kontraktor, seperti yang di bincangkan didalam EGM 3.0 pada 22 Nov 2025.',
+      '',
+      'Unit pelawat / kontraktor yang mempunyai tunggakan akan dikenakan caj bagi penggunaan pakir pelawat. Berikut adalah ringkasan jadual bagi kadar caj penggunaan lot parkir pelawat :-',
+      '',
+      '1) Unit tiada tunggakan (RM 0.00)\nPercuma - 3 hari pertama\nJika ingin sambung - dikenakan pembayaran atau tempoh bertenang 3 hari sebelum boleh daftar masuk.',
+      '',
+      '2) Unit yang mempunyai tunggakan (RM 1.00 sehingga RM 400)\nPercuma - 1 hari\nJika ingin sambung - dikenakan bayaran atau tempoh bertenang 3 hari sebelum boleh daftar masuk',
+      '',
+      '3) Unit yang mempunyai tunggakan (RM 400.00 ke atas)\nDikenakan bayaran berdasarkan jadual.',
+      '',
+      'Sila pastikan maklumat yang disi adalah tepat untuk meneruskan. Tekan "X" atau "Saya faham" untuk meneruskan.'
+    ].join('\n');
+    showFloatMemo(memoText, { storageKey: null, blockUntilClose: true, imageSrc: 'assets/visitor_parking_charges.jpeg' });
+  } catch(e) { /* ignore */ }
 
   // input handlers
   input?.addEventListener('input', (e) => {
@@ -842,6 +1073,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!form) { console.error('visitorForm missing'); return; }
 
+    // Prevent backdated ETA on the client: set min to today so datepicker blocks past dates
+    try {
+      const todayIsoDate = clientIsoDateOnlyKey(new Date());
+      if (etaEl) etaEl.min = todayIsoDate;
+    } catch (e) { /* ignore if date input not available */ }
+
     function updateVehicleControlsForCategory(cat) {
       if (!vehicleSingleWrap || !vehicleMultiWrap || !addVehicleBtn || !vehicleList) return;
       if (cat === 'Pelawat Khas') {
@@ -893,7 +1130,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (etaDate) {
               const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 3);
               const toIso = d => d.toISOString().slice(0,10);
-              etdEl.min = toIso(etaDate); etdEl.max = toIso(maxDate);
+              // Ensure ETD min is not earlier than today — don't allow backdated ETD
+              try {
+                const todayIso = clientIsoDateOnlyKey(new Date());
+                const todayDate = dateFromInputDateOnly(todayIso);
+                const minDate = (todayDate && etaDate && etaDate > todayDate) ? etaDate : todayDate || etaDate;
+                etdEl.min = toIso(minDate);
+              } catch(e) {
+                etdEl.min = toIso(etaDate);
+              }
+              etdEl.max = toIso(maxDate);
             }
           }
         } else {
@@ -1022,6 +1268,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (stayOverEl) { /* stayOver logic preserved from before */ }
       updateVehicleControlsForCategory(v);
       updateEtdState(v);
+      // show category helper note if available
+      try { showCategoryHelp(); } catch(e) { /* ignore */ }
     });
 
     subCategoryEl?.addEventListener('change', showSubCategoryHelp);
@@ -1093,6 +1341,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateVehicleControlsForCategory(initCat);
     updateEtdState(initCat);
+    try { showCategoryHelp(); } catch(e) { /* ignore */ }
 
     const submitBtn = document.getElementById('submitBtn');
 
@@ -1133,8 +1382,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const etaDate = dateFromInputDateOnly(etaVal);
       const etdDate = etdVal ? dateFromInputDateOnly(etdVal) : null;
       if (!etaDate) { showStatus('Tarikh masuk tidak sah.', false); return; }
+      // Client-side prevention for backdated ETA (date-only compare)
+      try {
+        const todayKey = clientIsoDateOnlyKey(new Date());
+        const etaKey = clientIsoDateOnlyKey(etaDate);
+        if (etaKey < todayKey) {
+          showStatus('Tarikh masuk mestilah hari ini atau kemudian — tarikh lampau tidak dibenarkan.', false);
+          return;
+        }
+      } catch (e) { /* ignore comparison failures */ }
       if (etdVal && !etdDate) { showStatus('Tarikh keluar tidak sah.', false); return; }
       if (etdDate) {
+        // disallow backdated etd even if eta allowed — ETD must not be before today
+        try {
+          const todayKey = clientIsoDateOnlyKey(new Date());
+          const etdKey = clientIsoDateOnlyKey(etdDate);
+          if (etdKey < todayKey) {
+            showStatus('Tarikh keluar mestilah hari ini atau kemudian — tarikh lampau tidak dibenarkan.', false);
+            return;
+          }
+        } catch(e) { /* ignore */ }
         const max = new Date(etaDate); max.setDate(max.getDate() + 3);
         if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh keluar mesti antara Tarikh masuk hingga 3 hari selepas Tarikh masuk.', false); return; }
       }
@@ -1150,10 +1417,10 @@ document.addEventListener('DOMContentLoaded', () => {
       let vehicleNo = '';
       let vehicleNumbers = [];
       if (category === 'Pelawat Khas') {
-        vehicleNumbers = getVehicleNumbersFromList();
+        vehicleNumbers = getVehicleNumbersFromList().map(v => String(v).trim().toUpperCase());
         if (!vehicleNumbers.length) { showStatus('Sila masukkan sekurang-kurangnya satu nombor kenderaan untuk Pelawat Khas.', false); return; }
       } else {
-        vehicleNo = document.getElementById('vehicleNo')?.value.trim() || '';
+        vehicleNo = (document.getElementById('vehicleNo')?.value || '').trim().toUpperCase();
       }
 
       const unitFound = units.includes(hostUnit);
@@ -1166,6 +1433,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const udoc = await getDoc(unitRef);
         if (udoc && udoc.exists()) unitSnapshot = udoc.data();
       } catch(e) { /* ignore if read fails */ }
+
+      // Show notice for arrears category (non-blocking submission, but requires acknowledgement)
+      if (unitSnapshot && typeof unitSnapshot.arrearsAmount === 'number') {
+        const arrearsCat = computeArrearsCategory(unitSnapshot.arrearsAmount);
+        if (arrearsCat && arrearsCat >= 2) {
+          const acknowledged = await showUnitNoticeModal({ category: arrearsCat, amount: unitSnapshot.arrearsAmount });
+          if (!acknowledged) {
+            showStatus('Pendaftaran dibatalkan.', false);
+            return;
+          }
+        }
+      }
 
       const payload = {
         hostUnit,
@@ -1249,6 +1528,26 @@ document.addEventListener('DOMContentLoaded', () => {
         // handle duplicate returned from transaction
         if (err && (err.code === 'DUPLICATE' || String(err).toLowerCase().includes('duplicate'))) {
           showStatus('Pendaftaran serupa telah wujud untuk tarikh ini — tidak dihantar.', false);
+        } else if (err && err.code === 'COOLDOWN') {
+          try {
+            const d = err.until instanceof Date ? err.until : (err.untilISO ? new Date(err.untilISO) : null);
+            let dateText = '';
+            if (d && !isNaN(d.getTime())) {
+              const dd = String(d.getDate()).padStart(2,'0');
+              const mm = String(d.getMonth()+1).padStart(2,'0');
+              const yyyy = d.getFullYear();
+              // If time present and not midnight UTC, include local time
+              const includeTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+              const timeText = includeTime ? ` ${d.toLocaleTimeString()}` : '';
+              dateText = `${dd}/${mm}/${yyyy}${timeText}`;
+            }
+            const msg = dateText
+              ? `Unit ini dalam tempoh bertenang sehingga ${dateText}. Sila cuba semula selepas tarikh ini atau hubungi pentadbir.`
+              : 'Unit ini dalam tempoh bertenang. Sila cuba semula kemudian atau hubungi pentadbir.';
+            showStatus(msg, false, { duration: 12000 });
+          } catch (e) {
+            showStatus('Unit ini dalam tempoh bertenang. Sila cuba semula kemudian atau hubungi pentadbir.', false);
+          }
         } else if (err && (String(err.code || '').toLowerCase().includes('permission') || String(err.code || '').toLowerCase().includes('internal') || String(err.code || '').toLowerCase().includes('fallback') || String(err).toLowerCase().includes('fallback'))) {
           // permission or internal server errors — provide a clearer action for the user
           console.warn('Server / fallback error during submission:', err);
