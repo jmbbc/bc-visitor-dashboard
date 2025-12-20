@@ -218,7 +218,7 @@ h1{margin-top:0; font-size:20px}
 h2{font-size:16px}
 h3{font-size:14px}
 label{font-family:var(--font-ui);font-weight:600;font-size:14px;color:var(--label-color)}
-.small{font-size:13px;color:var(--muted)}
+.small{font-size:10px;color:var(--muted)}
 .muted{color:var(--muted)}
 .muted-small{font-size:13px;color:var(--text-muted)}
 .helper{font-size:12px;color:var(--text-muted)}
@@ -293,7 +293,12 @@ button{
 button.btn-edit{ background:var(--warning) !important; color:#fff !important; border:0 !important; }
 
 /* Unit category badge used in registration table */
-.unit-cat-badge { display:inline-block; padding:6px 8px; border-radius:8px; background:linear-gradient(180deg, #f3f4f6, #fff); border:1px solid var(--input-border); font-weight:700; font-size:13px; }
+.unit-cat-badge { display:inline-block; padding:6px 8px; border-radius:8px; background:linear-gradient(180deg, #f3f4f6, #fff); border:1px solid var(--input-border); font-weight:700; font-size:10px; }
+
+/* Arrears-specific badge colors */
+.unit-cat-badge.unit-cat-arrears-2 { background: #fbbf24; color: #000; border-color: rgba(0,0,0,0.06); }
+.unit-cat-badge.unit-cat-arrears-3 { background: #f472b6; color: #fff; border-color: rgba(0,0,0,0.06); }
+.unit-cat-badge.unit-cat-kategori-1 { background: #10b981; color: #fff; border-color: rgba(0,0,0,0.06); }
 
 /* Admin parking panel styles */
 #parkingAdmin { margin-top:8px; }
@@ -758,6 +763,26 @@ button:focus, input:focus, select:focus, textarea:focus{
 }
 .cat-pelawat { background:#2563eb; }        /* biru */
 .cat-kontraktor { background:#f59e0b; }     /* oren */
+
+/* Arrears category label shown in unit notice modal */
+.arrears-category {
+  color: #b91c1c; /* solid red */
+  font-weight: 700;
+  display: inline-block;
+}
+
+/* Payment breakdown inside arrears modal */
+.arrears-payment { margin-top: 8px; }
+.arrears-payment-list { margin-left: 16px; margin-top: 6px; }
+.arrears-payment-total { margin-top: 8px; font-weight: 700; }
+
+/* Memo category colors */
+.memo-cat-1 { color: #0ea5a0; font-weight:700; } /* teal/green */
+.memo-cat-2 { color: #b45309; font-weight:700; } /* amber/yellow-ish */
+.memo-cat-3 { color: #be185d; font-weight:700; } /* pink/magenta */
+
+/* small text in parking report */
+.parking-report .small { font-size: 10px; }
 .cat-pindah { background:#ef4444; }         /* merah */
 .cat-pelawat-khas { background:#6d28d9; }   /* ungu */
 .cat-penghantaran { background:#10b981; }   /* hijau */

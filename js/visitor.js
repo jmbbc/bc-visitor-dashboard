@@ -155,7 +155,13 @@ function showFloatMemo(message, opts = {}){
   memo.style.overflow = 'auto';
   const close = document.createElement('button'); close.id = 'visitorMemoClose'; close.setAttribute('aria-label','Tutup memo'); close.textContent = '×'; close.style.position = 'absolute'; close.style.right = '12px'; close.style.top = '10px'; close.style.border = '0'; close.style.background = 'transparent'; close.style.fontWeight = '700'; close.style.cursor = 'pointer';
   const title = document.createElement('h3'); title.id = 'visitorMemoTitle'; title.style.marginTop = '0'; title.textContent = 'Makluman';
-  const body = document.createElement('div'); body.className = 'small'; body.style.whiteSpace = 'pre-wrap'; body.style.marginTop = '6px'; body.style.lineHeight = '1.5'; body.textContent = message || 'Sila baca makluman ini sebelum isi borang.';
+  const body = document.createElement('div'); body.className = 'small'; body.style.whiteSpace = 'pre-wrap'; body.style.marginTop = '6px'; body.style.lineHeight = '1.5';
+  // support HTML messages when caller passes opts.html = true
+  if (opts && opts.html) {
+    try { body.innerHTML = message || 'Sila baca makluman ini sebelum isi borang.'; } catch(e) { body.textContent = message || 'Sila baca makluman ini sebelum isi borang.'; }
+  } else {
+    body.textContent = message || 'Sila baca makluman ini sebelum isi borang.';
+  }
   if (opts && opts.imageSrc) {
     const img = document.createElement('img');
     img.src = opts.imageSrc;
@@ -315,7 +321,7 @@ function freeDaysForCategory(cat){
   return 0; // cat 3 and others default to none
 }
 
-function showUnitNoticeModal({ category, amount }){
+function showUnitNoticeModal({ category, amount, eta, etd, visitorCategory }){
   return new Promise((resolve) => {
     try { const prev = document.getElementById('unitNoticeOverlay'); if (prev) prev.remove(); } catch(e) {}
     const overlay = document.createElement('div');
@@ -350,12 +356,57 @@ function showUnitNoticeModal({ category, amount }){
     body.style.lineHeight = '1.55';
     const freeDays = freeDaysForCategory(category);
     const freeText = freeDays > 0 ? `${freeDays} hari` : 'Tiada';
+
+    // calculate payment breakdown when ETA/ETD provided and only for Pelawat/Kontraktor
+    let paymentHtml = '';
+    try {
+      const visitorAllowed = (visitorCategory && (visitorCategory === 'Pelawat' || visitorCategory === 'Kontraktor')) ? true : false;
+      // helper: convert to Date (date-only) if possible
+      const toDateOnly = (d) => {
+        if (!d) return null;
+        let dt = null;
+        try { dt = (d && d.toDate) ? d.toDate() : (d instanceof Date ? d : new Date(d)); } catch(e) { dt = null; }
+        if (!dt || isNaN(dt.getTime())) return null;
+        const dd = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(),0,0,0,0);
+        return dd;
+      };
+      const start = toDateOnly(eta);
+      const end = toDateOnly(etd) || start;
+      if (visitorAllowed && start && end && end.getTime() >= start.getTime() && (category === 2 || category === 3)) {
+        // rates: category 2 -> RM5/day, category 3 -> RM15/day
+        const rateMap = { 2: 5, 3: 15 };
+        const rate = rateMap[category] || 0;
+        const dayMs = 24 * 60 * 60 * 1000;
+        const totalDays = Math.floor((end.getTime() - start.getTime()) / dayMs) + 1;
+        const free = Math.max(0, Math.min(freeDays, totalDays));
+        const chargedDays = Math.max(0, totalDays - free);
+        let totalAmount = chargedDays * rate;
+
+        // build per-day breakdown
+        const rows = [];
+        for (let i=0;i<totalDays;i++){
+          const d = new Date(start.getTime()); d.setDate(d.getDate() + i);
+          const dd = String(d.getDate()).padStart(2,'0');
+          const mm = String(d.getMonth()+1).padStart(2,'0');
+          const yyyy = d.getFullYear();
+          const label = (i < free) ? 'Percuma' : `RM ${rate.toFixed(2)}`;
+          rows.push(`${dd}/${mm}/${yyyy} = ${label}`);
+        }
+
+        paymentHtml = `\n<p class="arrears-payment"><strong>Perincian caj:</strong></p>\n<ul class="arrears-payment-list small muted" style="margin-top:6px">${rows.map(r => `<li style=\"margin-bottom:4px\">${r}</li>`).join('')}</ul>\n<p class="arrears-payment-total"><strong>Jumlah pembayaran : RM ${totalAmount.toFixed(2)}</strong></p>`;
+      } else if (!visitorAllowed) {
+        paymentHtml = `\n<p class="arrears-payment small muted"><em>Nota: Caj hanya dikenakan untuk kategori Pelawat atau Kontraktor.</em></p>`;
+      }
+    } catch(e) { /* ignore calculation errors */ }
+
     body.innerHTML = [
       '<p>Untuk makluman, unit ini mempunyai tunggakan. (Sila rujuk kepada pihak pengurusan untuk dapatkan tunggakan terkini)</p>',
-      `<p><strong>Kategori Unit Tunggakan : ${category}</strong></p>`,
       `<p><strong>Jumlah hari yang di benarkan parkir percuma : ${freeText}</strong></p>`,
+      `<p><strong>Kategori Unit Tunggakan : <span class="arrears-category">Kategori ${category}</span></strong></p>`,
+      paymentHtml ? paymentHtml : '',
       '<p>Sekiranya pemohon ingin meneruskan menggunakan perkhidmatan petak parkir pelawat, pihak pengurusan akan mengenakan caj berdasarkan jadual yang ditetapkan.</p>'
     ].join('');
+
 
     const actions = document.createElement('div');
     actions.style.display = 'flex';
@@ -926,19 +977,16 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     // Show every time: pass storageKey: null so it doesn't persist dismissal
     const memoText = [
-      'Pihak Pengurusan akan mula melaksanakan Pelaksanaan SOP Kemasukan Pelawat & Kontraktor, seperti yang di bincangkan didalam EGM 3.0 pada 22 Nov 2025.',
-      '',
-      'Unit pelawat / kontraktor yang mempunyai tunggakan akan dikenakan caj bagi penggunaan pakir pelawat. Berikut adalah ringkasan jadual bagi kadar caj penggunaan lot parkir pelawat :-',
-      '',
-      '1) Unit tiada tunggakan (RM 0.00)\nPercuma - 3 hari pertama\nJika ingin sambung - dikenakan pembayaran atau tempoh bertenang 3 hari sebelum boleh daftar masuk.',
-      '',
-      '2) Unit yang mempunyai tunggakan (RM 1.00 sehingga RM 400)\nPercuma - 1 hari\nJika ingin sambung - dikenakan bayaran atau tempoh bertenang 3 hari sebelum boleh daftar masuk',
-      '',
-      '3) Unit yang mempunyai tunggakan (RM 400.00 ke atas)\nDikenakan bayaran berdasarkan jadual.',
-      '',
-      'Sila pastikan maklumat yang disi adalah tepat untuk meneruskan. Tekan "X" atau "Saya faham" untuk meneruskan.'
-    ].join('\n');
-    showFloatMemo(memoText, { storageKey: null, blockUntilClose: true, imageSrc: 'assets/visitor_parking_charges.jpeg' });
+      '<p>Pihak Pengurusan akan mula melaksanakan <strong>Pelaksanaan SOP Kemasukan Pelawat & Kontraktor</strong>, seperti yang dibincangkan didalam <strong>EGM 3.0</strong> pada <strong>22 Nov 2025</strong>.</p>',
+      '<p>Unit pelawat / kontraktor yang mempunyai tunggakan akan dikenakan caj bagi penggunaan parkir pelawat. Berikut adalah ringkasan jadual bagi kadar caj penggunaan lot parkir pelawat :-</p>',
+      '<ol>',
+      '<li><span class="memo-cat-1"><strong>Kategori 1</strong></span><br> Tunggakan: Tiada<br> Caj parkir pelawat: <strong>Percuma - 3 hari pertama</strong><br> Jika ingin sambung - dikenakan pembayaran atau tempoh bertenang 3 hari sebelum boleh daftar masuk.</li>',
+      '<li><span class="memo-cat-2"><strong>Kategori 2</strong></span><br> Tunggakan: RM 1.00 hingga RM 400.00<br> Caj parkir pelawat: <strong>Percuma untuk 1 hari pertama; caj bermula pada hari ke-2</strong><br> Jika ingin sambung - dikenakan bayaran atau tempoh bertenang 3 hari sebelum boleh daftar masuk.</li>',
+      '<li><span class="memo-cat-3"><strong>Kategori 3</strong></span><br> Tunggakan: RM 400.00 ke atas<br> Caj parkir pelawat: <strong>RM 15/hari</strong>. Rujuk jadual untuk jumlah pembayaran.</li>',
+      '</ol>',
+      '<p>Sila pastikan maklumat yang disi adalah tepat untuk meneruskan. Tekan "X" atau "Saya faham" untuk meneruskan.</p>'
+    ].join('');
+    showFloatMemo(memoText, { storageKey: null, blockUntilClose: true, imageSrc: 'assets/visitor_parking_charges.jpeg', html: true });
   } catch(e) { /* ignore */ }
 
   // input handlers
@@ -1077,6 +1125,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const todayIsoDate = clientIsoDateOnlyKey(new Date());
       if (etaEl) etaEl.min = todayIsoDate;
+      // remember the date when the user opened the form so we can accept it even if they
+      // submit after midnight (avoid false 'backdated' errors when crossing midnight)
+      try { window.__VISITOR_FORM_OPEN_DATE_KEY = todayIsoDate; } catch (e) { /* ignore */ }
     } catch (e) { /* ignore if date input not available */ }
 
     function updateVehicleControlsForCategory(cat) {
@@ -1383,11 +1434,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const etdDate = etdVal ? dateFromInputDateOnly(etdVal) : null;
       if (!etaDate) { showStatus('Tarikh masuk tidak sah.', false); return; }
       // Client-side prevention for backdated ETA (date-only compare)
+      // Allow the date that the user selected when the form was opened to still be accepted
       try {
-        const todayKey = clientIsoDateOnlyKey(new Date());
+        const formOpenKey = window.__VISITOR_FORM_OPEN_DATE_KEY || clientIsoDateOnlyKey(new Date());
         const etaKey = clientIsoDateOnlyKey(etaDate);
-        if (etaKey < todayKey) {
-          showStatus('Tarikh masuk mestilah hari ini atau kemudian — tarikh lampau tidak dibenarkan.', false);
+        if (etaKey < formOpenKey) {
+          showStatus('Tarikh masuk mestilah sama atau selepas tarikh anda mula mengisi borang.', false);
           return;
         }
       } catch (e) { /* ignore comparison failures */ }
@@ -1438,7 +1490,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (unitSnapshot && typeof unitSnapshot.arrearsAmount === 'number') {
         const arrearsCat = computeArrearsCategory(unitSnapshot.arrearsAmount);
         if (arrearsCat && arrearsCat >= 2) {
-          const acknowledged = await showUnitNoticeModal({ category: arrearsCat, amount: unitSnapshot.arrearsAmount });
+          // pass ETA/ETD and the visitor category so modal only shows charges for allowed visitor types
+          const acknowledged = await showUnitNoticeModal({ category: arrearsCat, amount: unitSnapshot.arrearsAmount, eta: etaDate, etd: etdDate, visitorCategory: category });
           if (!acknowledged) {
             showStatus('Pendaftaran dibatalkan.', false);
             return;

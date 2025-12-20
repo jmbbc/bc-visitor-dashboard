@@ -23,6 +23,29 @@ function formatDateOnly(ts){
   return `${dd}/${mm}/${yy}`;
 }
 function isoDateString(d){ const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const yy = d.getFullYear(); return `${yy}-${mm}-${dd}`; }
+
+// Arrears helpers: determine category and free days
+function computeArrearsCategory(amount){ if (typeof amount !== 'number' || isNaN(amount)) return null; if (amount <= 1) return 1; if (amount <= 400) return 2; return 3; }
+function freeDaysForCategory(cat){ if (cat === 1) return 3; if (cat === 2) return 1; return 0; }
+
+// Compute charge based on category, eta and etd. Returns { total, breakdownLines }
+function computeChargeForDates(cat, eta, etd){ try {
+  if (![2,3].includes(cat)) return { total: 0, breakdown: [] };
+  const toDateOnly = (d) => { if (!d) return null; try { const dt = (d && d.toDate) ? d.toDate() : (d instanceof Date ? d : new Date(d)); if (!dt || isNaN(dt.getTime())) return null; return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(),0,0,0,0); } catch(e){ return null; } };
+  const start = toDateOnly(eta);
+  const end = toDateOnly(etd) || start;
+  if (!start || !end || end.getTime() < start.getTime()) return { total: 0, breakdown: [] };
+  const dayMs = 24*60*60*1000;
+  const totalDays = Math.floor((end.getTime() - start.getTime())/dayMs) + 1;
+  const free = Math.max(0, Math.min(freeDaysForCategory(cat), totalDays));
+  const chargedDays = Math.max(0, totalDays - free);
+  const rateMap = { 2: 5, 3: 15 };
+  const rate = rateMap[cat] || 0;
+  const total = chargedDays * rate;
+  const lines = [];
+  for (let i=0;i<totalDays;i++){ const d = new Date(start.getTime()); d.setDate(d.getDate() + i); const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const yyyy = d.getFullYear(); const label = (i < free) ? 'Percuma' : `RM ${rate.toFixed(2)}`; lines.push(`${dd}/${mm}/${yyyy} = ${label}`); }
+  return { total, breakdown: lines };
+} catch(e){ return { total:0, breakdown:[] }; } }
 function showLoginMsg(el, m, ok=true){ el.textContent = m; el.style.color = ok ? 'green' : 'red'; }
 function toast(msg, ok = true, opts = {}){
   // opts.duration ms (default 3000)
@@ -1348,8 +1371,45 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
         const uc = (live.category && String(live.category).trim()) ? String(live.category).trim() : ((r.unitCategory && String(r.unitCategory).trim()) ? String(r.unitCategory).trim() : '—');
         const arrears = (typeof live.arrears === 'boolean') ? live.arrears : (r.unitArrears === true);
         const amount = (typeof live.arrearsAmount === 'number') ? live.arrearsAmount : ((typeof r.unitArrearsAmount === 'number') ? r.unitArrearsAmount : null);
-        const badge = `<span class="unit-cat-badge">${escapeHtml(String(uc))}</span>`;
-        const t = `${badge}${arrears ? ' <div class="small" style="margin-top:4px;color:#b91c1c">Tunggakan'+(amount !== null ? ': RM'+String(amount) : '')+'</div>' : ''}`;
+        // decide badge label: if unit has arrears, show 'Kategori N' (2 or 3); otherwise show unit category string
+        let badgeLabel = uc;
+        let badgeClassExtra = '';
+        try {
+          if (arrears && amount !== null) {
+            const aCat = computeArrearsCategory(amount);
+            if (aCat) {
+              badgeLabel = `Kategori ${aCat}`;
+              badgeClassExtra = ` unit-cat-arrears-${aCat}`; // apply color class
+            }
+          }
+        } catch (e) { /* ignore */ }
+        // If unit has no explicit category and no arrears, treat as Kategori 1 (green)
+        try {
+          if ((!uc || uc === '—') && !arrears) {
+            badgeLabel = 'Kategori 1';
+            badgeClassExtra = ' unit-cat-kategori-1';
+          }
+        } catch (e) { /* ignore */ }
+        const badge = `<span class="unit-cat-badge${badgeClassExtra}">${escapeHtml(String(badgeLabel))}</span>`; 
+
+        // compute payable amount (based on ETA/ETD and arrears category)
+        let paymentHtml = '';
+        try {
+          if (arrears && amount !== null) {
+            const visitorCat = (r.category || '').trim();
+            if (visitorCat === 'Pelawat' || visitorCat === 'Kontraktor') {
+              const cat = computeArrearsCategory(amount);
+              const charge = computeChargeForDates(cat, r.eta, r.etd);
+              if (charge && typeof charge.total === 'number') {
+                paymentHtml = `<div class="small" style="margin-top:4px;color:#b91c1c">Jumlah pembayaran : RM ${charge.total.toFixed(2)}</div>`;
+              }
+            } else {
+              // do not show payment for other visitor categories
+              paymentHtml = `<div class="small muted" style="margin-top:4px">—</div>`;
+            }
+          }
+        } catch(e) { /* ignore */ }
+        const t = `${badge}${arrears ? ' <div class="small" style="margin-top:4px;color:#b91c1c">Tunggakan'+(amount !== null ? ': RM'+String(amount) : '')+'</div>' : ''}${paymentHtml}`;
         return t;
       })()}</td>
       <td>${formatDateOnly(r.eta)}</td>
