@@ -207,6 +207,8 @@ const navParking = document.getElementById('navParking');
 const navUnitAdmin = document.getElementById('navUnitAdmin');
 const exportCSVBtn = document.getElementById('exportCSVBtn');
 const exportAllCSVBtn = document.getElementById('exportAllCSVBtn');
+const parkingSearchInput = document.getElementById('parkingSearch');
+let parkingSearchTimer = null;
 
 // auto-refresh timer handle
 let autoRefreshTimer = null;
@@ -1087,6 +1089,16 @@ if (filterDateCheckedIn) filterDateCheckedIn.addEventListener('change', ()=>{
   loadListForDateStr(filterDateCheckedIn.value || isoDateString(new Date()));
 });
 
+// parking search: debounce and re-render using cached data only (no extra reads)
+if (parkingSearchInput) {
+  parkingSearchInput.addEventListener('input', ()=>{
+    if (parkingSearchTimer) clearTimeout(parkingSearchTimer);
+    parkingSearchTimer = setTimeout(()=>{
+      try { renderParkingWeekCalendar(getParkingDate(), { useCacheOnly: true }); } catch(e){ console.warn('[parkingSearch] render failed', e); }
+    }, 250);
+  });
+}
+
 // parking date is managed by the parking module's week navigator -> no DOM date input change handler
 if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary'); });
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
@@ -1155,20 +1167,43 @@ async function loadListForDateStr(yyyymmdd){
           window.__RESPONSES_UNSUB = onSnapshot(q, snap => {
             const freshRows = [];
             snap.forEach(d => freshRows.push({ id: d.id, ...d.data() }));
-            // update cache + UI
-            responseCache.date = yyyymmdd;
-            responseCache.rows = freshRows;
 
-            // recompute KPIs and render
-            let pending = 0, checkedIn = 0, checkedOut = 0;
-            freshRows.forEach(r => {
-              if (!r.status || r.status === 'Pending') pending++;
-              else if (r.status === 'Checked In') checkedIn++;
-              else if (r.status === 'Checked Out') checkedOut++;
-            });
-            renderKPIs(pending, checkedIn, checkedOut);
-            renderSummaryWithSearch(freshRows);
-            renderCheckedInList(freshRows.filter(r => r.status === 'Checked In'));
+            // Supplemental: include any multi-day stays whose ETD >= from and whose ETA < to
+            (async () => {
+              try {
+                const qEt = query(col, where('etd', '>=', Timestamp.fromDate(from)), orderBy('etd','asc'));
+                const snap2 = await getDocs(qEt);
+                snap2.forEach(d => {
+                  // skip if already present
+                  if (freshRows.some(fr => fr.id === d.id)) return;
+                  const data = d.data() || {};
+                  // ensure ETA exists and started before 'to' (i.e., the stay spans into the requested day)
+                  const etaVal = data.eta && data.eta.toDate ? data.eta.toDate() : (data.eta ? new Date(data.eta) : null);
+                  if (etaVal && etaVal.getTime() < to.getTime()) {
+                    freshRows.push({ id: d.id, ...data });
+                  }
+                });
+              } catch (e) {
+                // non-fatal — we already have main eta-based rows
+                console.warn('[loadListForDateStr] etd supplemental query failed', e);
+              }
+
+              // update cache + UI
+              responseCache.date = yyyymmdd;
+              responseCache.rows = freshRows;
+
+              // recompute KPIs and render
+              let pending = 0, checkedIn = 0, checkedOut = 0;
+              freshRows.forEach(r => {
+                if (!r.status || r.status === 'Pending') pending++;
+                else if (r.status === 'Checked In') checkedIn++;
+                else if (r.status === 'Checked Out') checkedOut++;
+              });
+              renderKPIs(pending, checkedIn, checkedOut);
+              renderSummaryWithSearch(freshRows);
+              renderCheckedInList(freshRows.filter(r => r.status === 'Checked In'));
+            })();
+
           }, err => console.error('[onSnapshot] error', err));
         }
         // let the snapshot handler populate rows — use cached rows for now
@@ -1176,6 +1211,22 @@ async function loadListForDateStr(yyyymmdd){
         console.warn('[loadListForDateStr] snapshot failed, falling back to getDocs', snapshotErr);
         const snap = await getDocs(q);
         snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+
+        // Supplemental: include any multi-day stays whose ETD >= from and whose ETA < to
+        try {
+          const qEt = query(col, where('etd', '>=', Timestamp.fromDate(from)), orderBy('etd','asc'));
+          const snap2 = await getDocs(qEt);
+          snap2.forEach(d => {
+            if (rows.some(r => r.id === d.id)) return;
+            const data = d.data() || {};
+            const etaVal = data.eta && data.eta.toDate ? data.eta.toDate() : (data.eta ? new Date(data.eta) : null);
+            if (etaVal && etaVal.getTime() < to.getTime()) {
+              rows.push({ id: d.id, ...data });
+            }
+          });
+        } catch (e) {
+          console.warn('[loadListForDateStr] etd supplemental fetch failed', e);
+        }
       }
       // cache for reuse
       responseCache.date = yyyymmdd;
@@ -2512,8 +2563,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
     return { start: days[0], days };
   }
 
-  async function renderParkingWeekCalendar(dateStr){
-    console.info('[parking] renderParkingWeekCalendar called', dateStr);
+  async function renderParkingWeekCalendar(dateStr, opts = {}){
+    const useCacheOnly = !!opts.useCacheOnly;
+    console.info('[parking] renderParkingWeekCalendar called', dateStr, 'useCacheOnly?', useCacheOnly);
     try{
       const page = document.getElementById('pageParking');
       if (!page) return;
@@ -2524,22 +2576,49 @@ document.addEventListener('DOMContentLoaded', ()=>{
       filterDateUserChangedParking = true;
       const wr = weekRangeFromDate(ds);
       const from = new Date(wr.start); const to = new Date(wr.start); to.setDate(to.getDate()+7);
+      // extend backward by max stay span (3 days) so overlaps from previous week are included
+      const fromBuffered = new Date(from); fromBuffered.setDate(fromBuffered.getDate() - 3);
 
       // Query responses for the week
       const weekKey = isoDateString(wr.start);
       const col = collection(window.__FIRESTORE, 'responses');
-      // reuse cached week rows when possible
+      // reuse cached week rows when possible; on cache-only mode, skip fetching when missing
       let rows = weekResponseCache[weekKey];
       if (!Array.isArray(rows)) {
-        const q = query(col, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'));
-        const snap = await getDocs(q);
-        rows = [];
-        snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
-        weekResponseCache[weekKey] = rows;
+        if (useCacheOnly) {
+          rows = [];
+        } else {
+          const q = query(col, where('eta','>=', Timestamp.fromDate(fromBuffered)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'));
+          const snap = await getDocs(q);
+          rows = [];
+          snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+          weekResponseCache[weekKey] = rows;
+        }
       }
 
-      // Only Pelawat category AND staying over (Bermalam)
-      const pelawat = rows.filter(r => determineCategory(r) === 'Pelawat' && String((r.stayOver || '').toLowerCase()) === 'yes');
+      const searchTerm = (parkingSearchInput?.value || '').trim().toLowerCase();
+
+      // Only Pelawat category AND staying over (Bermalam) AND overlaps the rendered week window
+      const pelawatAll = rows.filter(r => {
+        if (determineCategory(r) !== 'Pelawat') return false;
+        if (String((r.stayOver || '').toLowerCase()) !== 'yes') return false;
+        const eta = r.eta && r.eta.toDate ? r.eta.toDate() : (r.eta ? new Date(r.eta) : null);
+        const etd = r.etd && r.etd.toDate ? r.etd.toDate() : (r.etd ? new Date(r.etd) : eta);
+        if (!eta) return false;
+        const end = etd || eta;
+        // overlap condition: starts before week end AND ends on/after week start
+        return eta.getTime() < to.getTime() && end.getTime() >= from.getTime();
+      });
+
+      // Filter by plate/unit search term (case-insensitive). Matches vehicleNo or any vehicleNumbers.
+      const pelawat = searchTerm ? pelawatAll.filter(r => {
+        const vals = [];
+        if (r.vehicleNo) vals.push(String(r.vehicleNo));
+        if (Array.isArray(r.vehicleNumbers)) vals.push(...r.vehicleNumbers.map(String));
+        else if (typeof r.vehicleNumbers === 'string' && !r.vehicleNo) vals.push(String(r.vehicleNumbers));
+        const unitVal = r.hostUnit ? String(r.hostUnit) : '';
+        return vals.some(v => v.toLowerCase().includes(searchTerm)) || (unitVal && unitVal.toLowerCase().includes(searchTerm));
+      }) : pelawatAll;
 
       // Build per-plate counts across the week (count of total occurrences in the week)
       // We'll use this to mark plates that appear more than once in the rendered Monday–Sunday week
