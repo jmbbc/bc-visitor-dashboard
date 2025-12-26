@@ -935,8 +935,15 @@ function normalizeForWaLink(raw){
 }
 
 function sendWhatsAppToAdmin(payload){
-  const adminNumber = '601172248614'; // updated admin number (Malaysia) without plus
-  
+  // Default committee WhatsApp (local format: 011-28151179 -> normalized to E.164 below)
+  const defaultAdmin = '011-28151179';
+
+  // choose destination: prefer payload.notify_to if present, otherwise use default
+  let dest = payload && payload.notify_to ? String(payload.notify_to).trim() : defaultAdmin;
+  // normalize to wa.me friendly form (6011...)
+  const normalized = normalizeForWaLink(dest) || normalizeForWaLink(defaultAdmin);
+  const adminNumber = normalized || '601128151179';
+
   // Format date to local timezone (dd/mm/yyyy) instead of UTC
   const formatLocalDate = (ts) => {
     if (!ts) return '-';
@@ -963,6 +970,7 @@ function sendWhatsAppToAdmin(payload){
   ];
   const text = encodeURIComponent(lines.join('\n'));
   const waUrl = `https://wa.me/${adminNumber}?text=${text}`;
+  // open in new tab/window so user can press send (Twilio sandbox or personal WhatsApp)
   window.open(waUrl, '_blank');
 }
 
