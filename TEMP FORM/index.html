@@ -9,208 +9,53 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f7f2ff;
-      --panel: rgba(255,255,255,0.85);
+      --bg: #fbf9ff;
+      --panel: rgba(255,255,255,0.96);
       --card: #ffffff;
-      --accent: #89a8f5;
-      --accent-2: #f6b7d2;
-      --text: #3c3a4a;
-      --muted: #706d80;
-      --border: rgba(137,168,245,0.35);
-      --shadow: 0 20px 60px rgba(137,168,245,0.22);
+      --accent: #cfc7f8;
+      --accent-2: #ffd9e8;
+      --text: #2f2c3a;
+      --muted: #8b8794;
+      --border: rgba(137,168,245,0.18);
+      --shadow: 0 10px 24px rgba(137,168,245,0.12);
     }
 
     * { box-sizing: border-box; }
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: 'Manrope', system-ui, -apple-system, sans-serif;
-      color: var(--text);
-      background: radial-gradient(circle at 20% 20%, rgba(246,183,210,0.35), transparent 25%),
-                  radial-gradient(circle at 80% 0%, rgba(137,168,245,0.32), transparent 30%),
-                  radial-gradient(circle at 40% 80%, rgba(255,214,165,0.25), transparent 32%),
-                  var(--bg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 16px 48px;
-    }
+    body { margin:0; min-height:100vh; font-family:'Manrope', system-ui, -apple-system, sans-serif; color:var(--text); background: radial-gradient(circle at 20% 20%, rgba(246,183,210,0.18), transparent 25%), radial-gradient(circle at 80% 0%, rgba(207,199,248,0.12), transparent 30%), radial-gradient(circle at 40% 80%, rgba(255,214,165,0.10), transparent 32%), var(--bg); display:flex; align-items:center; justify-content:center; padding:28px 16px 44px; }
 
-    .shell {
-      width: min(960px, 100%);
-    }
+    .shell { width: min(960px,100%); }
+    .hero { text-align:center; margin-bottom:22px; display:grid; gap:14px; }
+    .hero h1 { margin:0 0 4px; font-size: clamp(26px,3vw,32px); }
+    .hero p { margin:0; color:var(--muted); }
 
-    .hero {
-      text-align: center;
-      margin-bottom: 22px;
-      display: grid;
-      gap: 14px;
-    }
+    .hero-img { position:relative; justify-self:center; width:min(720px,100%); border-radius:16px; overflow:hidden; border:1px solid rgba(137,168,245,0.16); box-shadow:0 12px 30px rgba(137,168,245,0.08); background:#fff; }
+    .hero-img img { display:block; width:100%; height:auto; filter: saturate(0.88) contrast(0.98) brightness(0.98); }
+    .hero-img::after { content:''; position:absolute; inset:0; pointer-events:none; background:linear-gradient(to bottom, rgba(255,255,255,0.36), rgba(255,255,255,0)); border-radius:16px; }
 
-    .hero h1 {
-      margin: 0 0 4px;
-      font-size: clamp(26px, 3vw, 32px);
-      letter-spacing: -0.02em;
-    }
+    .panel { background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(255,255,255,0.96)); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow); padding:20px; backdrop-filter:blur(4px); }
+    form { display:grid; gap:14px; }
 
-    .hero p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 15px;
-    }
+    .notice { text-align:left; background:#fff; border:1px solid rgba(137,168,245,0.12); border-radius:12px; padding:14px; box-shadow:0 10px 20px rgba(137,168,245,0.06); color:var(--text); display:grid; gap:8px }
+    .notice h3 { margin:0; font-size:16px }
+    .notice p, .notice li { color:var(--text); line-height:1.55 }
 
-    .hero-img {
-      justify-self: center;
-    .notice {
-      text-align: left;
-      background: #ffffff;
-      border: 1px solid rgba(137,168,245,0.35);
-      border-radius: 14px;
-      padding: 16px 18px;
-      box-shadow: 0 12px 30px rgba(137,168,245,0.18);
-      color: #2f2c3a;
-      display: grid;
-      gap: 10px;
-    }
+    .field { display:flex; flex-direction:column; gap:6px }
+    .field label { font-weight:700; color:var(--text) }
 
-    .notice h3 {
-      margin: 0;
-      font-size: 18px;
-      letter-spacing: -0.01em;
-    }
+    input[type=text], input[type=tel], input[type=number] { width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(137,168,245,0.12); background:rgba(255,255,255,0.98); color:var(--text); transition:border .12s ease, box-shadow .12s ease; }
+    input:focus { border-color:var(--accent); box-shadow:0 0 0 6px rgba(207,199,248,0.12); transform:translateY(-1px); background:#fff }
 
-    .notice p {
-      margin: 0;
-      color: #3c3a4a;
-      line-height: 1.55;
-    }
+    .row { display:grid; gap:12px }
+    @media (min-width:640px) { .row { grid-template-columns:repeat(2,1fr) } }
 
-    .notice ul {
-      margin: 0 0 0 18px;
-      padding: 0;
-      color: #3c3a4a;
-      line-height: 1.55;
-    }
+    .muted { color:var(--muted); font-size:13px }
 
-    .notice strong { color: #1f1d2a; }
-      width: min(720px, 100%);
-      border-radius: 16px;
-      overflow: hidden;
-      border: 1px solid rgba(137,168,245,0.35);
-      box-shadow: 0 18px 48px rgba(137,168,245,0.24);
-      background: #fff;
-    }
+    button { margin-top:6px; padding:12px 16px; font-size:16px; font-weight:700; border:none; border-radius:12px; color:#1f1d2a; background:linear-gradient(135deg,#cfc7f8,#ffd9e8 60%); box-shadow:0 8px 20px rgba(137,168,245,0.12); cursor:pointer; transition: transform .12s ease, box-shadow .12s ease }
+    button:hover { transform:translateY(-1px); box-shadow:0 10px 24px rgba(137,168,245,0.14) }
 
-    .hero-img img {
-      display: block;
-      width: 100%;
-      height: auto;
-    }
-
-    .panel {
-      background: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(255,255,255,0.82));
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: var(--shadow);
-      padding: 22px 22px 18px;
-      backdrop-filter: blur(6px);
-    }
-
-    form {
-      display: grid;
-      gap: 14px;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .field label {
-      font-weight: 700;
-      color: #2f2c3a;
-      letter-spacing: -0.01em;
-    }
-
-    input[type=text],
-    input[type=tel],
-    input[type=number] {
-      width: 100%;
-      padding: 12px 14px;
-      border-radius: 12px;
-      border: 1px solid rgba(137,168,245,0.35);
-      background: rgba(255,255,255,0.9);
-      color: var(--text);
-      transition: border 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
-      outline: none;
-    }
-
-    input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 4px rgba(137,168,245,0.25);
-      transform: translateY(-1px);
-      background: #ffffff;
-    }
-
-    .row {
-      display: grid;
-      gap: 12px;
-    }
-
-    @media (min-width: 640px) {
-      .row { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    .muted {
-      color: var(--muted);
-      font-size: 13px;
-      margin-top: -2px;
-    }
-
-    button {
-      margin-top: 6px;
-      padding: 12px 16px;
-      font-size: 16px;
-      font-weight: 700;
-      border: none;
-      border-radius: 12px;
-      color: #1f1d2a;
-      background: linear-gradient(135deg, #89a8f5, #f6b7d2 55%, #ffd6a5);
-      box-shadow: 0 14px 40px rgba(14,165,233,0.35);
-      cursor: pointer;
-      transition: transform 0.12s ease, box-shadow 0.15s ease, filter 0.12s ease;
-    }
-
-    button:hover {
-      transform: translateY(-1.5px);
-      box-shadow: 0 16px 48px rgba(137,168,245,0.38);
-      filter: saturate(1.04);
-    }
-
-    button:active {
-      transform: translateY(0px) scale(0.995);
-    }
-
-    .message {
-      margin-top: 14px;
-      font-weight: 600;
-      min-height: 20px;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 12px;
-      background: rgba(137,168,245,0.16);
-      color: #2f2c3a;
-      border: 1px solid rgba(137,168,245,0.45);
-      font-weight: 600;
-      margin-bottom: 10px;
-    }
+    .message { margin-top:14px; font-weight:600; min-height:20px; color:var(--muted) }
+    .badge { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; background:rgba(209,205,248,0.24); color:var(--text); border:1px solid rgba(137,168,245,0.18); font-weight:600; margin-bottom:10px }
   </style>
 </head>
 <body>
