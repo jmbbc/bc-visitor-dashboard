@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Temp Form</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f7f2ff;
+      --panel: rgba(255,255,255,0.85);
+      --card: #ffffff;
+      --accent: #89a8f5;
+      --accent-2: #f6b7d2;
+      --text: #3c3a4a;
+      --muted: #706d80;
+      --border: rgba(137,168,245,0.35);
+      --shadow: 0 20px 60px rgba(137,168,245,0.22);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 20%, rgba(246,183,210,0.35), transparent 25%),
+                  radial-gradient(circle at 80% 0%, rgba(137,168,245,0.32), transparent 30%),
+                  radial-gradient(circle at 40% 80%, rgba(255,214,165,0.25), transparent 32%),
+                  var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px 48px;
+    }
+
+    .shell {
+      width: min(960px, 100%);
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 22px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .hero h1 {
+      margin: 0 0 4px;
+      font-size: clamp(26px, 3vw, 32px);
+      letter-spacing: -0.02em;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .hero-img {
+      justify-self: center;
+    .notice {
+      text-align: left;
+      background: #ffffff;
+      border: 1px solid rgba(137,168,245,0.35);
+      border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: 0 12px 30px rgba(137,168,245,0.18);
+      color: #2f2c3a;
+      display: grid;
+      gap: 10px;
+    }
+
+    .notice h3 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -0.01em;
+    }
+
+    .notice p {
+      margin: 0;
+      color: #3c3a4a;
+      line-height: 1.55;
+    }
+
+    .notice ul {
+      margin: 0 0 0 18px;
+      padding: 0;
+      color: #3c3a4a;
+      line-height: 1.55;
+    }
+
+    .notice strong { color: #1f1d2a; }
+      width: min(720px, 100%);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(137,168,245,0.35);
+      box-shadow: 0 18px 48px rgba(137,168,245,0.24);
+      background: #fff;
+    }
+
+    .hero-img img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .panel {
+      background: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(255,255,255,0.82));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 22px 22px 18px;
+      backdrop-filter: blur(6px);
+    }
+
+    form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-weight: 700;
+      color: #2f2c3a;
+      letter-spacing: -0.01em;
+    }
+
+    input[type=text],
+    input[type=tel],
+    input[type=number] {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(137,168,245,0.35);
+      background: rgba(255,255,255,0.9);
+      color: var(--text);
+      transition: border 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(137,168,245,0.25);
+      transform: translateY(-1px);
+      background: #ffffff;
+    }
+
+    .row {
+      display: grid;
+      gap: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .row { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: -2px;
+    }
+
+    button {
+      margin-top: 6px;
+      padding: 12px 16px;
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      color: #1f1d2a;
+      background: linear-gradient(135deg, #89a8f5, #f6b7d2 55%, #ffd6a5);
+      box-shadow: 0 14px 40px rgba(14,165,233,0.35);
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.15s ease, filter 0.12s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1.5px);
+      box-shadow: 0 16px 48px rgba(137,168,245,0.38);
+      filter: saturate(1.04);
+    }
+
+    button:active {
+      transform: translateY(0px) scale(0.995);
+    }
+
+    .message {
+      margin-top: 14px;
+      font-weight: 600;
+      min-height: 20px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: rgba(137,168,245,0.16);
+      color: #2f2c3a;
+      border: 1px solid rgba(137,168,245,0.45);
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="hero">
+      <div class="badge">📋 Borang Kehadiran</div>
+      <div class="hero-img">
+        <img src="assets/Borang.jpeg" alt="Borang BC" loading="lazy" />
+      </div>
+      <div class="notice">
+        <h3>ASSALAMUALAIKUM WARAHMATULLAHI WABARAKATUH</h3>
+        <p>Pihak Jawatankuasa Pengurusan Bersama (JMB) dengan kerjasama Surau Al-Muhtadin, Banjaria Court merancang untuk menganjurkan satu program cuti sekolah khas untuk anak-anak komuniti Banjaria Court.</p>
+        <p>Program ini merupakan Program Cuti Sekolah Keluarga Besar Kami selama 3 hari, dikendalikan oleh Alfadir Ustaz Meor Abdullah. Program ini bertujuan mengisi masa lapang remaja dengan pengisian bermanfaat merangkumi kerohanian, sahsiah dan pembentukan jati diri.</p>
+        <p>Bagi ibu bapa yang berminat, sila hubungi Ustaz Meor Abdullah di nombor: <strong>________</strong></p>
+        <p><strong>⚠️ TEMPAT ADALAH TERHAD</strong></p>
+        <p><strong>OBJEKTIF PROGRAM</strong></p>
+        <ul>
+          <li>Memantapkan pengamalan Fardu Ain sebagai asas pembentukan jati diri remaja.</li>
+          <li>Membina kesedaran tentang bahaya gejala sosial dan pengaruh negatif.</li>
+          <li>Memberi pendedahan mengenai kesan buruk ketagihan gajet dan media sosial.</li>
+          <li>Menyedarkan kepentingan menjaga maruah diri dan fitrah.</li>
+          <li>Membentuk disiplin serta keyakinan diri melalui aktiviti fizikal dan asas pertahanan diri.</li>
+        </ul>
+        <p><strong>MAKLUMAT PROGRAM</strong><br>
+        Nama Program: Program Benteng Diri Remaja<br>
+        Tempoh: 3 Hari (5, 6 & 7 Januari 2026)<br>
+        Masa: 10.00 pagi – 1.00 tengah hari<br>
+        Tempat: Surau Al-Muhtadin, Banjaria Court<br>
+        Sasaran: Remaja berumur 11 – 17 tahun<br>
+        Penyertaan: Lelaki dan Perempuan</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <form id="visitorForm">
+        <div class="field">
+          <label for="nama">Nama</label>
+          <input id="nama" name="nama" type="text" placeholder="Contoh: Ali Bin Abu" required />
+        </div>
+
+        <div class="field">
+          <label for="unit">Unit</label>
+          <input id="unit" name="unit" type="text" placeholder="Contoh: A-12-05" required />
+        </div>
+
+        <div class="field">
+          <label for="phone">No telefon</label>
+          <input id="phone" name="phone" type="tel" placeholder="6012xxxxxxx" required />
+          <span class="muted">Gunakan format tanpa tanda +.</span>
+        </div>
+
+        <div class="field">
+          <label>Jumlah anak</label>
+          <div class="row">
+            <div class="field">
+              <label for="lelaki">Lelaki</label>
+              <input id="lelaki" name="lelaki" type="number" min="0" value="0" required />
+            </div>
+            <div class="field">
+              <label for="perempuan">Perempuan</label>
+              <input id="perempuan" name="perempuan" type="number" min="0" value="0" required />
+            </div>
+          </div>
+        </div>
+
+        <button type="submit">Hantar sekarang</button>
+        <div class="message" id="msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // The WhatsApp number your committee will use for notifications (local format):
+    const NOTIFY_WHATSAPP_NUMBER = '011-28151179';
+
+    function normalizeForWaLink(raw){
+      if (!raw) return null;
+      let p = String(raw).trim().replace(/[\s\-().]/g,'');
+      if (!p) return null;
+      if (p.startsWith('+')) p = p.replace(/^\+/, '');
+      else if (p.startsWith('0')) p = '6' + p.replace(/^0+/, '');
+      return p; // e.g., 60123456789
+    }
+
+    const form = document.getElementById('visitorForm');
+    const msg = document.getElementById('msg');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+
+      const payload = {
+        nama: document.getElementById('nama').value.trim(),
+        unit: document.getElementById('unit').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        anak_lelaki: Number(document.getElementById('lelaki').value) || 0,
+        anak_perempuan: Number(document.getElementById('perempuan').value) || 0,
+        submitted_at: new Date().toISOString()
+      };
+
+      try {
+        msg.style.color = 'black';
+        msg.textContent = 'Menghantar...';
+
+        // Open WhatsApp (wa.me) with a prefilled message to the committee number (no Make required)
+        const dest = normalizeForWaLink(NOTIFY_WHATSAPP_NUMBER) || '601128151179';
+        const lines = [
+          'Pendaftaran Borang',
+          `Nama: ${payload.nama}`,
+          `Unit: ${payload.unit}`,
+          `No telefon: ${payload.phone}`,
+          `Jumlah anak: Lelaki: ${payload.anak_lelaki} Perempuan: ${payload.anak_perempuan}`,
+          `Dihantar: ${new Date(payload.submitted_at).toLocaleString()}`
+        ];
+
+        const text = encodeURIComponent(lines.join('\n'));
+        const waUrl = `https://wa.me/${dest}?text=${text}`;
+        window.open(waUrl, '_blank');
+
+        form.reset();
+        msg.style.color = '#4ade80';
+        msg.textContent = 'WhatsApp dibuka — sila tekan Hantar di WhatsApp untuk hantar notifikasi.';
+      } catch (err) {
+        msg.style.color = 'darkred';
+        msg.textContent = 'Gagal buka WhatsApp: ' + err.message;
+      }
+    });
+
+
+  </script>
+</body>
+</html>
