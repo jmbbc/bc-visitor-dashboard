@@ -954,6 +954,7 @@ function sendWhatsAppToAdmin(payload){
     'Pendaftaran Pelawat Baru',
     `Unit: ${payload.hostUnit || '-'}`,
     `Nama penghuni: ${payload.hostName || '-'}`,
+    `Nombor telefon penghuni: ${payload.hostPhone || '-'}`,
     `Nama pelawat: ${payload.visitorName || '-'}`,
     `Nombor telefon pelawat: ${payload.visitorPhone || '-'}`,
     `Tarikh masuk: ${etaText}`,
