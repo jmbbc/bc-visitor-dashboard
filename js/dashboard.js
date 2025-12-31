@@ -689,6 +689,21 @@ async function importUnitsFromArray(rows){
   return { batches: batches.length, committed: success };
 }
 
+async function setUnitsImportMeta({ fileName = '', totalRows = 0, source = 'csv' } = {}){
+  try {
+    if (!window.__FIRESTORE) return;
+    const ref = doc(window.__FIRESTORE, 'unitMeta', 'import');
+    await setDoc(ref, {
+      importedAt: serverTimestamp(),
+      fileName,
+      totalRows,
+      source
+    }, { merge: true });
+  } catch (e) {
+    console.warn('setUnitsImportMeta failed', e);
+  }
+}
+
 // wire admin UI when dashboard is initialized
 document.addEventListener('DOMContentLoaded', ()=>{
   const loginBtnAdmin = document.getElementById('adminLoginBtn');
@@ -861,6 +876,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
       document.getElementById('spinner').style.display = 'flex';
       const res = await importUnitsFromArray(csvPreviewArea._rows);
       toast('Import selesai: ' + (res.batches||0) + ' batch(es)');
+      try {
+        const f = csvInput && csvInput.files && csvInput.files[0];
+        await setUnitsImportMeta({ fileName: f ? f.name : '', totalRows: (csvPreviewArea._rows || []).length, source: 'csv-import' });
+      } catch(e) { console.warn('unit meta update (import) failed', e); }
     } catch(e) { console.error(e); toast('Import gagal', false); }
     finally { document.getElementById('spinner').style.display = 'none'; }
   });
@@ -882,6 +901,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
       });
       const res = await importUnitsFromArray(rows);
       toast('Tulis CSV selesai: ' + (res.committed || 0) + ' batch(es)');
+      try {
+        const f = csvInput && csvInput.files && csvInput.files[0];
+        await setUnitsImportMeta({ fileName: f ? f.name : '', totalRows: (rows || []).length, source: 'csv-force' });
+      } catch(e) { console.warn('unit meta update (force) failed', e); }
     } catch(e) {
       console.error('force write failed', e);
       if (!handlePermissionDenied(e, 'Tulis CSV gagal: kebenaran tidak mencukupi. Log masuk sebagai admin atau gunakan skrip import tempatan -- lihat docs ADMIN_SETUP.md.')) {

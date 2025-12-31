@@ -1,6 +1,6 @@
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
-  collection, serverTimestamp, Timestamp, doc, setDoc, runTransaction, getDoc
+  collection, serverTimestamp, Timestamp, doc, setDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-functions.js";
 
@@ -83,6 +83,26 @@ function waitForFirestore(timeout = 5000){
 
 // live clock for visitor form header
 let visitorTimeTicker = null;
+let unitImportMetaTs = null;
+let unitImportMetaLabel = '';
+
+async function ensureUnitImportMeta(){
+  if (unitImportMetaTs) return { ts: unitImportMetaTs, label: unitImportMetaLabel };
+  if (!window.__FIRESTORE) return { ts: null, label: '' };
+  try {
+    const metaRef = doc(window.__FIRESTORE, 'unitMeta', 'import');
+    const metaSnap = await getDoc(metaRef);
+    if (metaSnap.exists()) {
+      const data = metaSnap.data() || {};
+      unitImportMetaTs = data.importedAt || data.updatedAt || data.lastUpdatedAt || null;
+      unitImportMetaLabel = data.fileName ? ` (${data.fileName})` : '';
+      return { ts: unitImportMetaTs, label: unitImportMetaLabel };
+    }
+  } catch (e) {
+    console.warn('ensureUnitImportMeta failed', e);
+  }
+  return { ts: null, label: '' };
+}
 
 function toast(message, ok = true, opts = {}) {
   // opts.duration - ms to auto-dismiss (default 7000)
@@ -308,6 +328,18 @@ function dateFromInputDateOnly(val){
   return isNaN(dt.getTime()) ? null : dt;
 }
 
+function formatDateTimeLocal(ts){
+  if (!ts) return null;
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  if (!d || isNaN(d.getTime())) return null;
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const min = String(d.getMinutes()).padStart(2,'0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+}
+
 function computeArrearsCategory(amount){
   if (typeof amount !== 'number' || isNaN(amount)) return null;
   if (amount <= 1) return 1;
@@ -321,7 +353,7 @@ function freeDaysForCategory(cat){
   return 0; // cat 3 and others default to none
 }
 
-function showUnitNoticeModal({ category, amount, eta, etd, visitorCategory }){
+function showUnitNoticeModal({ category, amount, eta, etd, visitorCategory, lastUpdatedAt }){
   return new Promise((resolve) => {
     try { const prev = document.getElementById('unitNoticeOverlay'); if (prev) prev.remove(); } catch(e) {}
     const overlay = document.createElement('div');
@@ -399,11 +431,14 @@ function showUnitNoticeModal({ category, amount, eta, etd, visitorCategory }){
       }
     } catch(e) { /* ignore calculation errors */ }
 
+    const updatedText = lastUpdatedAt ? (formatDateTimeLocal(lastUpdatedAt) || null) : null;
+
     body.innerHTML = [
       '<p>Untuk makluman, unit ini mempunyai tunggakan. (Sila rujuk kepada pihak pengurusan untuk dapatkan tunggakan terkini)</p>',
       `<p><strong>Jumlah hari yang di benarkan parkir percuma : ${freeText}</strong></p>`,
       `<p><strong>Kategori Unit Tunggakan : <span class="arrears-category">Kategori ${category}</span></strong></p>`,
       paymentHtml ? paymentHtml : '',
+      updatedText ? `<p class="small muted" style="margin-top:6px">Tarikh kemas kini tunggakan: <strong>${updatedText}</strong></p>` : '',
       '<p>Sekiranya pemohon ingin meneruskan menggunakan perkhidmatan petak parkir pelawat, pihak pengurusan akan mengenakan caj berdasarkan jadual yang ditetapkan.</p>'
     ].join('');
 
@@ -1096,6 +1131,34 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('beforeunload', ()=> { try { if (visitorTimeTicker) clearInterval(visitorTimeTicker); visitorTimeTicker = null; } catch(e){} });
   } catch (e) { console.warn('visitor clock start failed', e); }
 
+  async function updateUnitsLastUpdatedLabel(){
+    const target = document.getElementById('unitUpdateValue');
+    if (!target) return;
+    try { target.textContent = 'Memuat...'; } catch(e) {}
+    if (!window.__FIRESTORE) { target.textContent = 'Tidak diketahui'; return; }
+    let ts = null;
+    let label = '';
+    try {
+      const meta = await ensureUnitImportMeta();
+      ts = meta.ts; label = meta.label;
+    } catch(e) { console.warn('Gagal dapatkan unitMeta/import', e); }
+
+    if (!ts) {
+      try {
+        const qRef = query(collection(window.__FIRESTORE, 'units'), orderBy('lastUpdatedAt','desc'), limit(1));
+        const snap = await getDocs(qRef);
+        snap.forEach(d => {
+          const data = d.data() || {};
+          if (data.lastUpdatedAt) ts = data.lastUpdatedAt;
+        });
+      } catch (e) {
+        console.warn('Gagal dapatkan tarikh kemas kini units', e);
+      }
+    }
+
+    target.textContent = ts ? ((formatDateTimeLocal(ts) || 'Tidak diketahui') + label) : 'Tidak diketahui';
+  }
+
   (async () => {
     try { await waitForFirestore(); } catch (err) {
       console.error('Firestore init failed', err);
@@ -1119,6 +1182,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const vehicleMultiWrap = document.getElementById('vehicleMultiWrap');
     const vehicleList = document.getElementById('vehicleList');
     const addVehicleBtn = document.getElementById('addVehicleBtn');
+
+    await updateUnitsLastUpdatedLabel();
 
     if (!form) { console.error('visitorForm missing'); return; }
 
@@ -1491,8 +1556,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (unitSnapshot && typeof unitSnapshot.arrearsAmount === 'number') {
         const arrearsCat = computeArrearsCategory(unitSnapshot.arrearsAmount);
         if (arrearsCat && arrearsCat >= 2) {
-          // pass ETA/ETD and the visitor category so modal only shows charges for allowed visitor types
-          const acknowledged = await showUnitNoticeModal({ category: arrearsCat, amount: unitSnapshot.arrearsAmount, eta: etaDate, etd: etdDate, visitorCategory: category });
+          // get latest CSV import timestamp if available
+          let metaTs = unitImportMetaTs || null;
+          if (!metaTs) {
+            try { const meta = await ensureUnitImportMeta(); metaTs = meta.ts || null; } catch(e) { /* ignore */ }
+          }
+          if (!metaTs) metaTs = unitSnapshot.lastUpdatedAt || null;
+          const acknowledged = await showUnitNoticeModal({ category: arrearsCat, amount: unitSnapshot.arrearsAmount, eta: etaDate, etd: etdDate, visitorCategory: category, lastUpdatedAt: metaTs });
           if (!acknowledged) {
             showStatus('Pendaftaran dibatalkan.', false);
             return;
