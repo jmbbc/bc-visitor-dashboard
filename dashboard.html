@@ -8,48 +8,52 @@
   <link rel="stylesheet" href="css/style.css">
   <style>
     /* Local dashboard tweaks */
-    .dashboard-wrap { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
-    @media (max-width: 880px) { .dashboard-wrap { grid-template-columns: 1fr; } }
+    .dashboard-wrap { display:flex; flex-direction:column; gap:12px; }
 
-    .sidebar { padding: 12px; border-radius:8px; background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
-    .sidebar nav { display:flex; flex-direction:column; gap:6px; }
-    .sidebar .nav-group { display:flex; flex-direction:column; gap:6px; padding:8px; border-radius:8px; background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent); }
-    .sidebar button.nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:var(--surface); cursor:pointer; color:var(--text-900); font-weight:600; transition: background .12s, color .12s; font-size:14px; display:flex; align-items:center; gap:10px; }
-    .sidebar button.nav-item .nav-icon { font-size:18px; line-height:1; display:inline-flex; width:20px; justify-content:center; }
-    .sidebar button.nav-item .nav-label { display:inline-block; font-size:14px; }
-    .sidebar button.nav-item.active { background: rgba(37,99,235,0.08); color: var(--text-900); border-color: transparent; }
-    .sidebar button.nav-item.active:hover { background: rgba(37,99,235,0.10); }
-    .sidebar button.nav-item:active { transform: translateY(1px); }
+    .head-shell { padding:12px; border-radius:10px; background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,0.06); border:1px solid var(--input-border); }
+    .head-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .today-pill { display:flex; flex-direction:column; gap:4px; }
+    .head-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; align-items:stretch; margin-top:10px; }
+    @media (max-width: 900px) { .head-grid { grid-template-columns: 1fr; } }
+    .top-nav { display:flex; flex-direction:column; gap:10px; height:320px; max-height:320px; overflow:hidden; }
+    .top-nav nav { display:flex; flex-direction:column; gap:10px; }
+    .top-nav .nav-group { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:8px; padding:8px; border-radius:10px; background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent); }
+    .nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:var(--surface); cursor:pointer; color:var(--text-900); font-weight:600; transition: background .12s, color .12s; font-size:14px; display:flex; align-items:center; gap:10px; }
+    .nav-item .nav-icon { font-size:18px; line-height:1; display:inline-flex; width:20px; justify-content:center; }
+    .nav-item .nav-label { display:inline-block; font-size:14px; }
+    .nav-item.active { background: rgba(37,99,235,0.08); color: var(--text-900); border-color: transparent; }
+    .nav-item.active:hover { background: rgba(37,99,235,0.10); }
+    .nav-item:active { transform: translateY(1px); }
 
     /* Selected / focused box visual (black 1px outer outline) — used for the main nav boxes */
-    .sidebar button.nav-item.selected { box-shadow: 0 0 0 1px #000000; }
+    .nav-item.selected { box-shadow: 0 0 0 1px #000000; }
     /* Visible focus ring for keyboard users — matches the selected appearance but uses an accessible outline offset */
-    .sidebar button.nav-item:focus-visible { outline: 2px solid #000000; outline-offset: 2px; }
+    .nav-item:focus-visible { outline: 2px solid #000000; outline-offset: 2px; }
 
     /* Distinct colours for the four primary buttons */
     /* Summary (teal/green) - changed to solid soft-teal background */
     /* stronger override to avoid being masked by other site CSS */
-    .sidebar .nav-group button#navSummary.nav-item { background: linear-gradient(180deg, rgba(6,182,212,0.14), rgba(6,182,212,0.12)) !important; border-color: rgba(6,182,212,0.18) !important; color: #042f2a !important; }
+    .nav-group button#navSummary.nav-item { background: linear-gradient(180deg, rgba(6,182,212,0.14), rgba(6,182,212,0.12)) !important; border-color: rgba(6,182,212,0.18) !important; color: #042f2a !important; }
     #navSummary.active { background: linear-gradient(180deg, rgba(6,182,212,0.22), rgba(6,182,212,0.18)); color: #042f2a; border-color: transparent; box-shadow: 0 2px 6px rgba(6,182,212,0.12); }
     #navSummary:hover { background: linear-gradient(180deg, rgba(6,182,212,0.18), rgba(6,182,212,0.14)); }
 
     /* Checked-in (indigo/violet) — stronger indigo background */
-    .sidebar .nav-group button#navCheckedIn.nav-item { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.10)) !important; border-color: rgba(79,70,229,0.18) !important; color: #111827 !important; }
+    .nav-group button#navCheckedIn.nav-item { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.10)) !important; border-color: rgba(79,70,229,0.18) !important; color: #111827 !important; }
     #navCheckedIn.active { background: linear-gradient(180deg, rgba(79,70,229,0.18), rgba(79,70,229,0.14)); color: #0f172a; border-color: transparent; box-shadow: 0 2px 6px rgba(79,70,229,0.12); }
     #navCheckedIn:hover { background: linear-gradient(180deg, rgba(79,70,229,0.14), rgba(79,70,229,0.10)); }
 
     /* Parking (amber/orange) — warm amber background */
-    .sidebar .nav-group button#navParking.nav-item { background: linear-gradient(180deg, rgba(250,190,50,0.14), rgba(250,190,50,0.10)) !important; border-color: rgba(250,190,50,0.16) !important; color: #2b1808 !important; }
+    .nav-group button#navParking.nav-item { background: linear-gradient(180deg, rgba(250,190,50,0.14), rgba(250,190,50,0.10)) !important; border-color: rgba(250,190,50,0.16) !important; color: #2b1808 !important; }
     #navParking.active { background: linear-gradient(180deg, rgba(250,190,50,0.22), rgba(250,190,50,0.16)); color: #2b1808; border-color: transparent; box-shadow: 0 2px 6px rgba(250,190,50,0.12); }
     #navParking:hover { background: linear-gradient(180deg, rgba(250,190,50,0.18), rgba(250,190,50,0.12)); }
 
     /* Unit Admin (indigo/violet) — match page heading color */
-    .sidebar .nav-group button#navUnitAdmin.nav-item { background: linear-gradient(180deg, rgba(99,102,241,0.12), rgba(99,102,241,0.10)) !important; border-color: rgba(99,102,241,0.18) !important; color: #0f172a !important; }
+    .nav-group button#navUnitAdmin.nav-item { background: linear-gradient(180deg, rgba(99,102,241,0.12), rgba(99,102,241,0.10)) !important; border-color: rgba(99,102,241,0.18) !important; color: #0f172a !important; }
     #navUnitAdmin.active { background: linear-gradient(180deg, rgba(99,102,241,0.18), rgba(99,102,241,0.14)); color: #0f172a; border-color: transparent; box-shadow: 0 2px 6px rgba(99,102,241,0.12); }
     #navUnitAdmin:hover { background: linear-gradient(180deg, rgba(99,102,241,0.14), rgba(99,102,241,0.10)); }
 
     /* Refresh (blue) — keep distinct but softer */
-    .sidebar button#reloadBtn.nav-item { background: linear-gradient(180deg, rgba(59,130,246,0.12), rgba(59,130,246,0.10)) !important; border-color: rgba(59,130,246,0.14) !important; color: #062a6c !important; }
+    button#reloadBtn.nav-item { background: linear-gradient(180deg, rgba(59,130,246,0.12), rgba(59,130,246,0.10)) !important; border-color: rgba(59,130,246,0.14) !important; color: #062a6c !important; }
     #reloadBtn.active { background: linear-gradient(180deg, rgba(59,130,246,0.18), rgba(59,130,246,0.14)); color: #062a6c; border-color: transparent; box-shadow: 0 2px 6px rgba(59,130,246,0.12); }
     #reloadBtn:hover { background: linear-gradient(180deg, rgba(59,130,246,0.14), rgba(59,130,246,0.12)); }
 
@@ -111,6 +115,22 @@
     @media (max-width: 480px) {
       .page-heading-box { height: auto; padding:10px 12px; text-align:center; justify-content:center; align-items:center; }
     }
+
+    /* Passdown / mini note pad (now under head) */
+    .passdown-card { margin-top:0; padding:12px; border-radius:10px; background:var(--surface); border:1px solid var(--input-border); box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+    .passdown-card textarea { width:100%; min-height:88px; resize:vertical; border-radius:10px; border:1px solid var(--input-border); padding:10px 12px; background:var(--card); }
+    .passdown-actions { display:flex; gap:6px; margin-top:6px; }
+    .passdown-actions button { flex:1; min-height:38px; padding:8px 10px; }
+    .passdown-list-box { display:flex; flex-direction:column; gap:8px; height:320px; max-height:320px; overflow:hidden; }
+    .passdown-list { flex:1; min-height:0; display:flex; flex-direction:column; gap:6px; overflow-y:auto; overflow-x:hidden; border:1px solid var(--input-border); border-radius:10px; padding:8px; background:var(--card); }
+    .passdown-item { position:relative; display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:8px; background:linear-gradient(180deg, rgba(6,182,212,0.06), rgba(6,182,212,0.04)); border:1px solid var(--input-border); }
+    .passdown-body { flex:1; min-width:0; }
+    .passdown-item-text { font-size:13px; font-weight:600; color:var(--text-900); word-break:break-word; }
+    .passdown-meta { margin-top:4px; font-size:11px; color:var(--muted); display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .passdown-pencil { position:absolute; top:6px; right:8px; border:1px solid var(--input-border); border-radius:6px; padding:4px 6px; background:var(--surface); cursor:pointer; font-size:12px; line-height:1; color:var(--text-900); }
+    .passdown-actions-inline { position:absolute; top:32px; right:8px; display:none; gap:6px; background:var(--card); border:1px solid var(--input-border); border-radius:8px; padding:6px; box-shadow:0 4px 12px rgba(0,0,0,0.08); }
+    .passdown-actions-inline.open { display:flex; }
+    .passdown-actions-inline button { padding:6px 10px; min-height:32px; font-size:12px; }
   </style>
 </head>
 <body>
@@ -132,34 +152,49 @@
 
     <div id="dashboardArea" style="display:none; margin-top:12px">
       <div class="dashboard-wrap">
-        <!-- Sidebar -->
-        <aside class="sidebar" aria-label="Navigasi Dashboard">
-          <div style="margin-bottom:10px">
-            <div class="small muted">Tarikh hari ini</div>
-            <div id="todayLabel" style="font-weight:800;font-size:16px;margin-top:6px"></div>
-            <div id="todayTime" class="muted-small" style="margin-top:4px"></div>
+        <!-- Head (was sidebar) -->
+        <div class="head-shell" aria-label="Navigasi Dashboard">
+          <div class="head-row">
+            <div class="today-pill">
+              <div class="small muted">Tarikh hari ini</div>
+              <div id="todayLabel" style="font-weight:800;font-size:16px;margin-top:2px"></div>
+              <div id="todayTime" class="muted-small"></div>
+            </div>
           </div>
 
-          <!-- placeholder for Unit Admin page (moved to main content) -->
+          <div class="head-grid">
+            <div class="top-nav">
+              <nav>
+                <div class="nav-group primary">
+                  <button id="navSummary" class="nav-item active"><span class="nav-icon">📋</span><span class="nav-label">Senarai pendaftaran</span></button>
+                  <button id="navCheckedIn" class="nav-item"><span class="nav-icon">✅</span><span class="nav-label">Pelawat Checked In (Hari Ini)</span></button>
+                  <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
+                  <button id="navUnitAdmin" class="nav-item"><span class="nav-icon">🧾</span><span class="nav-label">Kemas Kini Unit (CSV)</span></button>
+                  <button id="reloadBtn" class="nav-item">Refresh Data</button>
+                  <button id="exportAllCSVBtn" class="nav-item">Eksport CSV (Semua)</button>
+                </div>
+              </nav>
 
-          <nav>
-            <div class="nav-group primary">
-              <button id="navSummary" class="nav-item active"><span class="nav-icon">📋</span><span class="nav-label">Senarai pendaftaran</span></button>
-              <button id="navCheckedIn" class="nav-item"><span class="nav-icon">✅</span><span class="nav-label">Pelawat Checked In (Hari Ini)</span></button>
-              <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
-              <button id="navUnitAdmin" class="nav-item"><span class="nav-icon">🧾</span><span class="nav-label">Kemas Kini Unit (CSV)</span></button>
+              <div class="passdown-card" aria-label="Nota bertugas">
+                <div class="small muted">Nota Bertugas (shif seterusnya)</div>
+                <textarea id="passdownInput" placeholder="Catat nota pantas untuk passdown..." aria-label="Nota bertugas"></textarea>
+                <div class="passdown-actions">
+                  <button id="passdownSaveBtn" type="button">Simpan</button>
+                  <button id="passdownClearBtn" type="button" class="btn-ghost">Kosongkan</button>
+                </div>
+              </div>
             </div>
 
-            <!-- sidebarUnitAdmin removed as requested (admin controls live on the main Unit Admin page instead) -->
-
-            <hr style="border:none;border-top:1px solid var(--input-border);margin:10px 0">
-            <div class="muted-small">Alat</div>
-            <button id="reloadBtn" class="nav-item">Refresh Data</button>
-            <button id="exportAllCSVBtn" class="nav-item">Eksport CSV (Semua)</button>
-            <!-- quick admin login removed — admin controls live in 'Kemas Kini Unit' page -->
-            <!-- Export CSV button removed as requested -->
-          </nav>
-        </aside>
+            <div class="passdown-card passdown-list-box" aria-label="Senarai nota bertugas">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                <div class="small muted">Senarai nota</div>
+                <div id="passdownMeta" class="muted-small"></div>
+              </div>
+              <div class="muted-small" style="margin-top:4px;">Nota terbaru di atas. Klik pensel untuk edit atau padam.</div>
+              <div id="passdownList" class="passdown-list small" aria-live="polite"></div>
+            </div>
+          </div>
+        </div>
 
         <!-- Main -->
         <section>

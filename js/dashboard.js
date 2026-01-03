@@ -126,6 +126,13 @@ const todayLabel = document.getElementById('todayLabel');
 const todayTime = document.getElementById('todayTime');
 const kpiWrap = document.getElementById('kpiWrap');
 const injectedControls = document.getElementById('injectedControls');
+const passdownInput = document.getElementById('passdownInput');
+const passdownList = document.getElementById('passdownList');
+const passdownSaveBtn = document.getElementById('passdownSaveBtn');
+const passdownClearBtn = document.getElementById('passdownClearBtn');
+const passdownMeta = document.getElementById('passdownMeta');
+const PASSDOWN_KEY = 'bc_passdown_notes_v1';
+const PASSDOWN_LIMIT = 14;
 
 // Units cache (unitId -> doc data) used to display unit category fallback
 const unitsCache = Object.create(null);
@@ -172,6 +179,115 @@ function handlePermissionDenied(e, friendlyMsg){
     }
   } catch(err){}
   return false;
+}
+
+/* ---------- Passdown notes (sidebar mini notepad) ---------- */
+function getSavedPassdownNotes(){
+  try {
+    const raw = localStorage.getItem(PASSDOWN_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) return parsed.slice(0, PASSDOWN_LIMIT);
+  } catch(e) { /* ignore */ }
+  return [];
+}
+
+function persistPassdownNotes(notes){
+  try { localStorage.setItem(PASSDOWN_KEY, JSON.stringify(notes.slice(0, PASSDOWN_LIMIT))); } catch(e) { /* ignore */ }
+}
+
+function renderPassdownNotes(){
+  if (!passdownList) return;
+  const notes = getSavedPassdownNotes();
+  if (!notes.length) {
+    passdownList.innerHTML = '<div class="muted-small">Belum ada nota.</div>';
+    if (passdownMeta) passdownMeta.textContent = '';
+    return;
+  }
+  const items = notes.map(n => {
+    const ts = n.ts ? new Date(n.ts) : new Date();
+    const dateLabel = `${formatDateOnly(ts)} ${ts.toLocaleTimeString()}`;
+    const author = escapeHtml(n.author || '');
+    const text = escapeHtml(n.text || '');
+    const id = n.ts || Math.random();
+    return `<div class="passdown-item" data-passdown-ts="${id}">
+      <div class="passdown-body">
+        <div class="passdown-item-text">${text}</div>
+        <div class="passdown-meta">${author ? author + ' • ' : ''}${dateLabel}</div>
+      </div>
+      <button type="button" class="passdown-pencil" data-passdown-menu="${id}" aria-label="Edit atau padam nota">✏️</button>
+      <div class="passdown-actions-inline" data-passdown-actions="${id}">
+        <button type="button" class="btn-ghost" data-passdown-edit="${id}">Edit</button>
+        <button type="button" class="btn-ghost" data-passdown-delete="${id}">Padam</button>
+      </div>
+    </div>`;
+  }).join('');
+  passdownList.innerHTML = items;
+  if (passdownMeta) {
+    const ts = notes[0].ts ? new Date(notes[0].ts) : new Date();
+    passdownMeta.textContent = `Terakhir: ${ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+}
+
+function addPassdownNote(){
+  if (!passdownInput) return;
+  const text = (passdownInput.value || '').trim();
+  if (!text) { toast('Nota kosong — sila isi.', false); return; }
+  const author = (who && who.textContent) ? who.textContent : 'Tanpa nama';
+  const now = Date.now();
+  const notes = getSavedPassdownNotes();
+  notes.unshift({ text, author, ts: now });
+  persistPassdownNotes(notes);
+  passdownInput.value = '';
+  renderPassdownNotes();
+  toast('Nota disimpan');
+}
+
+function clearPassdownNotes(){
+  persistPassdownNotes([]);
+  renderPassdownNotes();
+  toast('Nota dikosongkan');
+}
+
+function editPassdownNote(ts){
+  const notes = getSavedPassdownNotes();
+  const idx = notes.findIndex(n => String(n.ts) === String(ts));
+  if (idx < 0) return;
+  const current = notes[idx];
+  const next = prompt('Edit nota', current.text || '');
+  if (next === null) return;
+  const text = next.trim();
+  if (!text) { toast('Nota kosong — tidak disimpan.', false); return; }
+  notes[idx] = Object.assign({}, current, { text, ts: Date.now() });
+  persistPassdownNotes(notes);
+  renderPassdownNotes();
+  toast('Nota dikemas kini');
+}
+
+function deleteSinglePassdown(ts){
+  const notes = getSavedPassdownNotes();
+  const filtered = notes.filter(n => String(n.ts) !== String(ts));
+  persistPassdownNotes(filtered);
+  renderPassdownNotes();
+  toast('Nota dibuang');
+}
+
+// keep selection hidden when navigating away
+document.addEventListener('keydown', (evt)=>{
+  if (evt.key === 'Escape') hidePassdownMenus();
+});
+
+function hidePassdownMenus(){
+  if (!passdownList) return;
+  passdownList.querySelectorAll('.passdown-actions-inline').forEach(el => el.classList.remove('open'));
+}
+
+function togglePassdownMenu(ts){
+  if (!passdownList) return;
+  const target = passdownList.querySelector(`[data-passdown-actions="${ts}"]`);
+  if (!target) return;
+  const isOpen = target.classList.contains('open');
+  hidePassdownMenus();
+  if (!isOpen) target.classList.add('open');
 }
 
 async function loadAllUnitsToCache(){
@@ -706,6 +822,25 @@ async function setUnitsImportMeta({ fileName = '', totalRows = 0, source = 'csv'
 
 // wire admin UI when dashboard is initialized
 document.addEventListener('DOMContentLoaded', ()=>{
+  // Passdown notepad
+  renderPassdownNotes();
+  if (passdownSaveBtn) passdownSaveBtn.addEventListener('click', addPassdownNote);
+  if (passdownClearBtn) passdownClearBtn.addEventListener('click', ()=>{ if (confirm('Kosongkan semua nota?')) clearPassdownNotes(); });
+  if (passdownInput) passdownInput.addEventListener('keydown', (e)=>{ if (e.ctrlKey && e.key === 'Enter') addPassdownNote(); });
+  if (passdownList) {
+    passdownList.addEventListener('click', (e)=>{
+      const menuBtn = e.target.closest('[data-passdown-menu]');
+      if (menuBtn) { e.stopPropagation(); togglePassdownMenu(menuBtn.getAttribute('data-passdown-menu')); return; }
+      const editBtn = e.target.closest('[data-passdown-edit]');
+      if (editBtn) { e.stopPropagation(); hidePassdownMenus(); editPassdownNote(editBtn.getAttribute('data-passdown-edit')); return; }
+      const delBtn = e.target.closest('[data-passdown-delete]');
+      if (delBtn) { e.stopPropagation(); hidePassdownMenus(); deleteSinglePassdown(delBtn.getAttribute('data-passdown-delete')); return; }
+    });
+    document.addEventListener('click', (evt)=>{
+      if (!passdownList.contains(evt.target)) hidePassdownMenus();
+    });
+  }
+
   const loginBtnAdmin = document.getElementById('adminLoginBtn');
   const logoutBtnAdmin = document.getElementById('adminLogoutBtn');
   const adminOpenLoginBtn = document.getElementById('adminOpenLoginBtn');
