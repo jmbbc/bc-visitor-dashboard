@@ -841,6 +841,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
     });
   }
 
+  // sync passdown notes across tabs/windows (listens to localStorage changes)
+  window.addEventListener('storage', (e)=>{
+    if (e.key === PASSDOWN_KEY) renderPassdownNotes();
+  });
+
   const loginBtnAdmin = document.getElementById('adminLoginBtn');
   const logoutBtnAdmin = document.getElementById('adminLogoutBtn');
   const adminOpenLoginBtn = document.getElementById('adminOpenLoginBtn');
