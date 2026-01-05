@@ -688,17 +688,28 @@ function renderUnitContacts(){
   let html = '<table class="table"><thead><tr><th style="width:56px">No.</th><th>Unit</th><th>Nama Penghuni</th><th>Nombor Telefon</th></tr></thead><tbody>';
   let idx = 0;
   arr.forEach((unitId) => {
-    let name = '';
-    let phone = '';
-    // prefer cached aggregated contacts first
-    const c = contactsMap[unitId];
-    if (c) { name = name || c.name || ''; phone = phone || c.phone || ''; }
+    const contacts = [];
+    const seen = new Set();
+    const addContact = (n, p) => {
+      const name = (n || '').trim();
+      const phone = (p || '').trim();
+      if (!name && !phone) return;
+      const key = `${name.toLowerCase()}|${phone.toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      contacts.push({ name, phone });
+    };
+
+    // cached aggregated contact (may be single entry)
+    const cachedContact = contactsMap[unitId];
+    if (cachedContact) addContact(cachedContact.name, cachedContact.phone);
+
+    // unit doc fields
     const u = unitsCache[unitId] || {};
-    // prefer explicit contact fields on unit doc if present
-    name = name || u.ownerName || u.contactName || u.name || u.hostName || '';
-    phone = phone || u.ownerPhone || u.contactPhone || u.phone || '';
-    // fallback to the most recent registration row for this unit (from responseCache)
-    if ((!name || !phone) && Array.isArray(responseCache.rows)){
+    addContact(u.ownerName || u.contactName || u.name || u.hostName, u.ownerPhone || u.contactPhone || u.phone);
+
+    // recent registrations for this unit — include multiple distinct entries
+    if (Array.isArray(responseCache.rows)){
       const cand = responseCache.rows.filter(r => String(r.hostUnit || '').trim().toLowerCase() === String(unitId).trim().toLowerCase() && (r.hostName || r.hostPhone));
       if (cand.length){
         cand.sort((a,b)=>{
@@ -706,17 +717,26 @@ function renderUnitContacts(){
           const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
           return tb - ta;
         });
-        const c2 = cand[0];
-        name = name || (c2.hostName || '');
-        phone = phone || (c2.hostPhone || '');
+        cand.forEach(c2 => addContact(c2.hostName, c2.hostPhone));
       }
     }
 
-    const matches = !search || String(unitId).toLowerCase().includes(search) || String(name || '').toLowerCase().includes(search) || String(phone || '').toLowerCase().includes(search);
+    // if still empty, add a placeholder row
+    if (!contacts.length) contacts.push({ name: '-', phone: '' });
+
+    // search match against any contact
+    const matches = !search || String(unitId).toLowerCase().includes(search) || contacts.some(c => (c.name || '').toLowerCase().includes(search) || (c.phone || '').toLowerCase().includes(search));
     if (!matches) return;
     idx++;
-    const phoneHtml = phone ? `<a class="tel-link" href="${normalizePhoneForWhatsapp(phone)}" target="_blank" rel="noopener noreferrer">${escapeHtml(phone)}</a>` : '-';
-    html += `<tr><td>${idx}</td><td>${escapeHtml(unitId)}</td><td>${escapeHtml(name || '-')}</td><td>${phoneHtml}</td></tr>`;
+
+    const nameHtml = contacts.map(c => escapeHtml(c.name || '-')).join('<div class="small muted" style="margin-top:2px"></div>');
+    const phoneHtml = contacts.map(c => {
+      if (!c.phone) return '<div>-</div>';
+      const href = normalizePhoneForWhatsapp(c.phone);
+      return `<div><a class="tel-link" href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(c.phone)}</a></div>`;
+    }).join('');
+
+    html += `<tr><td>${idx}</td><td>${escapeHtml(unitId)}</td><td>${nameHtml}</td><td>${phoneHtml || '-'}</td></tr>`;
   });
   html += '</tbody></table>';
   el.innerHTML = html;
