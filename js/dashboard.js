@@ -634,50 +634,7 @@ function renderUnitsList(){
   });
 }
 
-// Unit Contacts page: renders a simple searchable list of Unit — Nama Penghuni — Nombor Telefon
-function renderUnitContacts(){
-  const el = document.getElementById('listAreaUnitContacts');
-  if (!el) return;
-  const search = (unitContactsSearch && unitContactsSearch.value) ? unitContactsSearch.value.trim().toLowerCase() : '';
-  const staticList = Array.isArray(window.UNITS_STATIC) ? window.UNITS_STATIC.slice() : [];
-  const keys = new Set([].concat(staticList, Object.keys(unitsCache || {}), (responseCache.rows || []).map(r => r.hostUnit).filter(Boolean)));
-  const arr = Array.from(keys).filter(Boolean).sort((a,b) => a.localeCompare(b));
-  if (!arr.length) { el.innerHTML = '<div class="small">Tiada unit dalam rekod.</div>'; return; }
-  let html = '<table class="table"><thead><tr><th style="width:56px">No.</th><th>Unit</th><th>Nama Penghuni</th><th>Nombor Telefon</th></tr></thead><tbody>';
-  arr.forEach((unitId, idx) => {
-    let name = '';
-    let phone = '';
-    const u = unitsCache[unitId] || {};
-    // prefer explicit contact fields on unit doc if present
-    name = name || u.ownerName || u.contactName || u.name || u.hostName || '';
-    phone = phone || u.ownerPhone || u.contactPhone || u.phone || '';
 
-    // fallback to the most recent registration row for this unit (from responseCache)
-    if ((!name || !phone) && Array.isArray(responseCache.rows)){
-      const cand = responseCache.rows.filter(r => String(r.hostUnit || '').trim().toLowerCase() === String(unitId).trim().toLowerCase() && (r.hostName || r.hostPhone));
-      if (cand.length){
-        cand.sort((a,b)=>{
-          const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-          const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-          return tb - ta;
-        });
-        const c = cand[0];
-        name = name || (c.hostName || '');
-        phone = phone || (c.hostPhone || '');
-      }
-    }
-
-    const matches = !search || String(unitId).toLowerCase().includes(search) || String(name || '').toLowerCase().includes(search) || String(phone || '').toLowerCase().includes(search);
-    if (!matches) return;
-
-    const phoneHtml = phone ? `<a class="tel-link" href="${normalizePhoneForWhatsapp(phone)}" target="_blank" rel="noopener noreferrer">${escapeHtml(phone)}</a>` : '-';
-    html += `<tr><td>${idx+1}</td><td>${escapeHtml(unitId)}</td><td>${escapeHtml(name || '-')}</td><td>${phoneHtml}</td></tr>`;
-  });
-  html += '</tbody></table>';
-  el.innerHTML = html;
-}
-
-if (unitContactsSearch) unitContactsSearch.addEventListener('input', ()=>{ renderUnitContacts(); });
 
 async function fetchAndCacheUnitContacts(){
   if (!window.__FIRESTORE) { toast('Firestore belum tersedia — tidak dapat segarkan.', false); return; }
