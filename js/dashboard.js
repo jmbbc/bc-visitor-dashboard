@@ -327,9 +327,6 @@ const exportAllCSVBtn = document.getElementById('exportAllCSVBtn');
 const parkingSearchInput = document.getElementById('parkingSearch');
 const listAreaUnitContacts = document.getElementById('listAreaUnitContacts');
 const unitContactsSearch = document.getElementById('unitContactsSearch');
-const refreshUnitContactsBtn = document.getElementById('refreshUnitContactsBtn');
-const unitContactsMeta = document.getElementById('unitContactsMeta');
-const UNIT_CONTACTS_CACHE_KEY = 'bc_unit_contacts_v1';
 let parkingSearchTimer = null;
 
 // auto-refresh timer handle
@@ -439,92 +436,21 @@ function getParkingDate(){
 console.info('dashboard.js loaded. __AUTH?', !!window.__AUTH, '__FIRESTORE?', !!window.__FIRESTORE);
 
 /* ---------- auth handlers ---------- */
-// Centralized handler to apply UI state when a user is present
-function handleUserSignedIn(user){
-  try { console.info('handleUserSignedIn ->', user ? (user.email || user.uid) : 'null'); } catch(e){}
-  if (!user) return;
-  // Basic UI
-  loginBox.style.display = 'none';
-  dashboardArea.style.display = 'block';
-  who.textContent = user.email || user.uid;
-  logoutBtn.style.display = 'inline-block';
-
-  // Load units cache for all signed-in users so arrears/category display is up-to-date
-  try { loadAllUnitsToCache().catch(()=>{}); } catch(e) {}
-
-  // Check for custom claim 'admin' and enable admin controls automatically
-  try {
-    user.getIdTokenResult().then(token => {
-      const isAdminClaim = token && token.claims && token.claims.admin === true;
-      if (isAdminClaim) {
-        setAdminLoggedIn(true);
-        try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e){}
-        try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'none'; } catch(e){}
-        try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Log masuk sebagai admin (claim).'; } catch(e){}
-      }
-    }).catch(err => { /* ignore token errors */ });
-  } catch(e) { /* ignore */ }
-
-  // Live clock and auto-refresh
-  const now = new Date();
-  todayLabel.textContent = formatDateOnly(now);
-  todayTime.textContent = now.toLocaleTimeString();
-  try {
-    if (timeTicker) clearInterval(timeTicker);
-    timeTicker = setInterval(()=>{
-      const n = new Date();
-      todayTime.textContent = n.toLocaleTimeString();
-      const newDateStr = isoDateString(new Date());
-      const active = (typeof getActivePageKey === 'function') ? getActivePageKey() : 'summary';
-      let curDateStr = isoDateString(new Date());
-      if (active === 'summary' && filterDateSummary) curDateStr = filterDateSummary.value || isoDateString(new Date());
-      else if (active === 'checkedin' && filterDateCheckedIn) curDateStr = filterDateCheckedIn.value || isoDateString(new Date());
-      else if (active === 'parking') curDateStr = getParkingDate();
-      if (curDateStr !== newDateStr) {
-        todayLabel.textContent = formatDateOnly(new Date());
-        let shouldAuto = false;
-        if (active === 'summary' && !filterDateUserChangedSummary && responseCache.date === curDateStr) shouldAuto = true;
-        if (active === 'checkedin' && !filterDateUserChangedCheckedIn && responseCache.date === curDateStr) shouldAuto = true;
-        if (active === 'parking' && !filterDateUserChangedParking && responseCache.date === curDateStr) shouldAuto = true;
-        if (shouldAuto) {
-          if (active === 'summary' && filterDateSummary) { filterDateSummary.value = newDateStr; filterDateUserChangedSummary = false; }
-          if (active === 'checkedin' && filterDateCheckedIn) { filterDateCheckedIn.value = newDateStr; filterDateUserChangedCheckedIn = false; }
-          if (active === 'parking') { parkingCurrentDate = newDateStr; filterDateUserChangedParking = false; }
-          loadTodayList();
-        }
-      }
-    }, 1000);
-  } catch(e) { console.warn('timeTicker start failed', e); }
-  // initialize each per-page filterDate input with today if empty
-  const todayKey = isoDateString(now);
-  if (filterDateSummary && !filterDateSummary.value) filterDateSummary.value = todayKey;
-  if (filterDateCheckedIn && !filterDateCheckedIn.value) filterDateCheckedIn.value = todayKey;
-  if (!parkingCurrentDate) parkingCurrentDate = todayKey;
-  loadTodayList();
-  startAutoRefresh();
-}
-
 loginBtn.addEventListener('click', async ()=>{
   if (!window.__AUTH) { showLoginMsg(loginMsg, 'Firebase auth belum tersedia — cuba semula sebentar lagi.', false); return; }
   const email = document.getElementById('loginEmail').value.trim();
   const pass = document.getElementById('loginPass').value;
-  // disable button to prevent double-clicks
-  try { loginBtn.disabled = true; loginBtn.setAttribute('aria-busy','true'); } catch(e){}
   showLoginMsg(loginMsg, 'Log masuk...');
   try {
     // login
     const cred = await signInWithEmailAndPassword(window.__AUTH, email, pass);
     console.info('Login success:', cred.user && (cred.user.email || cred.user.uid));
     showLoginMsg(loginMsg, 'Berjaya log masuk.');
-    // Best-effort: apply signed-in UI immediately (in case onAuthStateChanged fires late)
-    try { handleUserSignedIn(cred.user); } catch(e){ console.warn('post-login UI update failed', e); }
   } catch (err) {
     console.error('login err detailed', err);
     const code = err && err.code ? err.code : 'unknown_error';
     const msg = err && err.message ? err.message : String(err);
     showLoginMsg(loginMsg, `Gagal log masuk: ${code} — ${msg}`, false);
-  } finally {
-    try { loginBtn.disabled = false; loginBtn.removeAttribute('aria-busy'); } catch(e){}
   }
 });
 
@@ -542,7 +468,71 @@ logoutBtn.addEventListener('click', async ()=> {
 onAuthStateChanged(window.__AUTH, user => {
   console.info('dashboard: onAuthStateChanged ->', user ? (user.email || user.uid) : 'signed out');
   if (user) {
-    try { handleUserSignedIn(user); } catch(e) { console.warn('handleUserSignedIn err', e); }
+    loginBox.style.display = 'none';
+    dashboardArea.style.display = 'block';
+    who.textContent = user.email || user.uid;
+    logoutBtn.style.display = 'inline-block';
+
+    // Load units cache for all signed-in users so arrears/category display is up-to-date
+    try { loadAllUnitsToCache().catch(()=>{}); } catch(e) {}
+
+    // Check for custom claim 'admin' and enable admin controls automatically
+    try {
+      // getIdTokenResult is available on user; it contains claims
+      user.getIdTokenResult().then(token => {
+        const isAdminClaim = token && token.claims && token.claims.admin === true;
+        if (isAdminClaim) {
+          setAdminLoggedIn(true);
+          try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e){}
+          try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'none'; } catch(e){}
+          try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Log masuk sebagai admin (claim).'; } catch(e){}
+        }
+      }).catch(err => { /* ignore token errors */ });
+    } catch(e) { /* ignore */ }
+
+
+    const now = new Date();
+    todayLabel.textContent = formatDateOnly(now);
+    todayTime.textContent = now.toLocaleTimeString();
+    // start a live clock that updates every second and keep date in sync if midnight passes
+    try {
+      if (timeTicker) clearInterval(timeTicker);
+      timeTicker = setInterval(()=>{
+        const n = new Date();
+        todayTime.textContent = n.toLocaleTimeString();
+        // if date changes (passed midnight) update label + reload data for new date
+        const newDateStr = isoDateString(new Date());
+
+        // determine active page and its currently selected date
+        const active = (typeof getActivePageKey === 'function') ? getActivePageKey() : 'summary';
+        let curDateStr = isoDateString(new Date());
+        if (active === 'summary' && filterDateSummary) curDateStr = filterDateSummary.value || isoDateString(new Date());
+        else if (active === 'checkedin' && filterDateCheckedIn) curDateStr = filterDateCheckedIn.value || isoDateString(new Date());
+        else if (active === 'parking') curDateStr = getParkingDate();
+
+        if (curDateStr !== newDateStr) {
+          todayLabel.textContent = formatDateOnly(new Date());
+          // leave the user's chosen date untouched unless they didn't change it manually
+          let shouldAuto = false;
+          if (active === 'summary' && !filterDateUserChangedSummary && responseCache.date === curDateStr) shouldAuto = true;
+          if (active === 'checkedin' && !filterDateUserChangedCheckedIn && responseCache.date === curDateStr) shouldAuto = true;
+          if (active === 'parking' && !filterDateUserChangedParking && responseCache.date === curDateStr) shouldAuto = true;
+          if (shouldAuto) {
+            if (active === 'summary' && filterDateSummary) { filterDateSummary.value = newDateStr; filterDateUserChangedSummary = false; }
+            if (active === 'checkedin' && filterDateCheckedIn) { filterDateCheckedIn.value = newDateStr; filterDateUserChangedCheckedIn = false; }
+            if (active === 'parking') { parkingCurrentDate = newDateStr; filterDateUserChangedParking = false; }
+            loadTodayList();
+          }
+        }
+      }, 1000);
+    } catch(e) { console.warn('timeTicker start failed', e); }
+    // initialize each per-page filterDate input with today if empty
+    const todayKey = isoDateString(now);
+    if (filterDateSummary && !filterDateSummary.value) filterDateSummary.value = todayKey;
+    if (filterDateCheckedIn && !filterDateCheckedIn.value) filterDateCheckedIn.value = todayKey;
+    if (!parkingCurrentDate) parkingCurrentDate = todayKey;
+    loadTodayList();
+    startAutoRefresh();
   } else {
     loginBox.style.display = 'block';
     dashboardArea.style.display = 'none';
@@ -634,118 +624,63 @@ function renderUnitsList(){
   });
 }
 
-
-
-async function fetchAndCacheUnitContacts(){
-  if (!window.__FIRESTORE) { toast('Firestore belum tersedia — tidak dapat segarkan.', false); return; }
-  try {
-    const col = collection(window.__FIRESTORE, 'units');
-    const snap = await getDocs(col);
-    const contacts = {};
-    snap.forEach(d => {
-      const data = d.data() || {};
-      const id = d.id;
-      const name = data.ownerName || data.contactName || data.name || data.hostName || '';
-      const phone = data.ownerPhone || data.contactPhone || data.phone || '';
-      contacts[id] = { name: name || '', phone: phone || '' };
-      try { unitsCache[id] = Object.assign({}, unitsCache[id] || {}, data); } catch(e){}
-    });
-    const payload = { ts: Date.now(), data: contacts };
-    try { sessionStorage.setItem(UNIT_CONTACTS_CACHE_KEY, JSON.stringify(payload)); } catch(e) {}
-    renderUnitContacts();
-    toast('Hubungan Unit disegerak');
-  } catch (e) {
-    console.error('[fetchAndCacheUnitContacts] err', e);
-    if (handlePermissionDenied(e, 'Gagal baca collection units — kebenaran tidak mencukupi.')) return;
-    toast('Gagal segarkan hubungan unit. Semak konsol.', false);
-  }
-}
-
-function loadUnitContactsFromStorage(){
-  try {
-    const raw = sessionStorage.getItem(UNIT_CONTACTS_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || !parsed.data) return null;
-    return parsed;
-  } catch (e) { return null; }
-}
-
-function formatTs(ts){ if (!ts) return '-'; try { const d = new Date(ts); return d.toLocaleString(); } catch(e) { return '-'; } }
-
-// Enhanced render uses cached aggregated contacts when available, otherwise falls back to unitsCache and responseCache
+// Unit Contacts page: renders a simple searchable list of Unit — Nama Penghuni — Nombor Telefon
 function renderUnitContacts(){
   const el = document.getElementById('listAreaUnitContacts');
   if (!el) return;
   const search = (unitContactsSearch && unitContactsSearch.value) ? unitContactsSearch.value.trim().toLowerCase() : '';
-  const cached = loadUnitContactsFromStorage();
-  const contactsMap = (cached && cached.data) ? cached.data : {};
-  if (unitContactsMeta) unitContactsMeta.textContent = 'Terakhir disegerak: ' + (cached && cached.ts ? formatTs(cached.ts) : '-');
   const staticList = Array.isArray(window.UNITS_STATIC) ? window.UNITS_STATIC.slice() : [];
   const keys = new Set([].concat(staticList, Object.keys(unitsCache || {}), (responseCache.rows || []).map(r => r.hostUnit).filter(Boolean)));
   const arr = Array.from(keys).filter(Boolean).sort((a,b) => a.localeCompare(b));
   if (!arr.length) { el.innerHTML = '<div class="small">Tiada unit dalam rekod.</div>'; return; }
   let html = '<table class="table"><thead><tr><th style="width:56px">No.</th><th>Unit</th><th>Nama Penghuni</th><th>Nombor Telefon</th></tr></thead><tbody>';
-  let idx = 0;
+  let rowNum = 1;
   arr.forEach((unitId) => {
+    const u = unitsCache[unitId] || {};
     const contacts = [];
     const seen = new Set();
+    const normPhone = (p) => (p || '').replace(/[^0-9+]/g,'');
     const addContact = (n, p) => {
       const name = (n || '').trim();
       const phone = (p || '').trim();
       if (!name && !phone) return;
-      const key = `${name.toLowerCase()}|${phone.toLowerCase()}`;
+      const key = `${name.toLowerCase()}|${normPhone(phone)}`;
       if (seen.has(key)) return;
       seen.add(key);
       contacts.push({ name, phone });
     };
 
-    // cached aggregated contact (may be single entry)
-    const cachedContact = contactsMap[unitId];
-    if (cachedContact) addContact(cachedContact.name, cachedContact.phone);
+    // Prefer contact fields on unit doc if present (support multiple combos)
+    addContact(u.ownerName || u.name || u.hostName, u.ownerPhone || u.phone || u.hostPhone);
+    addContact(u.contactName, u.contactPhone);
+    addContact(u.tenantName, u.tenantPhone);
 
-    // unit doc fields
-    const u = unitsCache[unitId] || {};
-    addContact(u.ownerName || u.contactName || u.name || u.hostName, u.ownerPhone || u.contactPhone || u.phone);
-
-    // recent registrations for this unit — include multiple distinct entries
-    if (Array.isArray(responseCache.rows)){
-      const cand = responseCache.rows.filter(r => String(r.hostUnit || '').trim().toLowerCase() === String(unitId).trim().toLowerCase() && (r.hostName || r.hostPhone));
-      if (cand.length){
-        cand.sort((a,b)=>{
-          const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-          const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-          return tb - ta;
-        });
-        cand.forEach(c2 => addContact(c2.hostName, c2.hostPhone));
-      }
+    // Fallback: aggregate all registration rows for this unit (not just latest)
+    if (Array.isArray(responseCache.rows)) {
+      responseCache.rows
+        .filter(r => String(r.hostUnit || '').trim().toLowerCase() === String(unitId).trim().toLowerCase() && (r.hostName || r.hostPhone))
+        .forEach(r => addContact(r.hostName, r.hostPhone));
     }
 
-    // if still empty, add a placeholder row
-    if (!contacts.length) contacts.push({ name: '-', phone: '' });
-
-    // search match against any contact
-    const matches = !search || String(unitId).toLowerCase().includes(search) || contacts.some(c => (c.name || '').toLowerCase().includes(search) || (c.phone || '').toLowerCase().includes(search));
+    // Skip units that do not match search across any contact tokens
+    const tokens = [String(unitId).toLowerCase()].concat(contacts.flatMap(c => [c.name, c.phone].filter(Boolean).map(v => String(v).toLowerCase())));
+    const matches = !search || tokens.some(t => t.includes(search));
     if (!matches) return;
-    idx++;
 
-    const nameHtml = contacts.map(c => escapeHtml(c.name || '-')).join('<div class="small muted" style="margin-top:2px"></div>');
-    const phoneHtml = contacts.map(c => {
-      if (!c.phone) return '<div>-</div>';
+    const namesHtml = contacts.length ? contacts.map(c => `<div class="small">${escapeHtml(c.name || '-')}</div>`).join('') : '<div class="small muted">-</div>';
+    const phonesHtml = contacts.length ? contacts.map(c => {
+      if (!c.phone) return '<div class="small">-</div>';
       const href = normalizePhoneForWhatsapp(c.phone);
-      return `<div><a class="tel-link" href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(c.phone)}</a></div>`;
-    }).join('');
+      return `<div class="small"><a class="tel-link" href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(c.phone)}</a></div>`;
+    }).join('') : '<div class="small muted">-</div>';
 
-    html += `<tr><td>${idx}</td><td>${escapeHtml(unitId)}</td><td>${nameHtml}</td><td>${phoneHtml || '-'}</td></tr>`;
+    html += `<tr><td>${rowNum++}</td><td>${escapeHtml(unitId)}</td><td>${namesHtml}</td><td>${phonesHtml}</td></tr>`;
   });
   html += '</tbody></table>';
   el.innerHTML = html;
 }
 
-if (refreshUnitContactsBtn) refreshUnitContactsBtn.addEventListener('click', ()=>{ fetchAndCacheUnitContacts(); });
-
-// initial render uses cached data if available
-renderUnitContacts();
+if (unitContactsSearch) unitContactsSearch.addEventListener('input', ()=>{ renderUnitContacts(); });
 
 async function adminLogin(password){
   if (!adminPasswordIsCorrect(password)) return false;
