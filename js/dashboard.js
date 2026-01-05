@@ -321,9 +321,12 @@ const navSummary = document.getElementById('navSummary');
 const navCheckedIn = document.getElementById('navCheckedIn');
 const navParking = document.getElementById('navParking');
 const navUnitAdmin = document.getElementById('navUnitAdmin');
+const navUnitContacts = document.getElementById('navUnitContacts');
 const exportCSVBtn = document.getElementById('exportCSVBtn');
 const exportAllCSVBtn = document.getElementById('exportAllCSVBtn');
 const parkingSearchInput = document.getElementById('parkingSearch');
+const listAreaUnitContacts = document.getElementById('listAreaUnitContacts');
+const unitContactsSearch = document.getElementById('unitContactsSearch');
 let parkingSearchTimer = null;
 
 // auto-refresh timer handle
@@ -399,6 +402,7 @@ function getActivePageKey(){
     if (navCheckedIn && navCheckedIn.classList.contains('active')) return 'checkedin';
     if (navParking && navParking.classList.contains('active')) return 'parking';
     if (navUnitAdmin && navUnitAdmin.classList.contains('active')) return 'unitadmin';
+    if (navUnitContacts && navUnitContacts.classList.contains('active')) return 'unitcontacts';
   } catch(e){}
   return 'summary';
 }
@@ -412,7 +416,7 @@ function getParkingDate(){
 }
 
 // Ensure nav buttons support keyboard activation (Enter / Space) and toggle visual selection
-[navSummary, navCheckedIn, navParking].forEach(btn => {
+[navSummary, navCheckedIn, navParking, navUnitContacts].forEach(btn => {
   if (!btn) return;
   // toggle selection on click (keeps visual box outline)
   btn.addEventListener('click', (e) => {
@@ -619,6 +623,51 @@ function renderUnitsList(){
     });
   });
 }
+
+// Unit Contacts page: renders a simple searchable list of Unit — Nama Penghuni — Nombor Telefon
+function renderUnitContacts(){
+  const el = document.getElementById('listAreaUnitContacts');
+  if (!el) return;
+  const search = (unitContactsSearch && unitContactsSearch.value) ? unitContactsSearch.value.trim().toLowerCase() : '';
+  const staticList = Array.isArray(window.UNITS_STATIC) ? window.UNITS_STATIC.slice() : [];
+  const keys = new Set([].concat(staticList, Object.keys(unitsCache || {}), (responseCache.rows || []).map(r => r.hostUnit).filter(Boolean)));
+  const arr = Array.from(keys).filter(Boolean).sort((a,b) => a.localeCompare(b));
+  if (!arr.length) { el.innerHTML = '<div class="small">Tiada unit dalam rekod.</div>'; return; }
+  let html = '<table class="table"><thead><tr><th style="width:56px">No.</th><th>Unit</th><th>Nama Penghuni</th><th>Nombor Telefon</th></tr></thead><tbody>';
+  arr.forEach((unitId, idx) => {
+    let name = '';
+    let phone = '';
+    const u = unitsCache[unitId] || {};
+    // prefer explicit contact fields on unit doc if present
+    name = name || u.ownerName || u.contactName || u.name || u.hostName || '';
+    phone = phone || u.ownerPhone || u.contactPhone || u.phone || '';
+
+    // fallback to the most recent registration row for this unit (from responseCache)
+    if ((!name || !phone) && Array.isArray(responseCache.rows)){
+      const cand = responseCache.rows.filter(r => String(r.hostUnit || '').trim().toLowerCase() === String(unitId).trim().toLowerCase() && (r.hostName || r.hostPhone));
+      if (cand.length){
+        cand.sort((a,b)=>{
+          const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return tb - ta;
+        });
+        const c = cand[0];
+        name = name || (c.hostName || '');
+        phone = phone || (c.hostPhone || '');
+      }
+    }
+
+    const matches = !search || String(unitId).toLowerCase().includes(search) || String(name || '').toLowerCase().includes(search) || String(phone || '').toLowerCase().includes(search);
+    if (!matches) return;
+
+    const phoneHtml = phone ? `<a class="tel-link" href="${normalizePhoneForWhatsapp(phone)}" target="_blank" rel="noopener noreferrer">${escapeHtml(phone)}</a>` : '-';
+    html += `<tr><td>${idx+1}</td><td>${escapeHtml(unitId)}</td><td>${escapeHtml(name || '-')}</td><td>${phoneHtml}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+if (unitContactsSearch) unitContactsSearch.addEventListener('input', ()=>{ renderUnitContacts(); });
 
 async function adminLogin(password){
   if (!adminPasswordIsCorrect(password)) return false;
@@ -1266,6 +1315,7 @@ if (parkingSearchInput) {
 if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary'); });
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
 if (navUnitAdmin) navUnitAdmin.addEventListener('click', ()=> { try { setSelectedNav(navUnitAdmin); } catch(e){}; showPage('unitadmin'); });
+if (navUnitContacts) navUnitContacts.addEventListener('click', ()=> { try { setSelectedNav(navUnitContacts); } catch(e){}; showPage('unitcontacts'); renderUnitContacts(); });
 if (exportCSVBtn) exportCSVBtn.addEventListener('click', ()=> { exportCSVForToday(); });
 if (exportAllCSVBtn) exportAllCSVBtn.addEventListener('click', ()=> { exportCSVAll(); });
 
@@ -2151,6 +2201,19 @@ function showPage(key){
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
     // ensure snapshot unsubscribed
+    try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
+  }
+  else if (key === 'unitcontacts') {
+    document.getElementById('pageSummary').style.display = 'none';
+    document.getElementById('pageCheckedIn').style.display = 'none';
+    document.getElementById('pageParking').style.display = 'none';
+    const page = document.getElementById('pageUnitContacts'); if (page) {
+      page.style.display = '';
+      try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { /* ignore */ }
+    }
+    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navUnitContacts) navUnitContacts.classList.add('active'); } catch(e){}
+    try { kpiWrap.style.display = 'none'; } catch(e) {}
+    try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
     try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
   }
   // If user navigates away from registration views (eg. parking) unsubscribe snapshot listeners

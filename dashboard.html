@@ -171,6 +171,7 @@
                   <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
                   <button id="navUnitAdmin" class="nav-item"><span class="nav-icon">🧾</span><span class="nav-label">Kemas Kini Unit (CSV)</span></button>
                   <button id="reloadBtn" class="nav-item">Refresh Data</button>
+                  <button id="navUnitContacts" class="nav-item"><span class="nav-icon">📇</span><span class="nav-label">Hubungan Unit</span></button>
                   <button id="exportAllCSVBtn" class="nav-item">Eksport CSV (Semua)</button>
                 </div>
               </nav>
@@ -335,6 +336,16 @@
                 <div id="unitsListArea" style="margin-top:10px;overflow:auto;max-height:260px" class="card card-tight small"></div>
                 <div id="unitRawArea" class="card card-tight small" style="display:none;margin-top:8px;max-height:200px;overflow:auto;"></div>
               </div>
+            </div>
+          </div>
+
+          <div id="pageUnitContacts" style="display:none; margin-top:12px;">
+            <h3 class="page-heading-box" style="margin-top:6px">Senarai Hubungan Unit</h3>
+            <div style="margin:6px 0; display:flex; justify-content:flex-end;">
+              <input id="unitContactsSearch" type="search" placeholder="Cari unit atau nama penghuni" style="min-width:240px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari hubungan unit" />
+            </div>
+            <div class="card card-tight">
+              <div id="listAreaUnitContacts" style="margin-top:8px"></div>
             </div>
           </div>
 
