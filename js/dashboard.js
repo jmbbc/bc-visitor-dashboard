@@ -327,6 +327,9 @@ const exportAllCSVBtn = document.getElementById('exportAllCSVBtn');
 const parkingSearchInput = document.getElementById('parkingSearch');
 const listAreaUnitContacts = document.getElementById('listAreaUnitContacts');
 const unitContactsSearch = document.getElementById('unitContactsSearch');
+const refreshUnitContactsBtn = document.getElementById('refreshUnitContactsBtn');
+const unitContactsMeta = document.getElementById('unitContactsMeta');
+const UNIT_CONTACTS_CACHE_KEY = 'bc_unit_contacts_v1';
 let parkingSearchTimer = null;
 
 // auto-refresh timer handle
@@ -668,6 +671,97 @@ function renderUnitContacts(){
 }
 
 if (unitContactsSearch) unitContactsSearch.addEventListener('input', ()=>{ renderUnitContacts(); });
+
+async function fetchAndCacheUnitContacts(){
+  if (!window.__FIRESTORE) { toast('Firestore belum tersedia — tidak dapat segarkan.', false); return; }
+  try {
+    const col = collection(window.__FIRESTORE, 'units');
+    const snap = await getDocs(col);
+    const contacts = {};
+    snap.forEach(d => {
+      const data = d.data() || {};
+      const id = d.id;
+      const name = data.ownerName || data.contactName || data.name || data.hostName || '';
+      const phone = data.ownerPhone || data.contactPhone || data.phone || '';
+      contacts[id] = { name: name || '', phone: phone || '' };
+      try { unitsCache[id] = Object.assign({}, unitsCache[id] || {}, data); } catch(e){}
+    });
+    const payload = { ts: Date.now(), data: contacts };
+    try { sessionStorage.setItem(UNIT_CONTACTS_CACHE_KEY, JSON.stringify(payload)); } catch(e) {}
+    renderUnitContacts();
+    toast('Hubungan Unit disegerak');
+  } catch (e) {
+    console.error('[fetchAndCacheUnitContacts] err', e);
+    if (handlePermissionDenied(e, 'Gagal baca collection units — kebenaran tidak mencukupi.')) return;
+    toast('Gagal segarkan hubungan unit. Semak konsol.', false);
+  }
+}
+
+function loadUnitContactsFromStorage(){
+  try {
+    const raw = sessionStorage.getItem(UNIT_CONTACTS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !parsed.data) return null;
+    return parsed;
+  } catch (e) { return null; }
+}
+
+function formatTs(ts){ if (!ts) return '-'; try { const d = new Date(ts); return d.toLocaleString(); } catch(e) { return '-'; } }
+
+// Enhanced render uses cached aggregated contacts when available, otherwise falls back to unitsCache and responseCache
+function renderUnitContacts(){
+  const el = document.getElementById('listAreaUnitContacts');
+  if (!el) return;
+  const search = (unitContactsSearch && unitContactsSearch.value) ? unitContactsSearch.value.trim().toLowerCase() : '';
+  const cached = loadUnitContactsFromStorage();
+  const contactsMap = (cached && cached.data) ? cached.data : {};
+  if (unitContactsMeta) unitContactsMeta.textContent = 'Terakhir disegerak: ' + (cached && cached.ts ? formatTs(cached.ts) : '-');
+  const staticList = Array.isArray(window.UNITS_STATIC) ? window.UNITS_STATIC.slice() : [];
+  const keys = new Set([].concat(staticList, Object.keys(unitsCache || {}), (responseCache.rows || []).map(r => r.hostUnit).filter(Boolean)));
+  const arr = Array.from(keys).filter(Boolean).sort((a,b) => a.localeCompare(b));
+  if (!arr.length) { el.innerHTML = '<div class="small">Tiada unit dalam rekod.</div>'; return; }
+  let html = '<table class="table"><thead><tr><th style="width:56px">No.</th><th>Unit</th><th>Nama Penghuni</th><th>Nombor Telefon</th></tr></thead><tbody>';
+  let idx = 0;
+  arr.forEach((unitId) => {
+    let name = '';
+    let phone = '';
+    // prefer cached aggregated contacts first
+    const c = contactsMap[unitId];
+    if (c) { name = name || c.name || ''; phone = phone || c.phone || ''; }
+    const u = unitsCache[unitId] || {};
+    // prefer explicit contact fields on unit doc if present
+    name = name || u.ownerName || u.contactName || u.name || u.hostName || '';
+    phone = phone || u.ownerPhone || u.contactPhone || u.phone || '';
+    // fallback to the most recent registration row for this unit (from responseCache)
+    if ((!name || !phone) && Array.isArray(responseCache.rows)){
+      const cand = responseCache.rows.filter(r => String(r.hostUnit || '').trim().toLowerCase() === String(unitId).trim().toLowerCase() && (r.hostName || r.hostPhone));
+      if (cand.length){
+        cand.sort((a,b)=>{
+          const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return tb - ta;
+        });
+        const c2 = cand[0];
+        name = name || (c2.hostName || '');
+        phone = phone || (c2.hostPhone || '');
+      }
+    }
+
+    const matches = !search || String(unitId).toLowerCase().includes(search) || String(name || '').toLowerCase().includes(search) || String(phone || '').toLowerCase().includes(search);
+    if (!matches) return;
+    idx++;
+    const phoneHtml = phone ? `<a class="tel-link" href="${normalizePhoneForWhatsapp(phone)}" target="_blank" rel="noopener noreferrer">${escapeHtml(phone)}</a>` : '-';
+    html += `<tr><td>${idx}</td><td>${escapeHtml(unitId)}</td><td>${escapeHtml(name || '-')}</td><td>${phoneHtml}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+if (refreshUnitContactsBtn) refreshUnitContactsBtn.addEventListener('click', ()=>{ fetchAndCacheUnitContacts(); });
+
+// initial render uses cached data if available
+renderUnitContacts();
 
 async function adminLogin(password){
   if (!adminPasswordIsCorrect(password)) return false;

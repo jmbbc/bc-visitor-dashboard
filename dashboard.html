@@ -346,8 +346,12 @@
 
           <div id="pageUnitContacts" style="display:none; margin-top:12px;">
             <h3 class="page-heading-box" style="margin-top:6px">Senarai Hubungan Unit</h3>
-            <div style="margin:6px 0; display:flex; justify-content:flex-end;">
-              <input id="unitContactsSearch" type="search" placeholder="Cari unit atau nama penghuni" style="min-width:240px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari hubungan unit" />
+            <div style="margin:6px 0; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+              <div style="display:flex;align-items:center;gap:8px">
+                <input id="unitContactsSearch" type="search" placeholder="Cari unit atau nama penghuni" style="min-width:240px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari hubungan unit" />
+                <button id="refreshUnitContactsBtn" class="btn">Refresh Contacts</button>
+              </div>
+              <div id="unitContactsMeta" class="small muted">Terakhir disegerak: -</div>
             </div>
             <div class="card card-tight">
               <div id="listAreaUnitContacts" style="margin-top:8px"></div>
