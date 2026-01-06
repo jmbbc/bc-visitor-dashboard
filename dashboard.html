@@ -168,6 +168,7 @@
                   <button id="navCheckedIn" class="nav-item"><span class="nav-icon">✅</span><span class="nav-label">Pelawat Checked In (Hari Ini)</span></button>
                   <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
                   <button id="navUnitAdmin" class="nav-item"><span class="nav-icon">🧾</span><span class="nav-label">Kemas Kini Unit (CSV)</span></button> 
+                  <button id="navWater" class="nav-item"><span class="nav-icon">💧</span><span class="nav-label">Bacaan Air</span></button>
                   <button id="exportAllCSVBtn" class="nav-item">Eksport CSV (Semua)</button>
                 </div>
               </nav>
@@ -342,6 +343,22 @@
             </div>
             <div class="card card-tight">
               <div id="listAreaUnitContacts" style="margin-top:8px"></div>
+            </div>
+          </div>
+
+          <div id="pageWater" style="display:none; margin-top:12px;">
+            <h3 class="page-heading-box" style="margin-top:6px">Rekod Harian — Bacaan Air</h3>
+            <div class="card card-tight" style="max-width:920px;">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+                <label for="waterDate" class="small muted">Tarikh</label>
+                <input id="waterDate" type="date" />
+                <label class="small muted">Bacaan Jenis 1</label>
+                <input id="waterType1" type="number" step="any" />
+                <label class="small muted">Bacaan Jenis 2</label>
+                <input id="waterType2" type="number" step="any" />
+                <button id="waterSaveBtn" class="btn">Simpan</button>
+              </div>
+              <div id="waterListArea" class="card card-tight small" style="max-height:360px;overflow:auto;margin-top:8px"></div>
             </div>
           </div>
 

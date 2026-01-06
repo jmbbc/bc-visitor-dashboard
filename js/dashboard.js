@@ -446,11 +446,19 @@ const navSummary = document.getElementById('navSummary');
 const navCheckedIn = document.getElementById('navCheckedIn');
 const navParking = document.getElementById('navParking');
 const navUnitAdmin = document.getElementById('navUnitAdmin');
+const navWater = document.getElementById('navWater');
 const exportCSVBtn = document.getElementById('exportCSVBtn');
 const exportAllCSVBtn = document.getElementById('exportAllCSVBtn');
 const parkingSearchInput = document.getElementById('parkingSearch');
 const listAreaUnitContacts = document.getElementById('listAreaUnitContacts');
 const unitContactsSearch = document.getElementById('unitContactsSearch');
+
+// Water readings page elements
+const waterDateEl = document.getElementById('waterDate');
+const waterType1El = document.getElementById('waterType1');
+const waterType2El = document.getElementById('waterType2');
+const waterSaveBtn = document.getElementById('waterSaveBtn');
+const waterListArea = document.getElementById('waterListArea');
 let parkingSearchTimer = null;
 
 // auto-refresh timer handle
@@ -467,6 +475,8 @@ let filterDateUserChangedParking = false;
 const responseCache = { date: null, rows: [] };
 // weekCache keyed by week start date (yyyy-mm-dd) -> rows for that week
 const weekResponseCache = Object.create(null);
+// track whether we've already performed the ETD supplemental query per-date to avoid repeated getDocs on every snapshot
+const responsesEtSupplemented = Object.create(null);
 
 function filterRowsBySearch(rows, term){
   const q = (term || '').trim().toLowerCase();
@@ -1463,6 +1473,13 @@ if (parkingSearchInput) {
 if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary'); });
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
 if (navUnitAdmin) navUnitAdmin.addEventListener('click', ()=> { try { setSelectedNav(navUnitAdmin); } catch(e){}; showPage('unitadmin'); });
+if (navWater) navWater.addEventListener('click', ()=> { try { setSelectedNav(navWater); } catch(e){}; showPage('water'); });
+
+if (waterDateEl) {
+  waterDateEl.value = isoDateString(new Date());
+  waterDateEl.addEventListener('change', ()=> { loadWaterForDate(waterDateEl.value || isoDateString(new Date())); });
+}
+if (waterSaveBtn) waterSaveBtn.addEventListener('click', async ()=> { await saveWaterReading(); });
 
 if (exportCSVBtn) exportCSVBtn.addEventListener('click', ()=> { exportCSVForToday(); });
 if (exportAllCSVBtn) exportAllCSVBtn.addEventListener('click', async ()=> { 
@@ -1538,18 +1555,25 @@ async function loadListForDateStr(yyyymmdd){
             // Supplemental: include any multi-day stays whose ETD >= from and whose ETA < to
             (async () => {
               try {
-                const qEt = query(col, where('etd', '>=', Timestamp.fromDate(from)), orderBy('etd','asc'));
-                const snap2 = await getDocs(qEt);
-                snap2.forEach(d => {
-                  // skip if already present
-                  if (freshRows.some(fr => fr.id === d.id)) return;
-                  const data = d.data() || {};
-                  // ensure ETA exists and started before 'to' (i.e., the stay spans into the requested day)
-                  const etaVal = data.eta && data.eta.toDate ? data.eta.toDate() : (data.eta ? new Date(data.eta) : null);
-                  if (etaVal && etaVal.getTime() < to.getTime()) {
-                    freshRows.push({ id: d.id, ...data });
-                  }
-                });
+                // run supplemental ETD query at most once per date to avoid multiple getDocs for each snapshot event
+                if (!responsesEtSupplemented[yyyymmdd]) {
+                  responsesEtSupplemented[yyyymmdd] = true;
+                  const qEt = query(col, where('etd', '>=', Timestamp.fromDate(from)), orderBy('etd','asc'));
+                  const snap2 = await getDocs(qEt);
+                  console.info('[loadListForDateStr] etd supplemental fetched', yyyymmdd, (snap2 && snap2.docs) ? snap2.docs.length : (snap2 && snap2.size) ? snap2.size : 0);
+                  snap2.forEach(d => {
+                    // skip if already present
+                    if (freshRows.some(fr => fr.id === d.id)) return;
+                    const data = d.data() || {};
+                    // ensure ETA exists and started before 'to' (i.e., the stay spans into the requested day)
+                    const etaVal = data.eta && data.eta.toDate ? data.eta.toDate() : (data.eta ? new Date(data.eta) : null);
+                    if (etaVal && etaVal.getTime() < to.getTime()) {
+                      freshRows.push({ id: d.id, ...data });
+                    }
+                  });
+                } else {
+                  console.info('[loadListForDateStr] skipping repeated etd supplemental for', yyyymmdd);
+                }
               } catch (e) {
                 // non-fatal — we already have main eta-based rows
                 console.warn('[loadListForDateStr] etd supplemental query failed', e);
@@ -1571,6 +1595,8 @@ async function loadListForDateStr(yyyymmdd){
               renderCheckedInList(freshRows.filter(r => r.status === 'Checked In'));
             })();
 
+            console.info('[onSnapshot] freshRows length', freshRows.length, 'for', yyyymmdd);
+
           }, err => console.error('[onSnapshot] error', err));
         }
         // let the snapshot handler populate rows — use cached rows for now
@@ -1581,16 +1607,22 @@ async function loadListForDateStr(yyyymmdd){
 
         // Supplemental: include any multi-day stays whose ETD >= from and whose ETA < to
         try {
-          const qEt = query(col, where('etd', '>=', Timestamp.fromDate(from)), orderBy('etd','asc'));
-          const snap2 = await getDocs(qEt);
-          snap2.forEach(d => {
-            if (rows.some(r => r.id === d.id)) return;
-            const data = d.data() || {};
-            const etaVal = data.eta && data.eta.toDate ? data.eta.toDate() : (data.eta ? new Date(data.eta) : null);
-            if (etaVal && etaVal.getTime() < to.getTime()) {
-              rows.push({ id: d.id, ...data });
-            }
-          });
+          if (!responsesEtSupplemented[yyyymmdd]) {
+            responsesEtSupplemented[yyyymmdd] = true;
+            const qEt = query(col, where('etd', '>=', Timestamp.fromDate(from)), orderBy('etd','asc'));
+            const snap2 = await getDocs(qEt);
+            console.info('[loadListForDateStr] etd supplemental fetched (fallback)', yyyymmdd, (snap2 && snap2.docs) ? snap2.docs.length : (snap2 && snap2.size) ? snap2.size : 0);
+            snap2.forEach(d => {
+              if (rows.some(r => r.id === d.id)) return;
+              const data = d.data() || {};
+              const etaVal = data.eta && data.eta.toDate ? data.eta.toDate() : (data.eta ? new Date(data.eta) : null);
+              if (etaVal && etaVal.getTime() < to.getTime()) {
+                rows.push({ id: d.id, ...data });
+              }
+            });
+          } else {
+            console.info('[loadListForDateStr] skipping repeated etd supplemental (fallback) for', yyyymmdd);
+          }
         } catch (e) {
           console.warn('[loadListForDateStr] etd supplemental fetch failed', e);
         }
@@ -2201,6 +2233,51 @@ async function exportCSVAll(){
   }
 }
 
+/* ---------- Water readings (daily) ---------- */
+async function loadWaterForDate(dateStr){
+  try {
+    if (!dateStr) dateStr = isoDateString(new Date());
+    const col = collection(window.__FIRESTORE, 'waterReadings');
+    const q = query(col, where('date', '==', dateStr), orderBy('createdAt','desc'));
+    const snap = await getDocs(q);
+    const rows = [];
+    snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+    renderWaterList(rows);
+  } catch (err) {
+    console.error('loadWaterForDate err', err);
+    toast('Gagal muatkan bacaan air', false);
+  }
+}
+
+function renderWaterList(rows){
+  if (!waterListArea) return;
+  if (!rows || !rows.length) { waterListArea.innerHTML = '<div class="small muted">Tiada bacaan untuk tarikh ini.</div>'; return; }
+  const html = rows.map(r => `<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.04)"><div><div style="font-weight:700">${r.date} • ${r.createdAt && r.createdAt.toDate ? formatDateOnly(r.createdAt) : ''}</div><div class="muted-small">Jenis1: ${r.type1 || ''} — Jenis2: ${r.type2 || ''}${r.note ? ' — '+ (r.note||'') : ''}</div></div><div style="font-size:12px;color:#666">${r.createdBy || ''}</div></div>`).join('');
+  waterListArea.innerHTML = html;
+}
+
+async function saveWaterReading(){
+  try {
+    if (!window.__FIRESTORE) { toast('Firestore belum tersedia', false); return; }
+    const dateStr = (waterDateEl && waterDateEl.value) ? waterDateEl.value : isoDateString(new Date());
+    const t1 = waterType1El ? parseFloat(waterType1El.value) : NaN;
+    const t2 = waterType2El ? parseFloat(waterType2El.value) : NaN;
+    if (isNaN(t1) && isNaN(t2)) { toast('Sila masukkan sekurang-kurangnya satu bacaan', false); return; }
+    const payload = { date: dateStr, type1: isNaN(t1) ? null : t1, type2: isNaN(t2) ? null : t2, note: '', createdAt: serverTimestamp(), createdBy: (window.__AUTH && (window.__AUTH.email||window.__AUTH.uid)) || '' };
+    const col = collection(window.__FIRESTORE, 'waterReadings');
+    await addDoc(col, payload);
+    toast('Bacaan disimpan');
+    // clear inputs (optional)
+    try { if (waterType1El) waterType1El.value = ''; if (waterType2El) waterType2El.value = ''; } catch(e){}
+    await loadWaterForDate(dateStr);
+  } catch (err) {
+    console.error('saveWaterReading err', err);
+    toast('Gagal simpan bacaan', false);
+  }
+}
+
+
+
 /* ---------- modal edit ---------- */
 async function openEditModalFor(docId){
   try {
@@ -2369,6 +2446,19 @@ function showPage(key){
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
     try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
+  }
+  else if (key === 'water') {
+    document.getElementById('pageSummary').style.display = 'none';
+    document.getElementById('pageCheckedIn').style.display = 'none';
+    document.getElementById('pageParking').style.display = 'none';
+    const page = document.getElementById('pageWater'); if (page) {
+      page.style.display = '';
+      try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) {}
+    }
+    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navWater) navWater.classList.add('active'); } catch(e){}
+    try { kpiWrap.style.display = 'none'; } catch(e) {}
+    try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
+    try { if (waterDateEl) loadWaterForDate(waterDateEl.value || isoDateString(new Date())); } catch(e) {}
   }
   // If user navigates away from registration views (eg. parking) unsubscribe snapshot listeners
   if (key !== 'summary' && key !== 'checkedin') {
