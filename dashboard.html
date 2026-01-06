@@ -52,10 +52,6 @@
     #navUnitAdmin.active { background: linear-gradient(180deg, rgba(99,102,241,0.18), rgba(99,102,241,0.14)); color: #0f172a; border-color: transparent; box-shadow: 0 2px 6px rgba(99,102,241,0.12); }
     #navUnitAdmin:hover { background: linear-gradient(180deg, rgba(99,102,241,0.14), rgba(99,102,241,0.10)); }
 
-    /* Refresh (blue) — keep distinct but softer */
-    button#reloadBtn.nav-item { background: linear-gradient(180deg, rgba(59,130,246,0.12), rgba(59,130,246,0.10)) !important; border-color: rgba(59,130,246,0.14) !important; color: #062a6c !important; }
-    #reloadBtn.active { background: linear-gradient(180deg, rgba(59,130,246,0.18), rgba(59,130,246,0.14)); color: #062a6c; border-color: transparent; box-shadow: 0 2px 6px rgba(59,130,246,0.12); }
-    #reloadBtn:hover { background: linear-gradient(180deg, rgba(59,130,246,0.14), rgba(59,130,246,0.12)); }
 
     /* Hubungan Unit (match Refresh Data appearance) */
     button#navUnitContacts.nav-item { background: linear-gradient(180deg, rgba(59,130,246,0.12), rgba(59,130,246,0.10)) !important; border-color: rgba(59,130,246,0.14) !important; color: #062a6c !important; }
@@ -175,8 +171,7 @@
                   <button id="navCheckedIn" class="nav-item"><span class="nav-icon">✅</span><span class="nav-label">Pelawat Checked In (Hari Ini)</span></button>
                   <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
                   <button id="navUnitAdmin" class="nav-item"><span class="nav-icon">🧾</span><span class="nav-label">Kemas Kini Unit (CSV)</span></button>
-                  <button id="reloadBtn" class="nav-item">Refresh Data</button>
-                  <button id="navUnitContacts" class="nav-item"><span class="nav-icon">📇</span><span class="nav-label">Hubungan Unit</span></button>
+                  <button id="navUnitContacts" class="nav-item"><span class="nav-icon">📇</span><span class="nav-label">Hubungan Unit</span></button> 
                   <button id="exportAllCSVBtn" class="nav-item">Eksport CSV (Semua)</button>
                 </div>
               </nav>
@@ -346,12 +341,8 @@
 
           <div id="pageUnitContacts" style="display:none; margin-top:12px;">
             <h3 class="page-heading-box" style="margin-top:6px">Senarai Hubungan Unit</h3>
-            <div style="margin:6px 0; display:flex; justify-content:space-between; align-items:center; gap:8px;">
-              <div style="display:flex;align-items:center;gap:8px">
-                <input id="unitContactsSearch" type="search" placeholder="Cari unit atau nama penghuni" style="min-width:240px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari hubungan unit" />
-                <button id="refreshUnitContactsBtn" class="btn">Refresh Contacts</button>
-              </div>
-              <div id="unitContactsMeta" class="small muted">Terakhir disegerak: -</div>
+            <div style="margin:6px 0; display:flex; justify-content:flex-end;">
+              <input id="unitContactsSearch" type="search" placeholder="Cari unit atau nama penghuni" style="min-width:240px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari hubungan unit" />
             </div>
             <div class="card card-tight">
               <div id="listAreaUnitContacts" style="margin-top:8px"></div>
@@ -371,6 +362,19 @@
                 <button id="adminModalCancelBtn" class="btn-ghost">Batal</button>
               </div>
               <div id="adminModalMsg" class="small muted" style="margin-top:8px"></div>
+            </div>
+          </div>
+
+          <!-- Reusable confirmation modal (prettier than native confirm) -->
+          <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:13000;">
+            <div class="card" style="width:420px;max-width:95%;padding:18px;position:relative;">
+              <button id="confirmModalClose" aria-label="Tutup" style="position:absolute;right:14px;top:14px;border:0;background:transparent;font-weight:700;cursor:pointer">×</button>
+              <h3 id="confirmModalTitle" style="margin-top:0">Sahkan tindakan</h3>
+              <div id="confirmModalMessage" class="small muted" style="margin-top:8px"></div>
+              <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+                <button id="confirmModalCancel" class="btn-ghost">Batal</button>
+                <button id="confirmModalConfirm" class="btn">Sahkan</button>
+              </div>
             </div>
           </div>
         </section>

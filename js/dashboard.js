@@ -83,6 +83,54 @@ function toast(msg, ok = true, opts = {}){
   t.addEventListener('mouseleave', ()=>{ timer = setTimeout(hide, 1200); });
   return t;
 }
+
+// showConfirm(title, message) -> Promise<boolean>
+function showConfirm(title, message, opts = {}){
+  return new Promise(resolve => {
+    try {
+      const modal = document.getElementById('confirmModal');
+      if (!modal) return resolve(window.confirm(message || title || 'Sahkan?'));
+      const titleEl = document.getElementById('confirmModalTitle');
+      const msgEl = document.getElementById('confirmModalMessage');
+      const btnCancel = document.getElementById('confirmModalCancel');
+      const btnConfirm = document.getElementById('confirmModalConfirm');
+      const btnClose = document.getElementById('confirmModalClose');
+
+      titleEl.textContent = title || 'Sahkan tindakan';
+      msgEl.textContent = message || '';
+      btnConfirm.textContent = (opts.confirmText || 'Sahkan');
+      btnCancel.textContent = (opts.cancelText || 'Batal');
+
+      // show
+      modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false');
+      // store previous focus
+      const prevFocus = document.activeElement;
+      // focus confirm for keyboard users
+      try { btnConfirm.focus(); } catch(e){}
+
+      // handlers
+      const cleanup = () => {
+        try { modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); } catch(e){}
+        try { if (prevFocus && prevFocus.focus) prevFocus.focus(); } catch(e){}
+        btnConfirm.removeEventListener('click', onConfirm);
+        btnCancel.removeEventListener('click', onCancel);
+        btnClose.removeEventListener('click', onCancel);
+        document.removeEventListener('keydown', onKey);
+        modal.removeEventListener('click', onBackdrop);
+      };
+      const onConfirm = (e) => { e && e.preventDefault && e.preventDefault(); cleanup(); resolve(true); };
+      const onCancel = (e) => { e && e.preventDefault && e.preventDefault(); cleanup(); resolve(false); };
+      const onKey = (e) => { if (e.key === 'Escape') onCancel(); else if (e.key === 'Enter') onConfirm(); };
+      const onBackdrop = (e) => { if (e.target === modal) onCancel(); };
+
+      btnConfirm.addEventListener('click', onConfirm);
+      btnCancel.addEventListener('click', onCancel);
+      btnClose.addEventListener('click', onCancel);
+      document.addEventListener('keydown', onKey);
+      modal.addEventListener('click', onBackdrop);
+    } catch(e){ resolve(false); }
+  });
+}
 function escapeHtml(s){ if (!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function normalizePhoneForWhatsapp(raw){
   let p = String(raw || '').trim();
@@ -113,7 +161,6 @@ const dashboardArea = document.getElementById('dashboardArea');
 const who = document.getElementById('who');
 const listAreaSummary = document.getElementById('listAreaSummary');
 const listAreaCheckedIn = document.getElementById('listAreaCheckedIn');
-const reloadBtn = document.getElementById('reloadBtn');
 const summarySearch = document.getElementById('summarySearch');
 // per-page date inputs (summary, checked-in, parking)
 const filterDateSummary = document.getElementById('filterDateSummary');
@@ -133,6 +180,12 @@ const passdownClearBtn = document.getElementById('passdownClearBtn');
 const passdownMeta = document.getElementById('passdownMeta');
 const PASSDOWN_KEY = 'bc_passdown_notes_v1';
 const PASSDOWN_LIMIT = 14;
+// Firestore-backed passdown sync
+const PASSDOWN_DOC_PATH = ['passdown','shared']; // collection/doc
+let passdownRemoteUnsub = null;
+let passdownRemoteLastTs = 0; // ms
+let passdownSyncPermissionDenied = false;
+let passdownPersistTimer = null;
 
 // Units cache (unitId -> doc data) used to display unit category fallback
 const unitsCache = Object.create(null);
@@ -193,6 +246,41 @@ function getSavedPassdownNotes(){
 
 function persistPassdownNotes(notes){
   try { localStorage.setItem(PASSDOWN_KEY, JSON.stringify(notes.slice(0, PASSDOWN_LIMIT))); } catch(e) { /* ignore */ }
+  // schedule a Firestore write (debounced) if Firestore is available and permission seems OK
+  try {
+    schedulePersistPassdownToFirestore(notes);
+  } catch(e) { /* ignore */ }
+}
+
+// Debounced write to Firestore
+function schedulePersistPassdownToFirestore(notes){
+  try {
+    if (!window.__FIRESTORE) return;
+    if (passdownSyncPermissionDenied) return;
+    if (passdownPersistTimer) clearTimeout(passdownPersistTimer);
+    passdownPersistTimer = setTimeout(async ()=>{
+      try {
+        const [col, id] = PASSDOWN_DOC_PATH;
+        const ref = doc(window.__FIRESTORE, col, id);
+        await setDoc(ref, {
+          notes: notes.slice(0, PASSDOWN_LIMIT),
+          lastUpdatedAt: serverTimestamp(),
+          lastUpdatedBy: (window.__AUTH && window.__AUTH.currentUser) ? (window.__AUTH.currentUser.uid || window.__AUTH.currentUser.email) : 'anonymous'
+        }, { merge: true });
+        // avoid immediately applying snapshot of our own write
+        passdownRemoteLastTs = Date.now();
+      } catch (e) {
+        console.warn('[passdown] persist to firestore failed', e);
+        try {
+          const code = e && e.code ? e.code : String(e).toLowerCase();
+          if (code === 'permission-denied' || String(e).includes('Missing or insufficient permissions') || String(e).includes('permission-denied')) {
+            passdownSyncPermissionDenied = true;
+            toast('Gagal sync passdown notes — kebenaran tidak mencukupi (Firestore)', false);
+          }
+        } catch(err){}
+      }
+    }, 800);
+  } catch(e) { /* ignore */ }
 }
 
 function renderPassdownNotes(){
@@ -200,7 +288,7 @@ function renderPassdownNotes(){
   const notes = getSavedPassdownNotes();
   if (!notes.length) {
     passdownList.innerHTML = '<div class="muted-small">Belum ada nota.</div>';
-    if (passdownMeta) passdownMeta.textContent = '';
+    if (passdownMeta) passdownMeta.textContent = passdownSyncPermissionDenied ? 'Belum ada nota • (Sync tidak dibenarkan)' : '';
     return;
   }
   const items = notes.map(n => {
@@ -224,7 +312,7 @@ function renderPassdownNotes(){
   passdownList.innerHTML = items;
   if (passdownMeta) {
     const ts = notes[0].ts ? new Date(notes[0].ts) : new Date();
-    passdownMeta.textContent = `Terakhir: ${ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    passdownMeta.textContent = `Terakhir: ${ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` + (passdownRemoteLastTs ? ' • Diselaraskan' : (passdownSyncPermissionDenied ? ' • (Sync tidak dibenarkan)' : ''));
   }
 }
 
@@ -263,7 +351,11 @@ function editPassdownNote(ts){
   toast('Nota dikemas kini');
 }
 
-function deleteSinglePassdown(ts){
+async function deleteSinglePassdown(ts){
+  try {
+    const ok = await showConfirm('Padam nota', 'Padam nota ini? Tindakan ini tidak boleh dibatalkan.');
+    if (!ok) return;
+  } catch(e) { return; }
   const notes = getSavedPassdownNotes();
   const filtered = notes.filter(n => String(n.ts) !== String(ts));
   persistPassdownNotes(filtered);
@@ -275,6 +367,39 @@ function deleteSinglePassdown(ts){
 document.addEventListener('keydown', (evt)=>{
   if (evt.key === 'Escape') hidePassdownMenus();
 });
+
+// Initialize remote passdown sync (Firestore) — set up onSnapshot listener
+function initPassdownRemoteSync(){
+  try {
+    if (!window.__FIRESTORE) return;
+    if (passdownRemoteUnsub) { try { passdownRemoteUnsub(); } catch(e){}; passdownRemoteUnsub = null; }
+    const [col, id] = PASSDOWN_DOC_PATH;
+    const ref = doc(window.__FIRESTORE, col, id);
+    passdownRemoteUnsub = onSnapshot(ref, snap => {
+      try {
+        const data = snap.data() || {};
+        const remoteNotes = Array.isArray(data.notes) ? data.notes.slice(0, PASSDOWN_LIMIT) : [];
+        const remoteTs = data.lastUpdatedAt && data.lastUpdatedAt.toDate ? data.lastUpdatedAt.toDate().getTime() : 0;
+        if (!remoteTs) return; // ignore empty metadata
+        if (remoteTs <= passdownRemoteLastTs) return; // already applied or older
+        passdownRemoteLastTs = remoteTs;
+        // write to localStorage and update UI
+        try { localStorage.setItem(PASSDOWN_KEY, JSON.stringify(remoteNotes)); } catch(e){}
+        renderPassdownNotes();
+      } catch(e) { console.warn('[passdown] snapshot handler error', e); }
+    }, err => {
+      console.warn('[passdown] onSnapshot failed', err);
+      try {
+        if (err && (err.code === 'permission-denied' || String(err).toLowerCase().includes('permission-denied'))) {
+          passdownSyncPermissionDenied = true;
+        }
+      } catch(e){}
+    });
+  } catch(e) { /* ignore */ }
+}
+
+// teardown
+function teardownPassdownRemoteSync(){ try { if (passdownRemoteUnsub) { passdownRemoteUnsub(); passdownRemoteUnsub = null; } } catch(e){} }
 
 function hidePassdownMenus(){
   if (!passdownList) return;
@@ -468,6 +593,9 @@ logoutBtn.addEventListener('click', async ()=> {
 onAuthStateChanged(window.__AUTH, user => {
   console.info('dashboard: onAuthStateChanged ->', user ? (user.email || user.uid) : 'signed out');
   if (user) {
+    // initialize passdown remote sync for signed-in users
+    try { initPassdownRemoteSync(); } catch(e) {}
+
     loginBox.style.display = 'none';
     dashboardArea.style.display = 'block';
     who.textContent = user.email || user.uid;
@@ -534,6 +662,8 @@ onAuthStateChanged(window.__AUTH, user => {
     loadTodayList();
     startAutoRefresh();
   } else {
+    // teardown passdown sync on sign-out
+    try { teardownPassdownRemoteSync(); } catch(e) {}
     loginBox.style.display = 'block';
     dashboardArea.style.display = 'none';
     logoutBtn.style.display = 'none';
@@ -887,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Passdown notepad
   renderPassdownNotes();
   if (passdownSaveBtn) passdownSaveBtn.addEventListener('click', addPassdownNote);
-  if (passdownClearBtn) passdownClearBtn.addEventListener('click', ()=>{ if (confirm('Kosongkan semua nota?')) clearPassdownNotes(); });
+  if (passdownClearBtn) passdownClearBtn.addEventListener('click', async ()=>{ try { const ok = await showConfirm('Kosongkan semua nota?', 'Semua nota akan dibuang. Teruskan?'); if (ok) clearPassdownNotes(); } catch(e){} });
   if (passdownInput) passdownInput.addEventListener('keydown', (e)=>{ if (e.ctrlKey && e.key === 'Enter') addPassdownNote(); });
   if (passdownList) {
     passdownList.addEventListener('click', (e)=>{
@@ -1073,7 +1203,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   csvImportBtn?.addEventListener('click', async ()=>{
     if (!csvPreviewArea || !csvPreviewArea._rows || !csvPreviewArea._rows.length) { alert('Sila pratonton CSV terlebih dahulu'); return; }
-    if (!confirm('Sahkan import CSV? Ini akan mengemas kini collection units (tidak mengubah rekod pendaftaran lama).')) return;
+    try {
+      const ok = await showConfirm('Sahkan import CSV?', 'Ini akan mengemas kini collection units (tidak mengubah rekod pendaftaran lama). Teruskan?');
+      if (!ok) return;
+    } catch(e) { return; }
     try {
       document.getElementById('spinner').style.display = 'flex';
       const res = await importUnitsFromArray(csvPreviewArea._rows);
@@ -1089,7 +1222,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // Force-write: write all parsed CSV rows to units/* (uses importUnitsFromArray under the hood)
   csvForceWriteBtn?.addEventListener('click', async ()=>{
     if (!csvPreviewArea || !csvPreviewArea._rows || !csvPreviewArea._rows.length) { alert('Sila pratonton fail CSV terlebih dahulu'); return; }
-    if (!confirm('Sahkah anda mahu menulis semua baris CSV ke collection units (force)?')) return;
+    try {
+      const ok = await showConfirm('Sahkah anda mahu menulis semua baris CSV ke collection units (force)?', 'Tindakan ini akan menulis semua baris CSV ke collection units (force). Teruskan?');
+      if (!ok) return;
+    } catch(e) { return; }
     try {
       document.getElementById('spinner').style.display = 'flex';
       // ensure rows are transformed into expected import shape
@@ -1298,7 +1434,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 });
 
-if (reloadBtn) reloadBtn.addEventListener('click', ()=> loadTodayList());
+
 if (summarySearch) summarySearch.addEventListener('input', () => {
   renderSummaryWithSearch(responseCache.rows || []);
 });
@@ -1330,7 +1466,13 @@ if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checke
 if (navUnitAdmin) navUnitAdmin.addEventListener('click', ()=> { try { setSelectedNav(navUnitAdmin); } catch(e){}; showPage('unitadmin'); });
 if (navUnitContacts) navUnitContacts.addEventListener('click', ()=> { try { setSelectedNav(navUnitContacts); } catch(e){}; showPage('unitcontacts'); renderUnitContacts(); });
 if (exportCSVBtn) exportCSVBtn.addEventListener('click', ()=> { exportCSVForToday(); });
-if (exportAllCSVBtn) exportAllCSVBtn.addEventListener('click', ()=> { exportCSVAll(); });
+if (exportAllCSVBtn) exportAllCSVBtn.addEventListener('click', async ()=> { 
+  try {
+    const ok = await showConfirm('Sahkan eksport semua rekod ke CSV?', 'Ini akan memuat turun semua dokumen responses. Teruskan?');
+    if (!ok) return;
+    exportCSVAll();
+  } catch(e){ /* ignore */ }
+});
 
 /* ---------- core fetch ---------- */
 async function loadListForDateStr(yyyymmdd){
@@ -2249,6 +2391,8 @@ function showPage(key){
   try { kpiWrap.style.display = (key === 'summary') ? '' : 'none'; } catch(e) { /* ignore if missing */ }
   // hide Unit Admin page for other pages
   try { const page = document.getElementById('pageUnitAdmin'); if (page && key !== 'unitadmin') page.style.display = 'none'; } catch(e) {}
+  // hide Unit Contacts page for other pages
+  try { const page2 = document.getElementById('pageUnitContacts'); if (page2 && key !== 'unitcontacts') page2.style.display = 'none'; } catch(e) {}
   // Show/hide the right per-page date input already handled above
 }
 
@@ -3039,8 +3183,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
           const empty = document.createElement('div'); empty.className = 'small muted'; empty.textContent = 'Tiada pelawat Checked In'; tdItems.appendChild(empty);
         } else {
           const list = document.createElement('div'); list.className = 'pw-vehicle-list';
-          // if more than 2 vehicle items, use a 2-column grid
-          if (totalVehicles > 2) list.classList.add('multi-cols');
+          // always use the 5-column grid for a uniform layout
+          list.classList.add('multi-cols');
           // show all vehicle numbers (no limit); support vehicleNo and vehicleNumbers (array or string)
           // Collect vehicle+unit entries and dedupe exact pairs per day
           const pairs = [];

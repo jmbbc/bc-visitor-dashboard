@@ -1245,8 +1245,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (etaVal) {
             const etaDate = dateFromInputDateOnly(etaVal);
             if (etaDate) {
-              const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 3);
-              const toIso = d => d.toISOString().slice(0,10);
+              const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2)
+              const toIso = d => { const yy = d.getFullYear(); const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0'); return `${yy}-${mm}-${dd}`; };
               // Ensure ETD min is not earlier than today — don't allow backdated ETD
               try {
                 const todayIso = clientIsoDateOnlyKey(new Date());
@@ -1274,8 +1274,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (etaVal) {
         const etaDate = dateFromInputDateOnly(etaVal);
         if (etaDate) {
-          const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 3);
-          const toIso = d => d.toISOString().slice(0,10);
+          const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2)
+          const toIso = d => { const yy = d.getFullYear(); const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0'); return `${yy}-${mm}-${dd}`; };
           etdEl.min = toIso(etaDate); etdEl.max = toIso(maxDate);
           if (etdEl.value) {
             const cur = dateFromInputDateOnly(etdEl.value);
@@ -1398,8 +1398,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!etaVal) { if (etdEl) { etdEl.value = ''; etdEl.min = ''; etdEl.max = ''; } return; }
       const etaDate = dateFromInputDateOnly(etaVal);
       if (!etaDate) return;
-      const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 3);
-      const toIso = d => d.toISOString().slice(0,10);
+      const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2)
+      const toIso = d => { const yy = d.getFullYear(); const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0'); return `${yy}-${mm}-${dd}`; };
       if (etdEl) { etdEl.min = toIso(etaDate); etdEl.max = toIso(maxDate); const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); }
     });
 
@@ -1520,8 +1520,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
         } catch(e) { /* ignore */ }
-        const max = new Date(etaDate); max.setDate(max.getDate() + 3);
-        if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh keluar mesti antara Tarikh masuk hingga 3 hari selepas Tarikh masuk.', false); return; }
+        const max = new Date(etaDate); max.setDate(max.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2)
+        if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh keluar mesti antara Tarikh masuk hingga 2 hari selepas Tarikh masuk (maks. 3 hari termasuk tarikh masuk).', false); return; }
       }
 
       // agreement checkbox
