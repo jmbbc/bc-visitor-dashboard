@@ -446,7 +446,6 @@ const navSummary = document.getElementById('navSummary');
 const navCheckedIn = document.getElementById('navCheckedIn');
 const navParking = document.getElementById('navParking');
 const navUnitAdmin = document.getElementById('navUnitAdmin');
-const navUnitContacts = document.getElementById('navUnitContacts');
 const exportCSVBtn = document.getElementById('exportCSVBtn');
 const exportAllCSVBtn = document.getElementById('exportAllCSVBtn');
 const parkingSearchInput = document.getElementById('parkingSearch');
@@ -527,7 +526,7 @@ function getActivePageKey(){
     if (navCheckedIn && navCheckedIn.classList.contains('active')) return 'checkedin';
     if (navParking && navParking.classList.contains('active')) return 'parking';
     if (navUnitAdmin && navUnitAdmin.classList.contains('active')) return 'unitadmin';
-    if (navUnitContacts && navUnitContacts.classList.contains('active')) return 'unitcontacts';
+
   } catch(e){}
   return 'summary';
 }
@@ -541,7 +540,7 @@ function getParkingDate(){
 }
 
 // Ensure nav buttons support keyboard activation (Enter / Space) and toggle visual selection
-[navSummary, navCheckedIn, navParking, navUnitContacts].forEach(btn => {
+[navSummary, navCheckedIn, navParking].forEach(btn => {
   if (!btn) return;
   // toggle selection on click (keeps visual box outline)
   btn.addEventListener('click', (e) => {
@@ -1464,7 +1463,7 @@ if (parkingSearchInput) {
 if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary'); });
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
 if (navUnitAdmin) navUnitAdmin.addEventListener('click', ()=> { try { setSelectedNav(navUnitAdmin); } catch(e){}; showPage('unitadmin'); });
-if (navUnitContacts) navUnitContacts.addEventListener('click', ()=> { try { setSelectedNav(navUnitContacts); } catch(e){}; showPage('unitcontacts'); renderUnitContacts(); });
+
 if (exportCSVBtn) exportCSVBtn.addEventListener('click', ()=> { exportCSVForToday(); });
 if (exportAllCSVBtn) exportAllCSVBtn.addEventListener('click', async ()=> { 
   try {
@@ -2366,7 +2365,7 @@ function showPage(key){
       page.style.display = '';
       try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { /* ignore */ }
     }
-    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navUnitContacts) navUnitContacts.classList.add('active'); } catch(e){}
+    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); } catch(e){}
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
     try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
