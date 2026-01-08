@@ -17,10 +17,11 @@
     @media (max-width: 900px) { .head-grid { grid-template-columns: 1fr; } }
     .top-nav { display:flex; flex-direction:column; gap:10px; height:320px; max-height:320px; overflow:hidden; }
     .top-nav nav { display:flex; flex-direction:column; gap:10px; }
-    .top-nav .nav-group { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:8px; padding:8px; border-radius:10px; background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent); }
-    .nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:var(--surface); cursor:pointer; color:var(--text-900); font-weight:600; transition: background .12s, color .12s; font-size:14px; display:flex; align-items:center; gap:10px; }
+    .top-nav .nav-group { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:8px; padding:8px; border-radius:10px; background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent); align-items:stretch; }
+    /* Make all nav shortcut boxes uniform size */
+    .nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:var(--surface); cursor:pointer; color:var(--text-900); font-weight:600; transition: background .12s, color .12s; font-size:14px; display:flex; align-items:center; gap:10px; min-height:56px; box-sizing:border-box; }
     .nav-item .nav-icon { font-size:18px; line-height:1; display:inline-flex; width:20px; justify-content:center; }
-    .nav-item .nav-label { display:inline-block; font-size:14px; }
+    .nav-item .nav-label { display:block; font-size:14px; white-space:normal; line-height:1.15; word-break:break-word; }
     .nav-item.active { background: rgba(37,99,235,0.08); color: var(--text-900); border-color: transparent; }
     .nav-item.active:hover { background: rgba(37,99,235,0.10); }
     .nav-item:active { transform: translateY(1px); }
@@ -52,8 +53,40 @@
     #navUnitAdmin.active { background: linear-gradient(180deg, rgba(99,102,241,0.18), rgba(99,102,241,0.14)); color: #0f172a; border-color: transparent; box-shadow: 0 2px 6px rgba(99,102,241,0.12); }
     #navUnitAdmin:hover { background: linear-gradient(180deg, rgba(99,102,241,0.14), rgba(99,102,241,0.10)); }
 
+    /* Water readings (blue) */
+    .nav-group button#navWater.nav-item { background: linear-gradient(180deg, rgba(59,130,246,0.12), rgba(59,130,246,0.10)) !important; border-color: rgba(59,130,246,0.18) !important; color: #0f172a !important; }
+    #navWater.active { background: linear-gradient(180deg, rgba(59,130,246,0.18), rgba(59,130,246,0.14)); color: #0f172a; border-color: transparent; box-shadow: 0 2px 6px rgba(59,130,246,0.12); }
+    #navWater:hover { background: linear-gradient(180deg, rgba(59,130,246,0.14), rgba(59,130,246,0.10)); }
 
+    /* Export CSV (green) */
+    .nav-group button#exportAllCSVBtn.nav-item { background: linear-gradient(180deg, rgba(34,197,94,0.12), rgba(34,197,94,0.10)) !important; border-color: rgba(34,197,94,0.18) !important; color: #065f46 !important; }
+    #exportAllCSVBtn.active { background: linear-gradient(180deg, rgba(34,197,94,0.18), rgba(34,197,94,0.14)); color: #065f46; border-color: transparent; box-shadow: 0 2px 6px rgba(34,197,94,0.12); }
+    #exportAllCSVBtn:hover { background: linear-gradient(180deg, rgba(34,197,94,0.14), rgba(34,197,94,0.10)); }
 
+    /* Action button shortcuts — uniform themed look */
+    /* Check In (primary) */
+    .actions button[data-action="in"] { background: linear-gradient(180deg, rgba(34,197,94,0.12), rgba(34,197,94,0.10)) !important; border-color: rgba(34,197,94,0.18) !important; color: #065f46 !important; }
+    .actions button[data-action="in"]:hover { background: linear-gradient(180deg, rgba(34,197,94,0.14), rgba(34,197,94,0.12)); }
+
+    /* Check Out (secondary/caution) */
+    .actions button[data-action="out"], .actions button.btn-ghost[data-action="out"] { background: linear-gradient(180deg, rgba(250,190,50,0.10), rgba(250,190,50,0.06)) !important; border-color: rgba(250,190,50,0.12) !important; color: #2b1808 !important; }
+    .actions button[data-action="out"]:hover { background: linear-gradient(180deg, rgba(250,190,50,0.12), rgba(250,190,50,0.08)); }
+
+    /* Primary action buttons (consistent green theme) */
+    #passdownSaveBtn, #parkingSaveAll, #waterSaveBtn, #csvImportBtn, #csvForceWriteBtn, #migrateApplyBtn, #saveUnitBtn, #adminModalLoginBtn, #confirmModalConfirm, #adminOpenLoginBtn, #unitAddBtn {
+      background: linear-gradient(180deg, rgba(34,197,94,0.12), rgba(34,197,94,0.10)) !important; border-color: rgba(34,197,94,0.18) !important; color: #065f46 !important;
+    }
+    #passdownSaveBtn:hover, #parkingSaveAll:hover, #waterSaveBtn:hover, #csvImportBtn:hover, #csvForceWriteBtn:hover, #migrateApplyBtn:hover, #saveUnitBtn:hover, #adminModalLoginBtn:hover, #confirmModalConfirm:hover, #adminOpenLoginBtn:hover, #unitAddBtn:hover {
+      background: linear-gradient(180deg, rgba(34,197,94,0.14), rgba(34,197,94,0.12));
+    }
+
+    /* Secondary / ghost-like actions (subtle teal tint) */
+    #passdownClearBtn, #cancelUnitBtn, #csvPreviewBtn, #migratePreviewBtn, #adminLogoutBtn, #adminModalCancelBtn, #confirmModalCancel, #csvFileLabel {
+      background: linear-gradient(180deg, rgba(6,182,212,0.06), rgba(6,182,212,0.03)) !important; border-color: rgba(6,182,212,0.10) !important; color: #042f2a !important;
+    }
+    #passdownClearBtn:hover, #cancelUnitBtn:hover, #csvPreviewBtn:hover, #migratePreviewBtn:hover, #adminLogoutBtn:hover, #adminModalCancelBtn:hover, #confirmModalCancel:hover, #csvFileLabel:hover {
+      background: linear-gradient(180deg, rgba(6,182,212,0.08), rgba(6,182,212,0.04));
+    }
 
     .top-info { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
     .kpi { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -169,7 +202,7 @@
                   <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
                   <button id="navUnitAdmin" class="nav-item"><span class="nav-icon">🧾</span><span class="nav-label">Kemas Kini Unit (CSV)</span></button> 
                   <button id="navWater" class="nav-item"><span class="nav-icon">💧</span><span class="nav-label">Bacaan Air</span></button>
-                  <button id="exportAllCSVBtn" class="nav-item">Eksport CSV (Semua)</button>
+                  <button id="exportAllCSVBtn" class="nav-item"><span class="nav-icon">⬇️</span><span class="nav-label">Eksport CSV (Semua)</span></button>
                 </div>
               </nav>
 

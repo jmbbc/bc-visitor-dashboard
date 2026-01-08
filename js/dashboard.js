@@ -835,6 +835,11 @@ async function adminLogin(password){
   // load units into cache
   await loadAllUnitsToCache();
   renderUnitsList();
+  try {
+    if (typeof getActivePageKey === 'function' && getActivePageKey() === 'water') {
+      try { await loadWaterForDate((waterDateEl && waterDateEl.value) ? waterDateEl.value : isoDateString(new Date())); } catch(e) { /* ignore */ }
+    }
+  } catch(e) { /* ignore */ }
   return true;
 }
 
@@ -2245,7 +2250,39 @@ async function loadWaterForDate(dateStr){
     renderWaterList(rows);
   } catch (err) {
     console.error('loadWaterForDate err', err);
-    toast('Gagal muatkan bacaan air', false);
+    // Show clearer message when the error is due to Firestore permission rules
+    const code = err && err.code ? String(err.code).toLowerCase() : '';
+    const msg = String(err || '').toLowerCase();
+    if (code.includes('permission-denied') || msg.includes('missing or insufficient permissions')) {
+      if (waterListArea) {
+        waterListArea.innerHTML = '<div class="small err">Tiada kebenaran baca bacaan air. Sila log masuk sebagai admin atau semak Firestore rules. <button id="waterAdminLoginBtn" class="btn" style="margin-left:8px">Log Masuk (Admin)</button></div>';
+        try {
+          const b = document.getElementById('waterAdminLoginBtn');
+          if (b) b.addEventListener('click', ()=>{
+            try {
+              // Open the admin login modal directly and ensure the login button is enabled
+              const modal = document.getElementById('adminLoginModal');
+              const pw = document.getElementById('adminModalPassword');
+              const loginBtn = document.getElementById('adminModalLoginBtn');
+              const loginMsg = document.getElementById('adminModalMsg');
+              if (modal) {
+                modal.classList.remove('hidden');
+                modal.setAttribute('aria-hidden','false');
+                try { modal.style.display = 'flex'; } catch(e){}
+              }
+              if (pw) { try { pw.value = ''; pw.focus(); } catch(e){} }
+              if (loginBtn) { try { loginBtn.disabled = false; } catch(e){} }
+              if (loginMsg) { try { loginMsg.textContent = ''; } catch(e){} }
+              // as a fallback, trigger the existing open button
+              try { const open = document.getElementById('adminOpenLoginBtn'); if (open) open.click(); } catch(e){}
+            } catch(e) {/* ignore */}
+          });
+        } catch(e) {/* ignore */}
+      }
+      toast('Tiada kebenaran baca bacaan air — log masuk sebagai admin', false);
+    } else {
+      toast('Gagal muatkan bacaan air', false);
+    }
   }
 }
 
@@ -2272,7 +2309,13 @@ async function saveWaterReading(){
     await loadWaterForDate(dateStr);
   } catch (err) {
     console.error('saveWaterReading err', err);
-    toast('Gagal simpan bacaan', false);
+    const code = err && err.code ? String(err.code).toLowerCase() : '';
+    const msg = String(err || '').toLowerCase();
+    if (code.includes('permission-denied') || msg.includes('missing or insufficient permissions')) {
+      toast('Kebenaran tidak mencukupi untuk menyimpan bacaan air — log masuk sebagai admin', false);
+    } else {
+      toast('Gagal simpan bacaan', false);
+    }
   }
 }
 
@@ -2482,6 +2525,8 @@ function showPage(key){
   try { const page = document.getElementById('pageUnitAdmin'); if (page && key !== 'unitadmin') page.style.display = 'none'; } catch(e) {}
   // hide Unit Contacts page for other pages
   try { const page2 = document.getElementById('pageUnitContacts'); if (page2 && key !== 'unitcontacts') page2.style.display = 'none'; } catch(e) {}
+  // hide Water page for other pages
+  try { const page3 = document.getElementById('pageWater'); if (page3 && key !== 'water') page3.style.display = 'none'; } catch(e) {}
   // Show/hide the right per-page date input already handled above
 }
 

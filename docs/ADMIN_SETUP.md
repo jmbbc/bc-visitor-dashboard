@@ -49,6 +49,26 @@ If you prefer not to give client apps read permission, use server-side (Cloud Fu
 
 ---
 
+## Water readings rule
+We recommend allowing authenticated reads and restricting writes to admin users for the `waterReadings` collection to prevent unauthorised edits while allowing signed-in users to view daily readings.
+
+Example rule to add to your Firestore rules:
+
+```text
+match /waterReadings/{docId} {
+  // allow signed-in users to view readings
+  allow read: if request.auth != null;
+  // restrict create/update/delete to admin users (custom claim `admin`)
+  allow create, update, delete: if request.auth != null && request.auth.token.admin == true;
+}
+```
+
+Testing notes:
+- After deploying the rules, sign in as a normal user and verify you can `read` from `waterReadings` but a write attempt (e.g., `db.collection('waterReadings').add({...})`) returns permission denied.
+- To test write ability, set the `admin:true` custom claim for your account using `scripts/set-admin-claim.js`, then sign out and sign back in.
+
+---
+
 ## Local import script (no Blaze required)
 
 If you don't want to enable Cloud Functions / Blaze, you can run a local import script that uses a service account to write to Firestore.
