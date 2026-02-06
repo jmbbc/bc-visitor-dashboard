@@ -996,13 +996,14 @@ function buildWhatsAppUrlForAdmin(payload){
     `Tarikh masuk: ${etaText}`,
     `Tarikh keluar: ${etdText}`,
     `Kenderaan: ${ (payload.vehicleNumbers && payload.vehicleNumbers.length) ? payload.vehicleNumbers.join('; ') : (payload.vehicleNo || '-') }`,
-    `Kategori: ${payload.category || '-'}`,
+    `Kategori: ${payload.category || '-'}`,    const sample = { hostUnit:'A-12-03', hostName:'Test', hostPhone:'0123456789', visitorName:'Ahmad', visitorPhone:'0123456789', eta: new Date(), etd: new Date(), vehicleNo:'ABC123', vehicleNumbers:[], category:'Pelawat' };
+    setTimeout(()=> openWhatsAppNotification(sample), 1500);
   ];
   const text = encodeURIComponent(lines.join('\n'));
   // Web URL (works in browsers)
   const waWebUrl = `https://wa.me/${adminNumber}?text=${text}`;
-  // App URL (prefer opening the WhatsApp app directly where supported)
-  const waAppUrl = `whatsapp://send?text=${text}`;
+  // App URL (prefer opening the WhatsApp app directly where supported). Include phone so recipient is prefilled.
+  const waAppUrl = `whatsapp://send?phone=${adminNumber}&text=${text}`;
   return { waAppUrl, waWebUrl };
 }
 
@@ -1052,14 +1053,16 @@ function openWhatsAppNotification(payload){
         a.rel = 'noopener noreferrer';
         a.className = 'btn btn-ghost';
         a.textContent = 'Hantar Notifikasi ke WhatsApp';
+        a.setAttribute('aria-label', 'Buka WhatsApp untuk hantar notifikasi kepada pentadbir');
         statusEl.appendChild(a);
-        if (isIOS()) {
-          const hint = document.createElement('div');
-          hint.className = 'small muted';
-          hint.style.marginTop = '6px';
-          hint.textContent = 'Jika anda menggunakan iPhone/Safari dan WhatsApp tidak terbuka automatik, sila tekan butang di atas.';
-          statusEl.appendChild(hint);
-        }
+
+        // Guidance shown to all users when automatic open is blocked
+        const hint = document.createElement('div');
+        hint.className = 'small muted';
+        hint.style.marginTop = '8px';
+        hint.style.lineHeight = '1.35';
+        hint.innerHTML = 'Jika WhatsApp tidak dibuka secara automatik (contoh: iPhone/Safari), <strong>tekan butang di atas</strong> untuk buka WhatsApp dan hantar mesej kepada pentadbir.';
+        statusEl.appendChild(hint);
       }
     }
   } catch (e) { console.warn('openWhatsAppNotification failed', e); }
