@@ -1503,6 +1503,36 @@ async function loadListForDateStr(yyyymmdd){
   const from = new Date(parseInt(d[0],10), parseInt(d[1],10)-1, parseInt(d[2],10), 0,0,0,0);
   const to = new Date(from); to.setDate(to.getDate()+1);
 
+  // Helper: safely coerce Firestore Timestamp / Date / string to Date (or null)
+  const toJsDate = (v) => {
+    try {
+      let x = v;
+      if (!x) return null;
+      if (x.toDate) x = x.toDate();
+      if (typeof x === 'string') x = new Date(x);
+      if (!(x instanceof Date) || isNaN(x.getTime())) return null;
+      return x;
+    } catch(e){ return null; }
+  };
+
+  // Helper: keep only rows whose ETA/ETD overlaps the target day (inclusive of multi-day stays).
+  const filterRowsForDay = (rows) => {
+    const startMs = from.getTime();
+    const endMs = to.getTime();
+    return rows.filter(r => {
+      const eta = toJsDate(r.eta);
+      const etd = toJsDate(r.etd);
+      const created = toJsDate(r.createdAt);
+      // Multi-day stay: include if the interval [eta, etd] overlaps the target day
+      if (eta && etd) return eta.getTime() < endMs && etd.getTime() >= startMs;
+      // Single-day: include if ETA falls on the target day
+      if (eta) return eta.getTime() >= startMs && eta.getTime() < endMs;
+      // Fallback: use createdAt when ETA missing
+      if (created) return created.getTime() >= startMs && created.getTime() < endMs;
+      return false;
+    });
+  };
+
   const spinner = document.getElementById('spinner');
   if (spinner) spinner.style.display = 'flex';
   listAreaSummary.innerHTML = '<div class="small">Memuat...</div>';
@@ -1584,20 +1614,22 @@ async function loadListForDateStr(yyyymmdd){
                 console.warn('[loadListForDateStr] etd supplemental query failed', e);
               }
 
+              // Strictly filter rows to the requested day to avoid cross-day bleed (e.g., ETA on a different date)
+              const filtered = filterRowsForDay(freshRows);
               // update cache + UI
               responseCache.date = yyyymmdd;
-              responseCache.rows = freshRows;
+              responseCache.rows = filtered;
 
               // recompute KPIs and render
               let pending = 0, checkedIn = 0, checkedOut = 0;
-              freshRows.forEach(r => {
+              filtered.forEach(r => {
                 if (!r.status || r.status === 'Pending') pending++;
                 else if (r.status === 'Checked In') checkedIn++;
                 else if (r.status === 'Checked Out') checkedOut++;
               });
               renderKPIs(pending, checkedIn, checkedOut);
-              renderSummaryWithSearch(freshRows);
-              renderCheckedInList(freshRows.filter(r => r.status === 'Checked In'));
+              renderSummaryWithSearch(filtered);
+              renderCheckedInList(filtered.filter(r => r.status === 'Checked In'));
             })();
 
             console.info('[onSnapshot] freshRows length', freshRows.length, 'for', yyyymmdd);
@@ -1720,10 +1752,25 @@ async function loadListForDateStr(yyyymmdd){
       }
     }
 
-    // render pages (snapshot listener will keep the UI fresh). Show the current rows we have.
-    renderSummaryWithSearch(rows);
-    renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
-    console.info('[loadListForDateStr] rendered summary + checked-in lists, rows:', rows.length);
+    // Final safety: filter rows strictly to the requested day (handles any residual cross-day items)
+    const filteredRows = filterRowsForDay(rows);
+    responseCache.rows = filteredRows;
+
+    // recompute KPIs from filtered rows
+    try {
+      let pending = 0, checkedIn = 0, checkedOut = 0;
+      filteredRows.forEach(r => {
+        if (!r.status || r.status === 'Pending') pending++;
+        else if (r.status === 'Checked In') checkedIn++;
+        else if (r.status === 'Checked Out') checkedOut++;
+      });
+      renderKPIs(pending, checkedIn, checkedOut);
+    } catch(e){ console.warn('renderKPIs (filtered) failed', e); }
+
+    // render pages (snapshot listener will keep the UI fresh). Show the current filtered rows we have.
+    renderSummaryWithSearch(filteredRows);
+    renderCheckedInList(filteredRows.filter(r => r.status === 'Checked In'));
+    console.info('[loadListForDateStr] rendered summary + checked-in lists, rows:', filteredRows.length);
   } catch (err) {
     console.error('loadList err', err);
     listAreaSummary.innerHTML = '<div class="small">Gagal muat. Semak konsol.</div>';
