@@ -969,9 +969,10 @@ function normalizeForWaLink(raw){
   return p; // e.g., 60123456789
 }
 
-function sendWhatsAppToAdmin(payload){
+// Build WhatsApp URLs for admin notification (returns both app and web URLs; does NOT open them)
+function buildWhatsAppUrlForAdmin(payload){
   const adminNumber = '601172248614'; // updated admin number (Malaysia) without plus
-  
+
   // Format date to local timezone (dd/mm/yyyy) instead of UTC
   const formatLocalDate = (ts) => {
     if (!ts) return '-';
@@ -981,7 +982,7 @@ function sendWhatsAppToAdmin(payload){
     const yyyy = d.getFullYear();
     return `${dd}/${mm}/${yyyy}`;
   };
-  
+
   const etaText = payload.eta ? formatLocalDate(payload.eta) : '-';
   const etdText = payload.etd ? formatLocalDate(payload.etd) : '-';
 
@@ -998,9 +999,74 @@ function sendWhatsAppToAdmin(payload){
     `Kategori: ${payload.category || '-'}`,
   ];
   const text = encodeURIComponent(lines.join('\n'));
-  const waUrl = `https://wa.me/${adminNumber}?text=${text}`;
-  window.open(waUrl, '_blank');
+  // Web URL (works in browsers)
+  const waWebUrl = `https://wa.me/${adminNumber}?text=${text}`;
+  // App URL (prefer opening the WhatsApp app directly where supported)
+  const waAppUrl = `whatsapp://send?text=${text}`;
+  return { waAppUrl, waWebUrl };
 }
+
+// Detect iOS user agent
+function isIOS() {
+  try {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  } catch (e) { return false; }
+}
+
+// Attempt to open a URL in a new window/tab and return whether it succeeded.
+function openUrlInNewWindow(url){
+  try {
+    const newWin = window.open(url, '_blank');
+    // Some browsers return null if popup blocked
+    if (!newWin) return false;
+    try { newWin.focus(); } catch(e) {}
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Try opening WhatsApp notification (app first, then web). If both fail, render a persistent button and helpful hint.
+function openWhatsAppNotification(payload){
+  try {
+    const { waAppUrl, waWebUrl } = buildWhatsAppUrlForAdmin(payload);
+    let opened = false;
+    if (waAppUrl) {
+      const ok = openUrlInNewWindow(waAppUrl);
+      console.log('openWhatsAppNotification: attempted waAppUrl', waAppUrl, 'result=', ok);
+      opened = opened || ok;
+    }
+    if (!opened && waWebUrl) {
+      const ok2 = openUrlInNewWindow(waWebUrl);
+      console.log('openWhatsAppNotification: attempted waWebUrl', waWebUrl, 'result=', ok2);
+      opened = opened || ok2;
+    }
+
+    if (!opened) {
+      const statusEl = document.getElementById('statusMsg');
+      if (statusEl) {
+        statusEl.innerHTML = '';
+        const a = document.createElement('a');
+        a.href = waWebUrl || waAppUrl || '#';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'btn btn-ghost';
+        a.textContent = 'Hantar Notifikasi ke WhatsApp';
+        statusEl.appendChild(a);
+        if (isIOS()) {
+          const hint = document.createElement('div');
+          hint.className = 'small muted';
+          hint.style.marginTop = '6px';
+          hint.textContent = 'Jika anda menggunakan iPhone/Safari dan WhatsApp tidak terbuka automatik, sila tekan butang di atas.';
+          statusEl.appendChild(hint);
+        }
+      }
+    }
+  } catch (e) { console.warn('openWhatsAppNotification failed', e); }
+}
+
+// For quick manual testing in the browser console (dev only)
+window.openWhatsAppForTesting = function(payload){ try { openWhatsAppNotification(payload || {}); } catch(e) { console.warn('test open failed', e); } };
 
 /* ---------- main init ---------- */
 document.addEventListener('DOMContentLoaded', () => {
@@ -1008,6 +1074,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const wrapper = input?.closest('.autocomplete-wrap');
   const listEl = document.getElementById('unitSuggestions');
   const confirmAgreeEl = document.getElementById('confirmAgree');
+
+  // Debug helper: if URL contains ?debug=1, show a visible test button to simulate WhatsApp open (useful for iPhone tests)
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('debug') === '1' || params.get('debug') === 'true') {
+      const statusEl = document.getElementById('statusMsg');
+      if (statusEl) {
+        const dbg = document.createElement('button');
+        dbg.type = 'button';
+        dbg.className = 'btn-ghost';
+        dbg.textContent = 'Debug: Test WhatsApp';
+        dbg.style.marginLeft = '8px';
+        dbg.addEventListener('click', () => {
+          const sample = { hostUnit: 'A-12-03', hostName: 'Test', hostPhone:'0123456789', visitorName:'Ahmad', visitorPhone:'0123456789', eta: new Date(), etd: new Date(), vehicleNo:'ABC123', vehicleNumbers:[], category:'Pelawat' };
+          openWhatsAppNotification(sample);
+        });
+        statusEl.appendChild(dbg);
+      }
+    }
+  } catch(e) {}
 
   // Show floating memo before allowing form fill (once per browser)
   try {
@@ -1618,8 +1704,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // create response (atomic) and dedupe key inside a transaction to avoid duplicates
         const resp = await createResponseWithDedupe(payload);
 
-        // QUICK WA: open admin WhatsApp with prefilled summary (user must press Send)
-        try { sendWhatsAppToAdmin(payload); } catch(e) { console.warn('WA open failed', e); }
+        // QUICK WA: attempt to open WhatsApp (app -> web). If blocked show action button for user gesture.
+        try { openWhatsAppNotification(payload); } catch (e) { console.warn('WA open failed', e); }
 
         if (resp && resp.fallback) {
           // we succeeded but without dedupe enforcement (callable not available or blocked)
