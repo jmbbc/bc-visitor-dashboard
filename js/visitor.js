@@ -657,7 +657,13 @@ const LIMIT_PER_GROUP = Infinity;   // no max items per group
 const GROUP_KEY_REGEX = /^([A-Z0-9]+-\d{1,3})/; // group key extractor
 
 function normQuery(q){
-  return (q || '').trim().toUpperCase().replace(/\s+/g,'').replace(/[_\.\/\\]/g,'-');
+  let s = (q || '').trim().toUpperCase();
+  // convert whitespace to hyphen (so 'A 12' -> 'A-12') and normalize common separators to hyphen
+  s = s.replace(/\s+/g,'-').replace(/[_\.\/\\]+/g,'-').replace(/-{2,}/g,'-');
+  // If user typed 'A12' or 'B1102' (letters followed by digits) convert to 'A-12' or 'B1-102'
+  const m = s.match(/^([A-Z]{1,2})(\d+)$/);
+  if (m) s = `${m[1]}-${m[2]}`;
+  return s;
 }
 
 function matchUnitsGrouped(prefix){
