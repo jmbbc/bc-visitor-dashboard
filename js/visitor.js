@@ -1002,8 +1002,7 @@ function buildWhatsAppUrlForAdmin(payload){
     `Tarikh masuk: ${etaText}`,
     `Tarikh keluar: ${etdText}`,
     `Kenderaan: ${ (payload.vehicleNumbers && payload.vehicleNumbers.length) ? payload.vehicleNumbers.join('; ') : (payload.vehicleNo || '-') }`,
-    `Kategori: ${payload.category || '-'}`,    const sample = { hostUnit:'A-12-03', hostName:'Test', hostPhone:'0123456789', visitorName:'Ahmad', visitorPhone:'0123456789', eta: new Date(), etd: new Date(), vehicleNo:'ABC123', vehicleNumbers:[], category:'Pelawat' };
-    setTimeout(()=> openWhatsAppNotification(sample), 1500);
+    `Kategori: ${payload.category || '-'}`,
   ];
   const text = encodeURIComponent(lines.join('\n'));
   // Web URL (works in browsers)
