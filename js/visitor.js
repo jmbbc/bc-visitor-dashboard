@@ -1767,7 +1767,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isMockSubmit) {
         if (submitBtn) {
           submitBtn.disabled = true;
-          submitBtn.classList.add('btn-disabled', 'is-loading');
+          submitBtn.classList.add('btn-disabled');
           submitBtn.classList.remove('is-success');
         }
         setTimeout(() => {
@@ -1775,7 +1775,7 @@ document.addEventListener('DOMContentLoaded', () => {
           enableWhatsAppAction({ mock: true });
           if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.classList.remove('btn-disabled', 'is-loading');
+            submitBtn.classList.remove('btn-disabled');
           }
         }, 550);
         return;
@@ -1913,7 +1913,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.classList.add('btn-disabled');
-        submitBtn.classList.add('is-loading');
         submitBtn.classList.remove('is-success');
       }
 
@@ -1985,7 +1984,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.classList.remove('btn-disabled');
-          submitBtn.classList.remove('is-loading');
         }
       }
     });
@@ -1996,12 +1994,10 @@ document.addEventListener('DOMContentLoaded', () => {
         enableWhatsAppAction(pendingWaPayload);
       }
       if (!pendingWaPayload) return;
-      waBtn.classList.add('is-loading');
       waBtn.classList.remove('is-success');
       if (isMockSubmit) {
         setTimeout(() => {
           playButtonSuccessAnimation(waBtn);
-          waBtn.classList.remove('is-loading');
         }, 450);
         return;
       }
