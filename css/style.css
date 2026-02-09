@@ -19,11 +19,13 @@
   --section-2-left: #8b5cf6; /* violet-500 */
   --section-3-left: #16a34a; /* green-500 */
   --section-4-left: #111827; /* strong neutral for confirm section */
+  --section-5-left: #f59e0b; /* amber-500 for payment summary */
+  --section-steps-left: #06b6d4; /* cyan-500 for Panduan Penghantaran */
 
   /* form text tokens (defaults) */
   --form-text: #111827;
   /* placeholder text: neutral grey for better contrast */
-  --form-placeholder: #DDDDDD; /* user-requested neutral grey */
+  --form-placeholder: #b8c2cf; /* lighter neutral grey for placeholders */
 
   /* additional tokens */
   --bg-page:#f3f4f6;
@@ -66,7 +68,7 @@ html.dark{
 
   /* form text tokens for dark */
   --form-text: #e6eef8;
-  --form-placeholder: #93a2bf;
+  --form-placeholder: #dddddd;
   --label-color: #000000;
 }
 
@@ -93,6 +95,244 @@ body{
   padding:16px;
   box-shadow:var(--elev-1);
   box-sizing:border-box;
+}
+
+/* Fancy submit buttons (animated check) */
+.fancy-submit {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 160px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 24px;
+  border: 2px solid var(--accent, #2563eb);
+  background: #fff;
+  color: var(--accent, #2563eb);
+  font-weight: 700;
+  line-height: 1.1;
+  transition: all 0.32s cubic-bezier(0.13, 0.71, 0.57, 1.29);
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.18);
+}
+.btn.fancy-submit { background: #fff !important; color: var(--accent, #2563eb) !important; border-color: var(--accent, #2563eb) !important; box-shadow: 0 10px 25px rgba(37, 99, 235, 0.18) !important; }
+.fancy-submit--primary {
+  background: linear-gradient(90deg, #2563eb, #1d4ed8);
+  border-color: #1d4ed8;
+  color: #fff;
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.28);
+}
+.btn.fancy-submit--primary { background: linear-gradient(90deg, #2563eb, #1d4ed8) !important; border-color: #1d4ed8 !important; color: #fff !important; box-shadow: 0 10px 25px rgba(37, 99, 235, 0.28) !important; }
+.fancy-submit--ghost {
+  background: #fff;
+  color: var(--accent, #2563eb);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.08);
+}
+.btn-ghost.fancy-submit--ghost { background: #fff !important; color: var(--accent, #2563eb) !important; border: 1px solid var(--input-border, #e5e7eb) !important; box-shadow: 0 6px 16px rgba(37, 99, 235, 0.08) !important; }
+.fancy-submit.btn-disabled,
+.fancy-submit[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none !important;
+}
+.fancy-submit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #57dab2;
+  border-radius: 24px;
+  transform: scale(0);
+  opacity: 0;
+  transition: all 0.35s cubic-bezier(0.13, 0.71, 0.57, 1.29);
+}
+.fancy-submit__label {
+  position: relative;
+  z-index: 1;
+  transition: transform 0.3s, opacity 0.3s;
+  text-align: center;
+}
+.fancy-submit__check {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 20px;
+  height: 20px;
+  transform: rotate(-45deg);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.13, 0.71, 0.57, 1.29);
+}
+.fancy-submit__check span {
+  position: absolute;
+  display: block;
+  background: #fff;
+  border-radius: 2px;
+}
+.fancy-submit__check span:nth-child(1) {
+  width: 4px;
+  height: 12px;
+  top: 4px;
+  left: 9px;
+}
+.fancy-submit__check span:nth-child(2) {
+  width: 4px;
+  height: 6px;
+  top: 12px;
+  left: 3px;
+  transform: rotate(-55deg);
+}
+.fancy-submit.is-active {
+  width: 46px;
+  min-width: 46px;
+  border-radius: 50%;
+  border-color: #57dab2;
+  color: #fff;
+  box-shadow: 0 10px 25px rgba(87, 218, 178, 0.35);
+}
+.fancy-submit.is-active::before {
+  transform: scale(1);
+  opacity: 1;
+}
+.fancy-submit.is-active .fancy-submit__label {
+  opacity: 0;
+  transform: scale(0.65) rotate(8deg);
+}
+.fancy-submit.is-active .fancy-submit__check {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+/* Loader-style submit button (Langkah 1) */
+.btn.loader-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 190px;
+  min-height: 48px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 2px solid var(--accent, #2563eb) !important;
+  background: #fff !important;
+  color: var(--accent, #2563eb) !important;
+  font-weight: 800;
+  letter-spacing: 0.25px;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18) !important;
+  transition: all 0.25s ease, width 0.25s ease;
+}
+.btn.loader-btn:hover {
+  background: linear-gradient(120deg, #2563eb, #1d4ed8) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.24) !important;
+}
+.btn.loader-btn:active { letter-spacing: 0.6px; transform: translateY(0px) scale(0.99); }
+.btn.loader-btn .loader-label { transition: opacity 0.2s ease, transform 0.2s ease; }
+.btn.loader-btn .loader-complete {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.24s ease, transform 0.24s ease;
+  color: inherit;
+}
+.btn.loader-btn .loader-check {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.7);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  color: inherit;
+  margin-left: 8px;
+}
+.btn-ghost.loader-btn {
+  background: #fff !important;
+  color: var(--accent, #2563eb) !important;
+  border: 1px solid var(--input-border, #e5e7eb) !important;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12) !important;
+}
+.btn-ghost.loader-btn:hover {
+  background: linear-gradient(120deg, #2563eb, #1d4ed8) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.2) !important;
+}
+.btn-ghost.loader-btn.loader-btn--ghost {
+  border-color: var(--input-border, #e5e7eb) !important;
+}
+.btn.loader-btn.is-loading {
+  width: 56px;
+  background: #fff !important;
+  color: transparent !important;
+  border-color: rgba(37, 99, 235, 0.35) !important;
+  border-left-color: #2563eb !important;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.12) !important;
+  animation: loader-spin 0.9s linear infinite;
+}
+.btn.loader-btn.is-loading .loader-label { opacity: 0; transform: translateY(6px); }
+.btn.loader-btn.is-success {
+  width: 190px;
+  background: linear-gradient(135deg, #16a34a, #22c55e) !important;
+  border-color: #16a34a !important;
+  color: #fff !important;
+  box-shadow: 0 12px 26px rgba(34, 197, 94, 0.32) !important;
+  animation: none;
+}
+.btn.loader-btn.is-success .loader-label { opacity: 0; transform: translateY(6px); }
+.btn.loader-btn.is-success .loader-check { opacity: 1; transform: translateY(-50%) scale(1); }
+.btn.loader-btn.is-success .loader-complete { opacity: 1; transform: translateY(0); }
+
+/* Payment summary card (align typography with other sections) */
+.payment-summary {
+  padding: 12px;
+  margin-top: 8px;
+  line-height: 1.55;
+  font-size: 14px;
+  color: var(--text-900, #111827);
+}
+.payment-summary * {
+  font-size: 14px;
+  line-height: 1.55;
+}
+.payment-summary .muted-small {
+  font-size: 14px;
+  color: var(--muted, #6b7280);
+}
+.payment-summary .small,
+.payment-summary .muted,
+.payment-summary .muted-small,
+.payment-summary .arrears-payment-list li {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* Registration steps box (below Pengesahan) */
+.registration-steps {
+  padding: 12px;
+  margin: 0;
+  border: 1px solid var(--input-border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--surface, #f9fafb);
+  line-height: 1.5;
+  font-size: 14px;
+  color: var(--text-900, #111827);
+  box-shadow: var(--elev-1, 0 6px 20px rgba(0,0,0,0.04));
+}
+
+@keyframes loader-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Section card visual for forms (subtle grouping) */
@@ -233,8 +473,8 @@ label{font-family:var(--font-ui);font-weight:600;font-size:14px;color:var(--labe
 .helper{font-size:12px;color:var(--text-muted)}
 
 /* -------------------------
-   Controls: inputs, selects, buttons
-   ------------------------- */
+  Controls: inputs, selects, buttons
+  ------------------------- */
 input, select, textarea, button {
   font-family:var(--font-ui);
   font-size:15px;
@@ -281,7 +521,7 @@ input:focus, select:focus, textarea:focus {
 .unit-status.ok { background: #16a34a; border-color: rgba(16,163,74,0.12); }
 .unit-status.err { background: #ef4444; border-color: rgba(239,68,68,0.12); }
 .unit-status.hidden { display:none !important; }
-input::placeholder, textarea::placeholder { color:var(--text-muted); font-style:italic; }
+
 
 button{
   cursor:pointer;
@@ -300,6 +540,15 @@ button{
 .btn, button.primary{ background:var(--accent) !important; color:#fff !important; }
 .btn-ghost, button.ghost{ background:transparent !important; color:var(--text-900) !important; border:1px solid var(--input-border) !important; }
 button.btn-edit{ background:var(--warning) !important; color:#fff !important; border:0 !important; }
+
+/* Re-assert fancy button skins after legacy .btn/.btn-ghost rules */
+.btn.fancy-submit { background: #fff !important; color: var(--accent, #2563eb) !important; border-color: var(--accent, #2563eb) !important; box-shadow: 0 10px 25px rgba(37, 99, 235, 0.18) !important; }
+.btn.fancy-submit--primary { background: linear-gradient(120deg, #4f46e5 0%, #06b6d4 55%, #22c55e 100%) !important; border-color: #1d4ed8 !important; color: #fff !important; box-shadow: 0 12px 28px rgba(6, 182, 212, 0.26) !important; }
+.btn-ghost.fancy-submit--ghost { background: #fff !important; color: var(--accent, #2563eb) !important; border: 1px solid var(--input-border, #e5e7eb) !important; box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12) !important; }
+.fancy-submit.btn-disabled,
+.fancy-submit[disabled] {
+  box-shadow: none !important;
+}
 
 /* Unit category badge used in registration table */
 .unit-cat-badge { display:inline-block; padding:6px 8px; border-radius:8px; background:linear-gradient(180deg, #f3f4f6, #fff); border:1px solid var(--input-border); font-weight:700; font-size:10px; }
@@ -462,12 +711,18 @@ form .form-row .field-note{
    Theme-aware form control colors (overrides)
    ------------------------- */
 input, select, textarea {
-  color: var(--form-text) !important;
+  color: var(--text-900) !important; /* solid color for user-entered values */
   background: var(--card) !important;
-  -webkit-text-fill-color: var(--form-text) !important;
+  -webkit-text-fill-color: var(--text-900) !important;
   opacity: 1 !important;
 }
-input::placeholder, textarea::placeholder { color: var(--form-placeholder) !important; }
+input::placeholder,
+textarea::placeholder {
+  color: var(--form-placeholder) !important;
+  -webkit-text-fill-color: var(--form-placeholder) !important;
+  font-style: italic !important;
+  opacity: 1 !important;
+}
 form .form-row select, select {
   color: var(--form-text) !important;
   background: var(--card) !important;
@@ -499,7 +754,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: none !important;
 .flatpickr-calendar, .flatpickr-day { background: var(--card) !important; color: var(--form-text) !important; }
 
 input, select, textarea { transform: none !important; }
-:root { --form-placeholder: #6b7280; }
+:root { --form-placeholder: #b8c2cf; }
 /* dark mode placeholder: slightly lighter but still neutral */
 /* dark mode placeholder: use the same neutral grey so contrast is stable */
 html.dark { --form-placeholder: #DDDDDD; }
@@ -507,7 +762,7 @@ html.dark { --form-placeholder: #DDDDDD; }
 input[placeholder]::placeholder,
 textarea[placeholder]::placeholder { color: var(--form-placeholder) !important; font-style: italic !important; opacity: 1 !important; }
 input[placeholder]::-webkit-input-placeholder,
-textarea[placeholder]::-webkit-input-placeholder { color: var(--form-placeholder) !important; font-style: italic !important; }
+textarea[placeholder]::-webkit-input-placeholder { color: var(--form-placeholder) !important; font-style: italic !important; -webkit-text-fill-color: var(--form-placeholder) !important; }
 input[placeholder]::-moz-placeholder,
 textarea[placeholder]::-moz-placeholder { color: var(--form-placeholder) !important; font-style: italic !important; }
 input[placeholder]:-ms-input-placeholder,
@@ -562,6 +817,8 @@ form textarea[placeholder] {
   .form-section.section-2 { border-left-color: var(--section-2-left); }
   .form-section.section-3 { border-left-color: var(--section-3-left); }
   .form-section.section-4 { border-left-color: var(--section-4-left); }
+  .form-section.section-5 { border-left-color: var(--section-5-left); }
+  .form-section.section-steps { border-left-color: var(--section-steps-left); }
 .form-section + .form-section { margin-top: 8px; }
 .form-section-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 .form-section-header .icon { width:36px; height:36px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; background:transparent; color:var(--accent); font-size:18px; }
@@ -569,11 +826,40 @@ form textarea[placeholder] {
 .form-section.section-2 .form-section-header .icon { background: linear-gradient(180deg, rgba(139,92,246,0.12), rgba(139,92,246,0.06)); color: var(--section-2-left); }
 .form-section.section-3 .form-section-header .icon { background: linear-gradient(180deg, rgba(22,163,74,0.12), rgba(22,163,74,0.06)); color: var(--section-3-left); }
 .form-section.section-4 .form-section-header .icon { background: linear-gradient(180deg, rgba(17,24,39,0.12), rgba(17,24,39,0.06)); color: var(--section-4-left); }
+.form-section.section-5 .form-section-header .icon { background: linear-gradient(180deg, rgba(245,158,11,0.16), rgba(245,158,11,0.08)); color: var(--section-5-left); }
+.form-section.section-steps .form-section-header .icon { background: linear-gradient(180deg, rgba(6,182,212,0.16), rgba(6,182,212,0.08)); color: var(--section-steps-left); }
 .form-section-header { padding: 8px 10px; border-radius: 8px; }
 .form-section.section-1 .section-title { color: var(--section-1-left); }
 .form-section.section-2 .section-title { color: var(--section-2-left); }
 .form-section.section-3 .section-title { color: var(--section-3-left); }
 .form-section.section-4 .section-title { color: var(--section-4-left); }
+.form-section.section-5 .section-title { color: var(--section-5-left); }
+.form-section.section-steps .section-title { color: var(--section-steps-left); }
+
+/* Clock card (date/time header) */
+#visitorClockWrap.clock-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(14,165,233,0.08));
+  border: 1px solid rgba(59,130,246,0.12);
+  box-shadow: var(--elev-1, 0 6px 20px rgba(0,0,0,0.04));
+  min-width: 140px;
+}
+#visitorClockWrap .clock-date {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-900, #0f172a);
+  letter-spacing: 0.2px;
+}
+#visitorClockWrap .clock-time {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-900, #0f172a);
+}
 
 /* Autofill the autocomplete suggestion items to be easier to tap */
 .autocomplete-item { padding: 12px 14px; font-size: 15px; }

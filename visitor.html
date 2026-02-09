@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Borang Daftar Pelawat — Banjaria Court</title>
+  <title>Borang Daftar Pelawat Banjaria Court</title>
 
   <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -107,15 +107,15 @@
       <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div>
           <a href="index.html" class="small">← Kembali ke Banjaria Court</a>
-          <h1 style="margin:6px 0 0 0">Borang Daftar Pelawat — Banjaria Court</h1>
+          <h1 style="margin:6px 0 0 0">Borang Daftar Pelawat Banjaria Court</h1>
           <p class="small" style="margin:6px 0 0 0">Sila lengkapkan maklumat. Medan bertanda <span style="color:#ef4444;font-weight:700">*</span> wajib diisi.</p>
         </div>
 
         <div style="display:flex;gap:12px;align-items:center">
           <!-- Theme toggle removed: default light theme -->
-          <div id="visitorClockWrap" style="text-align:right">
-            <div id="visitorDate" class="small muted" style="font-weight:700"></div>
-            <div id="visitorTime" class="muted-small"></div>
+          <div id="visitorClockWrap" class="clock-card" aria-label="Tarikh dan masa semasa">
+            <div id="visitorDate" class="clock-date">--/--/----</div>
+            <div id="visitorTime" class="clock-time">--:--:--</div>
           </div>
         </div>
       </header>
@@ -267,6 +267,18 @@
         </div>
 
         </div>
+        <!-- Bahagian 4 — Ringkasan & Bayaran -->
+        <div class="form-section section-5" style="margin-top:12px">
+          <div class="form-section-header">
+            <div class="icon" aria-hidden="true">💳</div>
+            <h3 class="section-title" style="margin:0">Bahagian 4 — Ringkasan & Bayaran</h3>
+          </div>
+          <div id="paymentSummary" class="card payment-summary">
+            <div class="muted-small">Pilih unit dan tarikh untuk melihat status tunggakan dan jumlah caj (jika ada).</div>
+          </div>
+        </div>
+
+        </div>
         <!-- Pengesahan -->
         <div class="form-section section-4" style="margin-top:12px">
           <div class="form-section-header">
@@ -294,6 +306,19 @@
           </fieldset>
         </div>
 
+        <!-- Langkah penghantaran (separate section) -->
+        <div class="form-section section-steps" style="margin-top:12px">
+          <div class="form-section-header">
+            <div class="icon" aria-hidden="true">ℹ️</div>
+            <h3 class="section-title" style="margin:0">Panduan Penghantaran</h3>
+          </div>
+          <div class="registration-steps">
+            Untuk lengkapkan pendaftaran, sila tekan pada:
+            <br>1) <strong>Hantar (Langkah 1)</strong> - untuk simpanan sistem
+            <br>2) <strong>Hantar melalui WhatsApp (Langkah 2)</strong> - untuk simpanan pihak Keselamatan
+          </div>
+        </div>
+
         <!-- aksi -->
         <div class="form-actions" style="margin-top:12px">
           <div>
@@ -302,7 +327,32 @@
             </div>
           </div>
           <div class="actions">
-            <button type="submit" id="submitBtn" class="btn">Hantar</button>
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+              <button type="submit" id="submitBtn" class="btn loader-btn">
+                <span class="loader-label">Hantar (Langkah 1)</span>
+                <span class="loader-complete" aria-hidden="true">Selesai</span>
+                <span class="loader-check" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                    <path d="M7.5 12.5 4.8 9.8c-.39-.39-1.02-.39-1.4 0-.39.39-.39 1.02 0 1.4l3.9 3.9c.39.39 1.02.39 1.4 0l8-8c.39-.39.39-1.02 0-1.4-.39-.39-1.02-.39-1.4 0L7.5 12.5Z" fill="currentColor"></path>
+                  </svg>
+                </span>
+              </button>
+              <div class="muted-small">Simpan dalam sistem.</div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+              <button type="button" id="waBtn" class="btn loader-btn" disabled>
+                <span class="loader-label">Hantar Melalui WhatsApp (Langkah 2)</span>
+                <span class="loader-complete" aria-hidden="true">Selesai</span>
+                <span class="loader-check" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                    <path d="M7.5 12.5 4.8 9.8c-.39-.39-1.02-.39-1.4 0-.39.39-.39 1.02 0 1.4l3.9 3.9c.39.39 1.02.39 1.4 0l8-8c.39-.39.39-1.02 0-1.4-.39-.39-1.02-.39-1.4 0L7.5 12.5Z" fill="currentColor"></path>
+                  </svg>
+                </span>
+              </button>
+              <div id="waHint" class="muted-small">Aktif selepas borang dihantar.</div>
+            </div>
+
             <button type="button" id="clearBtn" class="btn-ghost">Kosongkan</button>
             <div id="statusMsg" role="status" aria-live="polite" class="small" style="align-self:center;margin-left:8px"></div>
           </div>

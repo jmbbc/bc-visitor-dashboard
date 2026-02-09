@@ -85,6 +85,9 @@ function waitForFirestore(timeout = 5000){
 let visitorTimeTicker = null;
 let unitImportMetaTs = null;
 let unitImportMetaLabel = '';
+let currentUnitSnapshot = null;
+let currentUnitId = '';
+let pendingWaPayload = null;
 
 async function ensureUnitImportMeta(){
   if (unitImportMetaTs) return { ts: unitImportMetaTs, label: unitImportMetaLabel };
@@ -301,7 +304,7 @@ function updateUnitStatus(el) {
 function showStatus(msg, ok=true){
   // Always clear the inline status area. If msg is empty -> also clear any active toasts.
   const statusEl = document.getElementById('statusMsg');
-  try { if (statusEl) statusEl.innerHTML = ''; } catch(e) {}
+  try { if (statusEl) statusEl.innerHTML = ''; } catch(e) { console.warn('Failed to clear status message', e); }
   if (!msg) {
     // remove any lingering toasts
     clearAllToasts();
@@ -351,6 +354,158 @@ function freeDaysForCategory(cat){
   if (cat === 1) return 3;
   if (cat === 2) return 1;
   return 0; // cat 3 and others default to none
+}
+
+// Inline payment summary renderer (replaces popup)
+let paymentSummaryRequestId = 0;
+
+function renderPaymentUpdateNotice(lastUpdatedAt){
+  if (!lastUpdatedAt) return '';
+  const ts = formatDateTimeLocal(lastUpdatedAt) || '';
+  const suffix = unitImportMetaLabel || '';
+  return `<div class="muted-small" style="margin-top:6px;color:#b91c1c;font-weight:700;font-style:italic;font-size:12px;line-height:1.5;text-align:justify;">Kemaskini bagi rekod pembayaran dijalankan pada : ${ts}${suffix}.<br><br>Sebarang pembayaran secara atas talian (on-line), resit perlu dihantar melalui e-mail yang ditetapkan. Kegagalan untuk membuat demikian, akan menyebabkan rekod pembayaran tidak dapat dikemaskini.</div>`;
+}
+
+function resetPaymentSummary(msg){
+  const summary = document.getElementById('paymentSummary');
+  if (!summary) return;
+  summary.innerHTML = msg || '<div class="muted-small">Pilih unit dan tarikh untuk melihat status tunggakan dan jumlah caj (jika ada).</div>';
+}
+
+function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }) {
+  const summary = document.getElementById('paymentSummary');
+  if (!summary) return;
+  const hasSnapshot = !!unitSnapshot;
+  const arrearsAmount = hasSnapshot ? unitSnapshot.arrearsAmount : null;
+  const arrearsCat = hasSnapshot ? computeArrearsCategory(arrearsAmount) : null;
+  const isChargeableCategory = category === 'Pelawat' || category === 'Kontraktor';
+  const lastUpdatedAt = hasSnapshot ? (unitSnapshot.lastUpdatedAt || unitImportMetaTs || null) : (unitImportMetaTs || null);
+
+  const fmtDate = (d) => {
+    if (!d) return '-';
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yy = d.getFullYear();
+    return `${dd}/${mm}/${yy}`;
+  };
+
+  if (!unit) {
+    resetPaymentSummary();
+    return;
+  }
+
+  if (!units.includes(unit)) {
+    summary.innerHTML = '<div class="small">Unit tidak ditemui dalam senarai. Sila semak semula.</div>';
+    return;
+  }
+
+  if (!hasSnapshot) {
+    summary.innerHTML = '<div class="small">Memuat maklumat tunggakan unit...</div>';
+    return;
+  }
+
+  if (!arrearsCat || arrearsCat === 1) {
+    const free = freeDaysForCategory(1);
+    summary.innerHTML = [
+      `<div>Unit: <strong>${unit}</strong></div>`,
+      `<div class="small">Kategori : <strong>Kategori 1</strong></div>`,
+      `<div class="small">Parkir percuma : <strong>${free} hari</strong></div>`,
+      `<div class="small">Kadar cas dikenakan : <strong>RM 0.00 / hari</strong></div>`,
+      `<div class="small" style="margin-top:6px">Caj parkir pelawat: <strong>Percuma</strong>.</div>`,
+      renderPaymentUpdateNotice(lastUpdatedAt)
+    ].join('');
+    return;
+  }
+
+  if (!isChargeableCategory) {
+    summary.innerHTML = [
+      `<div><strong>Unit:</strong> ${unit}</div>`,
+      `<div class="small">Unit ini mempunyai tunggakan (Kategori ${arrearsCat}). Caj parkir hanya dikenakan untuk kategori Pelawat atau Kontraktor. Tiada caj dikira untuk kategori ini.</div>`,
+      renderPaymentUpdateNotice(lastUpdatedAt)
+    ].join('');
+    return;
+  }
+
+  if (!etaDate) {
+    summary.innerHTML = [
+      `<div><strong>Unit:</strong> ${unit}</div>`,
+      `<div class="small">Unit ini mempunyai tunggakan (Kategori ${arrearsCat}). Pilih tarikh masuk/keluar untuk kira caj.</div>`,
+      `<div class="small">Percuma: ${freeDaysForCategory(arrearsCat)} hari. Kadar: ${arrearsCat === 2 ? 'RM 5/hari' : 'RM 15/hari'}.</div>`,
+      renderPaymentUpdateNotice(lastUpdatedAt)
+    ].join('');
+    return;
+  }
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const start = etaDate;
+  const end = etdDate || start;
+  const totalDays = Math.floor((end.getTime() - start.getTime()) / dayMs) + 1;
+  const freeDays = Math.max(0, Math.min(freeDaysForCategory(arrearsCat), totalDays));
+  const rate = arrearsCat === 2 ? 5 : 15;
+  const chargedDays = Math.max(0, totalDays - freeDays);
+  const totalAmount = chargedDays * rate;
+
+  const rows = [];
+  for (let i=0; i<totalDays; i++) {
+    const d = new Date(start.getTime()); d.setDate(d.getDate() + i);
+    const label = i < freeDays ? 'Percuma' : `RM ${rate.toFixed(2)}`;
+    rows.push(`<li style="margin-bottom:4px">${fmtDate(d)} : <strong>${label}</strong></li>`);
+  }
+
+  summary.innerHTML = [
+    `<div>Unit: <strong>${unit}</strong></div>`,
+    `<div class="small">Kategori : <strong>Kategori ${arrearsCat}</strong></div>`,
+    `<div class="small">Parkir percuma : <strong>${freeDays} hari</strong></div>`,
+    `<div class="small">Kadar cas dikenakan : <strong>RM ${rate.toFixed(2)} / hari</strong></div>`,
+    `<div class="small" style="margin-top:6px">Julat tarikh: <strong>${fmtDate(start)} hingga ${fmtDate(end)}</strong></div>`,
+    `<ul class="arrears-payment-list small muted" style="margin-top:6px;padding-left:18px">${rows.join('')}</ul>`,
+    `<div style="margin-top:8px">Jumlah perlu bayar: <strong>RM ${totalAmount.toFixed(2)}</strong></div>`,
+    renderPaymentUpdateNotice(lastUpdatedAt)
+  ].join('');
+}
+
+async function updatePaymentSummary(){
+  const summary = document.getElementById('paymentSummary');
+  const unitInput = document.getElementById('hostUnit');
+  if (!summary || !unitInput) return;
+
+  const unitVal = normalizeUnitInput(unitInput.value || '');
+  const categoryEl = document.getElementById('category');
+  const stayOverEl = document.getElementById('stayOver');
+  const etaEl = document.getElementById('eta');
+  const etdEl = document.getElementById('etd');
+  const category = categoryEl?.value || '';
+  const stayOver = stayOverEl?.value || 'No';
+  const etaDate = etaEl?.value ? dateFromInputDateOnly(etaEl.value) : null;
+  // For Pelawat with Tidak Bermalam, treat ETD as ETA
+  let etdDate = etdEl?.value ? dateFromInputDateOnly(etdEl.value) : null;
+  if (category === 'Pelawat' && stayOver !== 'Yes') etdDate = etaDate;
+
+  if (!unitVal) { resetPaymentSummary(); currentUnitId = ''; currentUnitSnapshot = null; return; }
+  if (!units.includes(unitVal)) { renderChargesSummary({ unit: unitVal, unitSnapshot: null, etaDate, etdDate, category }); return; }
+
+  const reqId = ++paymentSummaryRequestId;
+  if (currentUnitId !== unitVal) {
+    summary.innerHTML = '<div class="small">Memuat maklumat unit...</div>';
+    try {
+      const snap = await (async () => {
+        if (!window.__FIRESTORE) return null;
+        const unitRef = doc(window.__FIRESTORE, 'units', unitVal);
+        const udoc = await getDoc(unitRef);
+        return (udoc && udoc.exists()) ? udoc.data() : null;
+      })();
+      if (reqId !== paymentSummaryRequestId) return; // stale
+      currentUnitId = unitVal;
+      currentUnitSnapshot = snap;
+    } catch (e) {
+      if (reqId !== paymentSummaryRequestId) return;
+      console.warn('Gagal memuat unit snapshot', e);
+      currentUnitSnapshot = null;
+    }
+  }
+
+  if (reqId !== paymentSummaryRequestId) return;
+  renderChargesSummary({ unit: unitVal, unitSnapshot: currentUnitSnapshot, etaDate, etdDate, category });
 }
 
 function showUnitNoticeModal({ category, amount, eta, etd, visitorCategory, lastUpdatedAt }){
@@ -1082,10 +1237,43 @@ document.addEventListener('DOMContentLoaded', () => {
   const wrapper = input?.closest('.autocomplete-wrap');
   const listEl = document.getElementById('unitSuggestions');
   const confirmAgreeEl = document.getElementById('confirmAgree');
+  const waBtn = document.getElementById('waBtn');
+  const waHint = document.getElementById('waHint');
+  let isMockSubmit = false;
+
+  function resetWhatsAppAction(){
+    pendingWaPayload = null;
+    if (waBtn) {
+      waBtn.disabled = true;
+      waBtn.classList.add('btn-disabled');
+      waBtn.classList.remove('is-active','is-loading','is-success');
+    }
+    if (waHint) waHint.textContent = 'Aktif selepas borang dihantar.';
+  }
+
+  function enableWhatsAppAction(payload){
+    pendingWaPayload = payload;
+    if (waBtn) {
+      waBtn.disabled = false;
+      waBtn.classList.remove('btn-disabled','is-loading','is-success');
+    }
+    if (waHint) waHint.textContent = 'Tekan untuk buka WhatsApp dan hantar mesej (Langkah 2).';
+  }
+
+  function playButtonSuccessAnimation(btn){
+    if (!btn) return;
+    if (btn.classList.contains('loader-btn')) {
+      btn.classList.remove('is-loading');
+      btn.classList.add('is-success');
+      return;
+    }
+    btn.classList.add('is-active');
+  }
 
   // Debug helper: if URL contains ?debug=1, show a visible test button to simulate WhatsApp open (useful for iPhone tests)
   try {
     const params = new URLSearchParams(window.location.search);
+    isMockSubmit = params.get('mockSubmit') === '1' || params.get('mock') === '1';
     if (params.get('debug') === '1' || params.get('debug') === 'true') {
       const statusEl = document.getElementById('statusMsg');
       if (statusEl) {
@@ -1140,6 +1328,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // clear inline status / toast so UI is less noisy
         showStatus('', true);
       }
+      if (pendingWaPayload) resetWhatsAppAction();
     } catch (err) { /* ignore */ }
   });
 
@@ -1177,7 +1366,7 @@ document.addEventListener('DOMContentLoaded', () => {
   input?.addEventListener('blur', () => setTimeout(()=> closeSuggestions(wrapper), 150));
 
   // normalization on blur
-  input?.addEventListener('blur', (e) => {
+  input?.addEventListener('blur', async (e) => {
     const norm = normalizeUnitInput(e.target.value || '');
     e.target.value = norm;
     if (norm && !isPatternValidUnit(norm)) {
@@ -1192,10 +1381,18 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUnitStatus(input);
         try { input.focus(); } catch(e) {}
         showStatus('Unit tidak ditemui dalam senarai; pastikan ia betul.', false);
+        currentUnitId = '';
+        currentUnitSnapshot = null;
+        resetPaymentSummary('Unit tidak ditemui dalam senarai.');
       } else {
         clearFieldError(input);
         updateUnitStatus(input);
         showStatus('', true);
+        if (norm && units.includes(norm)) {
+          await updatePaymentSummary();
+        } else {
+          resetPaymentSummary();
+        }
       }
     }
   });
@@ -1276,6 +1473,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const vehicleMultiWrap = document.getElementById('vehicleMultiWrap');
     const vehicleList = document.getElementById('vehicleList');
     const addVehicleBtn = document.getElementById('addVehicleBtn');
+    resetWhatsAppAction();
 
     await updateUnitsLastUpdatedLabel();
 
@@ -1479,12 +1677,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (stayOverEl) { /* stayOver logic preserved from before */ }
       updateVehicleControlsForCategory(v);
       updateEtdState(v);
+      updatePaymentSummary();
       // show category helper note if available
       try { showCategoryHelp(); } catch(e) { /* ignore */ }
     });
 
     subCategoryEl?.addEventListener('change', showSubCategoryHelp);
-    stayOverEl?.addEventListener('change', () => { const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); });
+    stayOverEl?.addEventListener('change', () => { const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); updatePaymentSummary(); });
     addVehicleBtn?.addEventListener('click', () => { if (addVehicleBtn.disabled) return; if (!vehicleList) return; vehicleList.appendChild(createVehicleRow('')); });
 
     etaEl?.addEventListener('change', () => {
@@ -1495,7 +1694,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2)
       const toIso = d => { const yy = d.getFullYear(); const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0'); return `${yy}-${mm}-${dd}`; };
       if (etdEl) { etdEl.min = toIso(etaDate); etdEl.max = toIso(maxDate); const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); }
+      updatePaymentSummary();
     });
+
+    etdEl?.addEventListener('change', () => { updatePaymentSummary(); });
 
     const initCat = categoryEl?.value?.trim() || '';
     // If initial category is empty/default or Pelawat or Pelawat Khas, hide both sub-category and company
@@ -1553,13 +1755,20 @@ document.addEventListener('DOMContentLoaded', () => {
     updateVehicleControlsForCategory(initCat);
     updateEtdState(initCat);
     try { showCategoryHelp(); } catch(e) { /* ignore */ }
+    updatePaymentSummary();
 
     const submitBtn = document.getElementById('submitBtn');
 
     // submit
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      showStatus('Memproses...', true);
+      if (isMockSubmit) {
+        showStatus('', true);
+        playButtonSuccessAnimation(submitBtn);
+        enableWhatsAppAction({ mock: true });
+        return;
+      }
+      showStatus('', true);
 
       const rawUnit = document.getElementById('hostUnit')?.value || '';
       const hostUnit = normalizeUnitInput(rawUnit);
@@ -1644,25 +1853,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const unitRef = doc(window.__FIRESTORE, 'units', hostUnit);
         const udoc = await getDoc(unitRef);
         if (udoc && udoc.exists()) unitSnapshot = udoc.data();
+        currentUnitId = hostUnit;
+        currentUnitSnapshot = unitSnapshot;
+        updatePaymentSummary();
       } catch(e) { /* ignore if read fails */ }
-
-      // Show notice for arrears category (non-blocking submission, but requires acknowledgement)
-      if (unitSnapshot && typeof unitSnapshot.arrearsAmount === 'number') {
-        const arrearsCat = computeArrearsCategory(unitSnapshot.arrearsAmount);
-        if (arrearsCat && arrearsCat >= 2) {
-          // get latest CSV import timestamp if available
-          let metaTs = unitImportMetaTs || null;
-          if (!metaTs) {
-            try { const meta = await ensureUnitImportMeta(); metaTs = meta.ts || null; } catch(e) { /* ignore */ }
-          }
-          if (!metaTs) metaTs = unitSnapshot.lastUpdatedAt || null;
-          const acknowledged = await showUnitNoticeModal({ category: arrearsCat, amount: unitSnapshot.arrearsAmount, eta: etaDate, etd: etdDate, visitorCategory: category, lastUpdatedAt: metaTs });
-          if (!acknowledged) {
-            showStatus('Pendaftaran dibatalkan.', false);
-            return;
-          }
-        }
-      }
 
       const payload = {
         hostUnit,
@@ -1705,25 +1899,26 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // disable submit to prevent double click / double submit
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('btn-disabled'); }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('btn-disabled');
+        submitBtn.classList.add('is-loading');
+        submitBtn.classList.remove('is-success');
+      }
 
       try {
         // attempt create with server-side dedupe transaction
         // create response (atomic) and dedupe key inside a transaction to avoid duplicates
         const resp = await createResponseWithDedupe(payload);
-
-        // QUICK WA: attempt to open WhatsApp (app -> web). If blocked show action button for user gesture.
-        try { openWhatsAppNotification(payload); } catch (e) { console.warn('WA open failed', e); }
-
         if (resp && resp.fallback) {
           // we succeeded but without dedupe enforcement (callable not available or blocked)
-          showStatus('Pendaftaran berjaya (tanpa semakan duplikasi).', true);
           // mark in local cache so subsequent accidental resubmits are blocked by client
           try { clientMarkSubmission(_fingerprint); } catch(e) {}
         } else {
-          showStatus('Pendaftaran berjaya. Terima kasih.', true);
           try { clientMarkSubmission(_fingerprint); } catch(e) {}
         }
+        enableWhatsAppAction(payload);
+        playButtonSuccessAnimation(submitBtn);
         form.reset();
         // clear any visual error state left on the hostUnit input after reset
         try { clearFieldError(document.getElementById('hostUnit')); updateUnitStatus(document.getElementById('hostUnit')); } catch(e) {}
@@ -1736,6 +1931,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (vehicleList) vehicleList.innerHTML = '';
         if (addVehicleBtn) { addVehicleBtn.disabled = true; addVehicleBtn.classList.add('btn-disabled'); }
         if (stayOverEl) { stayOverEl.disabled = true; stayOverEl.value = 'No'; }
+        resetPaymentSummary();
         // hide ETA and ETD after successful submit (form reset -> default state)
         const etaWrapAfter = document.getElementById('etaWrap');
         if (etaWrapAfter) { try { etaWrapAfter.style.setProperty('display','none','important'); } catch(e) { etaWrapAfter.style.display='none'; } etaWrapAfter.classList.add('hidden'); etaWrapAfter.setAttribute('aria-hidden','true'); }
@@ -1775,8 +1971,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } finally {
         // always re-enable submit btn after attempt
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('btn-disabled'); }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('btn-disabled');
+          submitBtn.classList.remove('is-loading');
+        }
       }
+    });
+
+    waBtn?.addEventListener('click', () => {
+      if (isMockSubmit && !pendingWaPayload) {
+        pendingWaPayload = { mock: true };
+        enableWhatsAppAction(pendingWaPayload);
+      }
+      if (!pendingWaPayload) return;
+      waBtn.classList.add('is-loading');
+      waBtn.classList.remove('is-success');
+      playButtonSuccessAnimation(waBtn);
+      if (isMockSubmit) return;
+      try { openWhatsAppNotification(pendingWaPayload); } catch (e) { console.warn('WA open failed', e); }
     });
 
     // clear handler
@@ -1793,6 +2006,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (vehicleList) vehicleList.innerHTML = '';
       if (addVehicleBtn) { addVehicleBtn.disabled = true; addVehicleBtn.classList.add('btn-disabled'); }
       if (stayOverEl) { stayOverEl.disabled = true; stayOverEl.value = 'No'; }
+      resetPaymentSummary();
+      resetWhatsAppAction();
+      try { submitBtn?.classList.remove('is-active','is-loading','is-success'); } catch(e) {}
       // hide ETA and ETD when form cleared
       const etaWrapClear = document.getElementById('etaWrap');
       if (etaWrapClear) { try { etaWrapClear.style.setProperty('display','none','important'); } catch(e) { etaWrapClear.style.display='none'; } etaWrapClear.classList.add('hidden'); etaWrapClear.setAttribute('aria-hidden','true'); }
