@@ -1762,13 +1762,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // submit
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      showStatus('', true);
+
       if (isMockSubmit) {
-        showStatus('', true);
-        playButtonSuccessAnimation(submitBtn);
-        enableWhatsAppAction({ mock: true });
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.classList.add('btn-disabled', 'is-loading');
+          submitBtn.classList.remove('is-success');
+        }
+        setTimeout(() => {
+          playButtonSuccessAnimation(submitBtn);
+          enableWhatsAppAction({ mock: true });
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('btn-disabled', 'is-loading');
+          }
+        }, 550);
         return;
       }
-      showStatus('', true);
 
       const rawUnit = document.getElementById('hostUnit')?.value || '';
       const hostUnit = normalizeUnitInput(rawUnit);
@@ -1987,8 +1998,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!pendingWaPayload) return;
       waBtn.classList.add('is-loading');
       waBtn.classList.remove('is-success');
+      if (isMockSubmit) {
+        setTimeout(() => {
+          playButtonSuccessAnimation(waBtn);
+          waBtn.classList.remove('is-loading');
+        }, 450);
+        return;
+      }
       playButtonSuccessAnimation(waBtn);
-      if (isMockSubmit) return;
       try { openWhatsAppNotification(pendingWaPayload); } catch (e) { console.warn('WA open failed', e); }
     });
 
