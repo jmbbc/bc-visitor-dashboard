@@ -22,6 +22,33 @@ function formatDateOnly(ts){
   const yy = d.getFullYear();
   return `${dd}/${mm}/${yy}`;
 }
+function formatDateTime(ts){
+  if (!ts) return '-';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  if (!d || isNaN(d.getTime())) return '-';
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const min = String(d.getMinutes()).padStart(2,'0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+}
+function formatTime(ts){
+  if (!ts) return '-';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  if (!d || isNaN(d.getTime())) return '-';
+  const hh = String(d.getHours()).padStart(2,'0');
+  const min = String(d.getMinutes()).padStart(2,'0');
+  return `${hh}:${min}`;
+}
+function formatAmount(val){
+  try {
+    if (val === null || val === undefined) return '—';
+    const num = Number(val);
+    if (!isFinite(num)) return '—';
+    return num.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch(e){ return '—'; }
+}
 function isoDateString(d){ const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const yy = d.getFullYear(); return `${yy}-${mm}-${dd}`; }
 
 // Arrears helpers: determine category and free days
@@ -43,7 +70,7 @@ function computeChargeForDates(cat, eta, etd){ try {
   const rate = rateMap[cat] || 0;
   const total = chargedDays * rate;
   const lines = [];
-  for (let i=0;i<totalDays;i++){ const d = new Date(start.getTime()); d.setDate(d.getDate() + i); const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const yyyy = d.getFullYear(); const label = (i < free) ? 'Percuma' : `RM ${rate.toFixed(2)}`; lines.push(`${dd}/${mm}/${yyyy} = ${label}`); }
+  for (let i=0;i<totalDays;i++){ const d = new Date(start.getTime()); d.setDate(d.getDate() + i); const dd = String(d.getDate()).padStart(2,'0'); const mm = String(d.getMonth()+1).padStart(2,'0'); const yyyy = d.getFullYear(); const label = (i < free) ? 'Percuma' : `RM ${formatAmount(rate)}`; lines.push(`${dd}/${mm}/${yyyy} = ${label}`); }
   return { total, breakdown: lines };
 } catch(e){ return { total:0, breakdown:[] }; } }
 function showLoginMsg(el, m, ok=true){ el.textContent = m; el.style.color = ok ? 'green' : 'red'; }
@@ -479,35 +506,65 @@ const weekResponseCache = Object.create(null);
 const responsesEtSupplemented = Object.create(null);
 
 function filterRowsBySearch(rows, term){
-  const q = (term || '').trim().toLowerCase();
-  if (!q) return rows;
-  return (rows || []).filter(r => {
-    const plates = [];
-    if (r.vehicleNo) plates.push(String(r.vehicleNo));
-    if (Array.isArray(r.vehicleNumbers)) plates.push(...r.vehicleNumbers.map(String));
-    else if (typeof r.vehicleNumbers === 'string') plates.push(String(r.vehicleNumbers));
+  try {
+    const q = (term || '').trim().toLowerCase();
+    if (!q) return rows;
+    return (rows || []).filter(r => {
+      const plates = [];
+      if (r && r.vehicleNo) plates.push(String(r.vehicleNo));
+      if (r && Array.isArray(r.vehicleNumbers)) plates.push(...r.vehicleNumbers.map(String));
+      else if (r && typeof r.vehicleNumbers === 'string') plates.push(String(r.vehicleNumbers));
 
-    const parts = [
-      r.visitorName,
-      r.hostName,
-      r.hostUnit,
-      r.visitorPhone,
-      r.hostPhone,
-      r.category,
-      r.status,
-      r.entryDetails,
-      plates.join(' '),
-      r.unitCategory,
-    ];
-    return parts.some(p => p && String(p).toLowerCase().includes(q));
+      const parts = [
+        r?.visitorName,
+        r?.hostName,
+        r?.hostUnit,
+        r?.visitorPhone,
+        r?.hostPhone,
+        r?.category,
+        r?.status,
+        r?.entryDetails,
+        plates.join(' '),
+        r?.unitCategory,
+      ];
+      return parts.some(p => p && String(p).toLowerCase().includes(q));
+    });
+  } catch (e) {
+    console.warn('[filterRowsBySearch] fallback (error)', e);
+    return rows || [];
+  }
+}
+
+function sortRowsBySubmitted(rows){
+  const toMs = (val) => {
+    try {
+      if (!val) return Number.MAX_SAFE_INTEGER;
+      const d = val.toDate ? val.toDate() : new Date(val);
+      const ms = d instanceof Date ? d.getTime() : Number.MAX_SAFE_INTEGER;
+      return isNaN(ms) ? Number.MAX_SAFE_INTEGER : ms;
+    } catch(e){ return Number.MAX_SAFE_INTEGER; }
+  };
+  return [...(rows || [])].sort((a,b) => {
+    const ca = toMs(a?.createdAt);
+    const cb = toMs(b?.createdAt);
+    if (ca !== cb) return ca - cb;
+    // tie-breaker: ETA
+    const ea = toMs(a?.eta);
+    const eb = toMs(b?.eta);
+    return ea - eb;
   });
 }
 
 function renderSummaryWithSearch(rows){
-  responseCache.rows = rows || [];
-  const term = summarySearch ? summarySearch.value : '';
-  const filtered = filterRowsBySearch(responseCache.rows, term);
-  renderList(filtered, listAreaSummary, false);
+  try {
+    responseCache.rows = rows || [];
+    const term = summarySearch ? summarySearch.value : '';
+    const filtered = filterRowsBySearch(responseCache.rows, term);
+    renderList(filtered, listAreaSummary, false);
+  } catch (e) {
+    console.warn('[renderSummaryWithSearch] error; showing unfiltered rows', e);
+    try { renderList(rows || [], listAreaSummary, false); } catch(err){ console.warn('[renderSummaryWithSearch] fallback failed', err); }
+  }
 }
 
 function startAutoRefresh(intervalMs = 600_000){
@@ -1543,7 +1600,8 @@ async function loadListForDateStr(yyyymmdd){
     // If we have cached rows for this date, render them immediately so the UI is responsive.
     // Then continue and fetch fresh data in the background so the UI eventually reconciles.
     if (responseCache.date === yyyymmdd && Array.isArray(responseCache.rows) && responseCache.rows.length) {
-      const rows = responseCache.rows;
+      const rows = sortRowsBySubmitted(responseCache.rows);
+      responseCache.rows = rows;
       // KPIs
       let pending = 0, checkedIn = 0, checkedOut = 0;
       rows.forEach(r => {
@@ -1563,7 +1621,8 @@ async function loadListForDateStr(yyyymmdd){
     // try to reuse the cached rows for this date when available
     let rows = [];
     if (responseCache.date === yyyymmdd && Array.isArray(responseCache.rows) && responseCache.rows.length) {
-      rows = responseCache.rows;
+      rows = sortRowsBySubmitted(responseCache.rows);
+      responseCache.rows = rows;
     } else {
       // We'll rely on snapshot / local rows for KPI computation to reduce remote count reads on Spark.
       const col = collection(window.__FIRESTORE, 'responses');
@@ -1618,7 +1677,8 @@ async function loadListForDateStr(yyyymmdd){
               const filtered = filterRowsForDay(freshRows);
               // update cache + UI
               responseCache.date = yyyymmdd;
-              responseCache.rows = filtered;
+              const sorted = sortRowsBySubmitted(filtered);
+              responseCache.rows = sorted;
 
               // recompute KPIs and render
               let pending = 0, checkedIn = 0, checkedOut = 0;
@@ -1628,8 +1688,8 @@ async function loadListForDateStr(yyyymmdd){
                 else if (r.status === 'Checked Out') checkedOut++;
               });
               renderKPIs(pending, checkedIn, checkedOut);
-              renderSummaryWithSearch(filtered);
-              renderCheckedInList(filtered.filter(r => r.status === 'Checked In'));
+              renderSummaryWithSearch(sorted);
+              renderCheckedInList(sorted.filter(r => r.status === 'Checked In'));
             })();
 
             console.info('[onSnapshot] freshRows length', freshRows.length, 'for', yyyymmdd);
@@ -1826,14 +1886,15 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
   const wrap = document.createElement('div');
   wrap.className = 'table-wrap';
   const table = document.createElement('table');
-  table.className = 'table';
+  table.className = 'table registration-table';
     const thead = document.createElement('thead');
     thead.innerHTML = `<tr>
+      <th>Tarikh & Masa Borang Di isi</th>
       <th>Nama Pelawat</th>
       <th>Unit / Tuan Rumah</th>
       <th>Kategori Unit</th>
-      <th>ETA</th>
-      <th>ETD</th>
+      <th>Jumlah Tunggakan</th>
+      <th>ETA / ETD</th>
       <th>Kenderaan</th>
       <th>Kategori</th>
       <th>Status</th>
@@ -1862,60 +1923,63 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     const catClass = categoryClassMap[categoryDisplay] || 'cat-lain';
     const statusClass = r.status === 'Checked In' ? 'pill-in' : (r.status === 'Checked Out' ? 'pill-out' : 'pill-pending');
 
+    // Unit category + arrears/payment computation (used by two columns)
+    const live = unitsCache[r.hostUnit] || {};
+    const uc = (live.category && String(live.category).trim()) ? String(live.category).trim() : ((r.unitCategory && String(r.unitCategory).trim()) ? String(r.unitCategory).trim() : '—');
+    const arrears = (typeof live.arrears === 'boolean') ? live.arrears : (r.unitArrears === true);
+    const amount = (typeof live.arrearsAmount === 'number') ? live.arrearsAmount : ((typeof r.unitArrearsAmount === 'number') ? r.unitArrearsAmount : null);
+    let badgeLabel = uc;
+    let badgeClassExtra = '';
+    try {
+      if (arrears && amount !== null) {
+        const aCat = computeArrearsCategory(amount);
+        if (aCat) {
+          badgeLabel = `Kategori ${aCat}`;
+          badgeClassExtra = ` unit-cat-arrears-${aCat}`;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      if ((!uc || uc === '—') && !arrears) {
+        badgeLabel = 'Kategori 1';
+        badgeClassExtra = ' unit-cat-kategori-1';
+      }
+    } catch (e) { /* ignore */ }
+    const badge = `<span class="unit-cat-badge${badgeClassExtra}">${escapeHtml(String(badgeLabel))}</span>`;
+
+    let paymentHtml = '';
+    let arrearsAmountDisplay = null;
+    let paymentAmountDisplay = null;
+    try {
+      if (arrears && amount !== null) {
+        const visitorCat = (r.category || '').trim();
+        if (visitorCat === 'Pelawat' || visitorCat === 'Kontraktor') {
+          const cat = computeArrearsCategory(amount);
+          const charge = computeChargeForDates(cat, r.eta, r.etd);
+          if (charge && typeof charge.total === 'number') {
+            paymentHtml = `<div class="payment-block"><div class="line-strong">Jumlah pembayaran :</div><div class="line-strong">RM ${formatAmount(charge.total)}</div></div>`;
+            paymentAmountDisplay = charge.total;
+          }
+        } else {
+          paymentHtml = `<div class="small muted" style="margin-top:4px">—</div>`;
+        }
+        arrearsAmountDisplay = amount;
+      }
+    } catch(e) { /* ignore */ }
+    const unitCategoryHtml = `${badge}${paymentHtml}`;
+
     const tr = document.createElement('tr');
     if (highlightIds && highlightIds.has(r.id)) tr.classList.add('conflict');
     tr.innerHTML = `
+      <td class="timestamp-cell"><div class="ts-date">${formatDateOnly(r.createdAt)}</div><div class="ts-time">${formatTime(r.createdAt)}</div></td>
       <td class="visitor-cell">${escapeHtml(r.visitorName || '')}${r.entryDetails ? '<div class="small">'+escapeHtml(r.entryDetails || '')+'</div>' : ''}${r.visitorPhone ? (function(){ const waHref = normalizePhoneForWhatsapp(r.visitorPhone); return '<div class="small visitor-phone"><a class="tel-link" href="'+waHref+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(r.visitorPhone)+'</a></div>'; })() : ''}</td>
       <td>${escapeHtml(r.hostUnit || '')}${hostContactHtml ? '<div class="small">'+hostContactHtml+'</div>' : ''}</td>
-      <td>${(function(){
-        // Prefer live units data for up-to-date arrears/category; fallback to embedded snapshot
-        const live = unitsCache[r.hostUnit] || {};
-        const uc = (live.category && String(live.category).trim()) ? String(live.category).trim() : ((r.unitCategory && String(r.unitCategory).trim()) ? String(r.unitCategory).trim() : '—');
-        const arrears = (typeof live.arrears === 'boolean') ? live.arrears : (r.unitArrears === true);
-        const amount = (typeof live.arrearsAmount === 'number') ? live.arrearsAmount : ((typeof r.unitArrearsAmount === 'number') ? r.unitArrearsAmount : null);
-        // decide badge label: if unit has arrears, show 'Kategori N' (2 or 3); otherwise show unit category string
-        let badgeLabel = uc;
-        let badgeClassExtra = '';
-        try {
-          if (arrears && amount !== null) {
-            const aCat = computeArrearsCategory(amount);
-            if (aCat) {
-              badgeLabel = `Kategori ${aCat}`;
-              badgeClassExtra = ` unit-cat-arrears-${aCat}`; // apply color class
-            }
-          }
-        } catch (e) { /* ignore */ }
-        // If unit has no explicit category and no arrears, treat as Kategori 1 (green)
-        try {
-          if ((!uc || uc === '—') && !arrears) {
-            badgeLabel = 'Kategori 1';
-            badgeClassExtra = ' unit-cat-kategori-1';
-          }
-        } catch (e) { /* ignore */ }
-        const badge = `<span class="unit-cat-badge${badgeClassExtra}">${escapeHtml(String(badgeLabel))}</span>`; 
-
-        // compute payable amount (based on ETA/ETD and arrears category)
-        let paymentHtml = '';
-        try {
-          if (arrears && amount !== null) {
-            const visitorCat = (r.category || '').trim();
-            if (visitorCat === 'Pelawat' || visitorCat === 'Kontraktor') {
-              const cat = computeArrearsCategory(amount);
-              const charge = computeChargeForDates(cat, r.eta, r.etd);
-              if (charge && typeof charge.total === 'number') {
-                paymentHtml = `<div class="small" style="margin-top:4px;color:#b91c1c">Jumlah pembayaran : RM ${charge.total.toFixed(2)}</div>`;
-              }
-            } else {
-              // do not show payment for other visitor categories
-              paymentHtml = `<div class="small muted" style="margin-top:4px">—</div>`;
-            }
-          }
-        } catch(e) { /* ignore */ }
-        const t = `${badge}${arrears ? ' <div class="small" style="margin-top:4px;color:#b91c1c">Tunggakan'+(amount !== null ? ': RM'+String(amount) : '')+'</div>' : ''}${paymentHtml}`;
-        return t;
+      <td>${unitCategoryHtml}</td>
+      <td class="arrears-cell">${(function(){
+        if (arrearsAmountDisplay === null) return '—';
+        return `<div class="line-strong">RM ${formatAmount(arrearsAmountDisplay)}</div>`;
       })()}</td>
-      <td>${formatDateOnly(r.eta)}</td>
-      <td>${formatDateOnly(r.etd)}</td>
+      <td class="eta-etd-cell"><span class="eta-pill">${formatDateOnly(r.eta)}</span><span class="etd-pill">${formatDateOnly(r.etd)}</span></td>
       <td>${escapeHtml(vehicleDisplay)}</td>
       <td><span class="cat-badge ${catClass}">${escapeHtml(categoryDisplay)}</span></td>
       <td><span class="status-pill ${statusClass}">${escapeHtml(r.status || 'Pending')}</span></td>
@@ -3071,8 +3135,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
       let listHtml = '';
       if (pelawatRows.length) {
         // show a tiny list of unassigned items for quick action
-        const sample = pelawatRows.slice(0,6);
-        listHtml = '<div style="margin-top:8px">';
+        const sample = pelawatRows.slice(0,5);
+        listHtml += '<div style="margin-top:8px">';
         sample.forEach(r => {
           const phone = r.visitorPhone ? escapeHtml(r.visitorPhone) : '-';
           const slot = r.parkingLot ? `<strong>Lot ${escapeHtml(r.parkingLot)}</strong>` : '<em>Belum assigned</em>';
@@ -3081,9 +3145,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if (pelawatRows.length > sample.length) listHtml += `<div class="small muted" style="margin-top:6px">+${pelawatRows.length - sample.length} lagi...</div>`;
         listHtml += '</div>';
       } else {
-        listHtml = '<div class="small">Tiada rekod pelawat pada tarikh ini.</div>';
+        listHtml = '<div class="small muted" style="margin-top:8px">Tiada pelawat bermalam.</div>';
       }
-
       wrap.innerHTML = `
         <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
           <div style="display:flex;gap:10px;align-items:center">
