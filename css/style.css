@@ -711,7 +711,10 @@ form .form-row .field-note{
   gap: 0 12px;
   align-items: center;
 }
-.form-actions .actions{ justify-self: start; display:flex; gap:8px; }
+.form-actions .actions{ justify-self: start; display:flex; flex-direction: column; gap:8px; align-items: stretch; width: 100%; }
+.form-actions .actions > div { width: 100%; }
+.form-actions .actions .loader-btn { width: 100%; min-width: 0; }
+.form-actions .actions button { width: 100%; }
 
 /* Inline two-column helper */
 .inline-two { display: grid !important; grid-template-columns: 1fr 1fr !important; gap:8px !important; align-items:start !important; }
@@ -862,6 +865,22 @@ form textarea[placeholder] {
 .form-section.section-4 .section-title { color: var(--section-4-left); }
 .form-section.section-5 .section-title { color: var(--section-5-left); }
 .form-section.section-steps .section-title { color: var(--section-steps-left); }
+
+/* Context note inside a form section (used for Bahagian 2) */
+.section-note {
+  margin: 0 0 12px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--input-border);
+  border-left: 4px solid var(--section-2-left);
+  background: rgba(139, 92, 246, 0.06);
+  color: var(--text-900);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.section-note strong { color: var(--section-2-left); }
+.section-note-list { margin: 6px 0 0 0; padding-left: 18px; }
+.section-note-list li { margin: 2px 0; }
 
 /* Clock card (date/time header) */
 #visitorClockWrap.clock-card {

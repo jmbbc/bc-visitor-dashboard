@@ -1018,6 +1018,48 @@ const categoryHelpMap = {
   'Drop-off': 'Pendaftaran untuk mengambil atau menghantar penghuni di dalam Banjaria Court. (Maksimum 15 minit waktu yang dibenarkan untuk berada di dalam Banjaria Court)'
 };
 
+// Render the Bahagian 2 category note using the same descriptions as the inline helper
+function renderCategorySectionNote() {
+  const note = document.getElementById('sectionCategoryNote');
+  if (!note) return;
+  const select = document.getElementById('category');
+
+  const items = [];
+  if (select) {
+    Array.from(select.options || []).forEach(opt => {
+      const val = opt.value;
+      if (!val) return;
+      if (categoryHelpMap[val]) items.push([val, categoryHelpMap[val]]);
+    });
+  }
+  if (!items.length) {
+    Object.entries(categoryHelpMap).forEach(([key, text]) => items.push([key, text]));
+  }
+
+  if (!items.length) {
+    note.textContent = '';
+    note.setAttribute('aria-hidden', 'true');
+    return;
+  }
+
+  note.innerHTML = '';
+  const title = document.createElement('strong');
+  title.textContent = 'Tujuan kategori:';
+  const ul = document.createElement('ul');
+  ul.className = 'section-note-list';
+  items.forEach(([label, text]) => {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = label;
+    li.appendChild(strong);
+    li.appendChild(document.createTextNode(`: ${text}`));
+    ul.appendChild(li);
+  });
+  note.appendChild(title);
+  note.appendChild(ul);
+  note.removeAttribute('aria-hidden');
+}
+
 function setCompanyFieldState(show) {
   const companyWrap = document.getElementById('companyWrap');
   const companyInput = document.getElementById('companyName');
@@ -1089,26 +1131,6 @@ function showSubCategoryHelp() {
 
   if (val && subCategoryHelpMap[val]) {
     helpEl.textContent = subCategoryHelpMap[val];
-    helpWrap.classList.remove('hidden');
-    helpWrap.removeAttribute('aria-hidden');
-    try { helpWrap.style.removeProperty('display'); } catch(e) { helpWrap.style.display = ''; }
-  } else {
-    helpEl.textContent = '';
-    helpWrap.classList.add('hidden');
-    helpWrap.setAttribute('aria-hidden','true');
-    try { helpWrap.style.setProperty('display','none','important'); } catch(e) { helpWrap.style.display = 'none'; }
-  }
-}
-
-function showCategoryHelp(){
-  const select = document.getElementById('category');
-  const val = select?.value || '';
-  const helpWrap = document.getElementById('categoryHelpWrap');
-  const helpEl = document.getElementById('categoryHelp');
-  if (!helpEl || !helpWrap) return;
-
-  if (val && categoryHelpMap[val]){
-    helpEl.textContent = categoryHelpMap[val];
     helpWrap.classList.remove('hidden');
     helpWrap.removeAttribute('aria-hidden');
     try { helpWrap.style.removeProperty('display'); } catch(e) { helpWrap.style.display = ''; }
@@ -1314,6 +1336,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!q) { closeSuggestions(wrapper); return; }
     openSuggestionsGrouped(q, wrapper, input);
   });
+
+  // Populate Bahagian 2 note from shared category helper text
+  try { renderCategorySectionNote(); } catch (e) { /* ignore */ }
 
   // clear unit error quickly if user types a syntactically valid unit
   input?.addEventListener('input', (e) => {
@@ -1678,8 +1703,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateVehicleControlsForCategory(v);
       updateEtdState(v);
       updatePaymentSummary();
-      // show category helper note if available
-      try { showCategoryHelp(); } catch(e) { /* ignore */ }
+      try { renderCategorySectionNote(); } catch(e) { /* ignore */ }
     });
 
     subCategoryEl?.addEventListener('change', showSubCategoryHelp);
@@ -1754,7 +1778,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateVehicleControlsForCategory(initCat);
     updateEtdState(initCat);
-    try { showCategoryHelp(); } catch(e) { /* ignore */ }
+    try { renderCategorySectionNote(); } catch(e) { /* ignore */ }
     updatePaymentSummary();
 
     const submitBtn = document.getElementById('submitBtn');
