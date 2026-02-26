@@ -356,6 +356,15 @@ function freeDaysForCategory(cat){
   return 0; // cat 3 and others default to none
 }
 
+function formatAmount(amount){
+  if (typeof amount !== 'number' || !isFinite(amount)) return '0.00';
+  try {
+    return amount.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch (e) {
+    return amount.toFixed(2);
+  }
+}
+
 // Inline payment summary renderer (replaces popup)
 let paymentSummaryRequestId = 0;
 
@@ -363,7 +372,7 @@ function renderPaymentUpdateNotice(lastUpdatedAt){
   if (!lastUpdatedAt) return '';
   const ts = formatDateTimeLocal(lastUpdatedAt) || '';
   const suffix = unitImportMetaLabel || '';
-  return `<div class="muted-small" style="margin-top:6px;color:#b91c1c;font-weight:700;font-style:italic;font-size:12px;line-height:1.5;text-align:justify;">Kemaskini bagi rekod pembayaran dijalankan pada : ${ts}${suffix}.<br><br>Sebarang pembayaran secara atas talian (on-line), resit perlu dihantar melalui e-mail yang ditetapkan. Kegagalan untuk membuat demikian, akan menyebabkan rekod pembayaran tidak dapat dikemaskini.</div>`;
+  return `<div class="muted-small" style="margin-top:6px;color:#b91c1c;font-weight:700;font-style:italic;font-size:12px;line-height:1.5;text-align:justify;">Kemaskini bagi rekod pembayaran dijalankan pada : ${ts}${suffix}.<br><br>Untuk makluman, senarai tunggakan yang di paparkan di dalam lif, adalah senarai unit yang mempunyai tunggakan melebihi RM 400.00 dan ke atas, dan unit yang ada tunggakan di bawah RM 400.00 masih di kira sebagai unit yang ada tunggakan cuma tidak dipaparkan didalam senarai tersebut.<br><br>Unit yang dikategorikan sebagai Tiada Tunggakan adalah unit yang selesaikan:<br>- Fi Penyelenggaraan sebelum bulan semasa.<br>- Insurans Kebakaran (selesai untuk tahun semasa).<br><br>Contoh :-<br>Bulan semasa : 31 Januari 2026<br>Fi penyelenggaraan : Fi Penyelenggaraan bulan Dis 2025 selesai<br><br>Sebarang pembayaran secara atas talian (on-line), resit perlu dihantar melalui e-mail yang ditetapkan. Kegagalan untuk membuat demikian, akan menyebabkan rekod pembayaran tidak dapat dikemaskini.</div>`;
 }
 
 function resetPaymentSummary(msg){
@@ -378,6 +387,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   const hasSnapshot = !!unitSnapshot;
   const arrearsAmount = hasSnapshot ? unitSnapshot.arrearsAmount : null;
   const arrearsCat = hasSnapshot ? computeArrearsCategory(arrearsAmount) : null;
+  const arrearsAmountFormatted = formatAmount(arrearsAmount);
   const isChargeableCategory = category === 'Pelawat' || category === 'Kontraktor';
   const lastUpdatedAt = hasSnapshot ? (unitSnapshot.lastUpdatedAt || unitImportMetaTs || null) : (unitImportMetaTs || null);
 
@@ -409,6 +419,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
     summary.innerHTML = [
       `<div>Unit: <strong>${unit}</strong></div>`,
       `<div class="small">Kategori : <strong>Kategori 1</strong></div>`,
+      `<div class="small">Jumlah tunggakan : <strong>RM ${arrearsAmountFormatted}</strong></div>`,
       `<div class="small">Parkir percuma : <strong>${free} hari</strong></div>`,
       `<div class="small">Kadar cas dikenakan : <strong>RM 0.00 / hari</strong></div>`,
       `<div class="small" style="margin-top:6px">Caj parkir pelawat: <strong>Percuma</strong>.</div>`,
@@ -420,6 +431,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   if (!isChargeableCategory) {
     summary.innerHTML = [
       `<div><strong>Unit:</strong> ${unit}</div>`,
+      `<div class="small">Jumlah tunggakan : <strong>RM ${arrearsAmountFormatted}</strong></div>`,
       `<div class="small">Unit ini mempunyai tunggakan (Kategori ${arrearsCat}). Caj parkir hanya dikenakan untuk kategori Pelawat atau Kontraktor. Tiada caj dikira untuk kategori ini.</div>`,
       renderPaymentUpdateNotice(lastUpdatedAt)
     ].join('');
@@ -429,6 +441,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   if (!etaDate) {
     summary.innerHTML = [
       `<div><strong>Unit:</strong> ${unit}</div>`,
+      `<div class="small">Jumlah tunggakan : <strong>RM ${arrearsAmountFormatted}</strong></div>`,
       `<div class="small">Unit ini mempunyai tunggakan (Kategori ${arrearsCat}). Pilih tarikh masuk/keluar untuk kira caj.</div>`,
       `<div class="small">Percuma: ${freeDaysForCategory(arrearsCat)} hari. Kadar: ${arrearsCat === 2 ? 'RM 5/hari' : 'RM 15/hari'}.</div>`,
       renderPaymentUpdateNotice(lastUpdatedAt)
@@ -455,6 +468,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   summary.innerHTML = [
     `<div>Unit: <strong>${unit}</strong></div>`,
     `<div class="small">Kategori : <strong>Kategori ${arrearsCat}</strong></div>`,
+    `<div class="small">Jumlah tunggakan : <strong>RM ${arrearsAmountFormatted}</strong></div>`,
     `<div class="small">Parkir percuma : <strong>${freeDays} hari</strong></div>`,
     `<div class="small">Kadar cas dikenakan : <strong>RM ${rate.toFixed(2)} / hari</strong></div>`,
     `<div class="small" style="margin-top:6px">Julat tarikh: <strong>${fmtDate(start)} hingga ${fmtDate(end)}</strong></div>`,
@@ -1324,6 +1338,11 @@ document.addEventListener('DOMContentLoaded', () => {
       '<li><span class="memo-cat-2"><strong>Kategori 2</strong></span><br> Tunggakan: RM 1.00 hingga RM 400.00<br> Caj parkir pelawat: <strong>Percuma untuk 1 hari pertama; caj bermula pada hari ke-2</strong><br> Jika ingin sambung - dikenakan bayaran atau tempoh bertenang 3 hari sebelum boleh daftar masuk.</li>',
       '<li><span class="memo-cat-3"><strong>Kategori 3</strong></span><br> Tunggakan: RM 400.00 ke atas<br> Caj parkir pelawat: <strong>RM 15/hari</strong>. Rujuk jadual untuk jumlah pembayaran.</li>',
       '</ol>',
+      '<p>Untuk makluman, senarai tunggakan yang di paparkan di dalam lif, adalah senarai unit yang mempunyai tunggakan <strong>melebihi RM 400.00</strong> dan ke atas. Unit yang ada tunggakan di bawah RM 400.00 masih di kira sebagai unit yang ada tunggakan cuma tidak dipaparkan didalam senarai tersebut.</p>',
+      '<p>Unit yang dikategorikan sebagai <strong>Tiada Tunggakan</strong> adalah unit yang selesaikan:</p>',
+      '<ul><li>Fi Penyelenggaraan sebelum bulan semasa.</li><li>Insurans Kebakaran (selesai untuk tahun semasa).</li></ul>',
+      '<p>Contoh :-<br>Bulan semasa : <strong>31 Januari 2026</strong><br>Fi penyelenggaraan : <strong>Fi Penyelenggaraan bulan Dis 2025 selesai</strong></p>',
+      '<p>Sebarang pembayaran secara atas talian (on-line), resit perlu dihantar melalui e-mail yang ditetapkan. Kegagalan untuk membuat demikian, akan menyebabkan rekod pembayaran tidak dapat dikemaskini.</p>',
       '<p>Sila pastikan maklumat yang disi adalah tepat untuk meneruskan. Tekan "X" atau "Saya faham" untuk meneruskan.</p>'
     ].join('');
     showFloatMemo(memoText, { storageKey: null, blockUntilClose: true, imageSrc: 'assets/visitor_parking_charges.jpeg', html: true });

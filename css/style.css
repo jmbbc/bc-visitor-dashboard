@@ -1097,7 +1097,7 @@ button:focus, input:focus, select:focus, textarea:focus{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  padding:6px 10px;
+  padding:6px 8px;
   border-radius:8px;
   font-size:10px;
   font-weight:700;
@@ -1107,7 +1107,10 @@ button:focus, input:focus, select:focus, textarea:focus{
   line-height:1.2;
   box-shadow:0 1px 3px rgba(15,23,42,0.12);
   background:#e5e7eb;
-  min-height:30px;
+  min-height:28px;
+  min-width:96px;
+  max-width:110px;
+  text-align:center;
   white-space:nowrap;
   user-select:none;
   -webkit-user-select:none;
@@ -1140,7 +1143,7 @@ button:focus, input:focus, select:focus, textarea:focus{
 .cat-lain { background:#6b7280 !important; color:#fff !important; }           /* kelabu fallback */
 .td-category-small { color:var(--muted); font-size:13px; font-weight:600; }
 .cat-stack { display:flex; flex-direction:column; gap:4px; align-items:flex-start; }
-.subcat-badge { display:inline-flex; align-items:center; justify-content:center; padding:6px 10px; border-radius:8px; font-size:10px !important; font-weight:600; line-height:1.2; background:#e0f2fe; color:#075985; border:1px solid #bfdbfe; box-shadow:0 1px 3px rgba(9,30,66,0.12); min-height:30px; white-space:nowrap; }
+.subcat-badge { display:inline-flex; align-items:center; justify-content:center; padding:6px 8px; border-radius:8px; font-size:10px !important; font-weight:600; line-height:1.2; background:#e0f2fe; color:#075985; border:1px solid #bfdbfe; box-shadow:0 1px 3px rgba(9,30,66,0.12); min-height:28px; min-width:96px; max-width:110px; text-align:center; white-space:nowrap; }
 
 /* -------------------------
    Parking report styles
