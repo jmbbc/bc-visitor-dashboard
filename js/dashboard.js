@@ -522,6 +522,7 @@ function filterRowsBySearch(rows, term){
         r?.visitorPhone,
         r?.hostPhone,
         r?.category,
+        r?.subCategory,
         r?.status,
         r?.entryDetails,
         plates.join(' '),
@@ -1921,6 +1922,19 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
 
     const categoryDisplay = determineCategory(r);
     const catClass = categoryClassMap[categoryDisplay] || 'cat-lain';
+    const subCategoryDisplay = (r.subCategory || '').trim();
+    const subCategoryHtml = subCategoryDisplay ? `<span class="subcat-badge" style="background:#e0f2fe;color:#075985;border:1px solid #bfdbfe;font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(9,30,66,0.12);">${escapeHtml(subCategoryDisplay)}</span>` : '';
+    // inline style map ensures pill visible even if CSS is stale or not yet applied
+    const catStyleMap = {
+      'cat-pelawat': 'background:#2563eb;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+      'cat-kontraktor': 'background:#f59e0b;color:#000; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+      'cat-pindah': 'background:#ef4444;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+      'cat-pelawat-khas': 'background:#6d28d9;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+      'cat-penghantaran': 'background:#10b981;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+      'cat-lain': 'background:#6b7280;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);'
+    };
+    const inlineStyle = catStyleMap[catClass] || 'background:#e5e7eb;color:#0f172a; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);';
+    const categoryPillHtml = `<div class="cat-stack"><span class="cat-badge ${catClass}" style="${inlineStyle}">${escapeHtml(categoryDisplay)}</span>${subCategoryHtml}</div>`;
     const statusClass = r.status === 'Checked In' ? 'pill-in' : (r.status === 'Checked Out' ? 'pill-out' : 'pill-pending');
 
     // Unit category + arrears/payment computation (used by two columns)
@@ -1981,7 +1995,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       })()}</td>
       <td class="eta-etd-cell"><span class="eta-pill">${formatDateOnly(r.eta)}</span><span class="etd-pill">${formatDateOnly(r.etd)}</span></td>
       <td>${escapeHtml(vehicleDisplay)}</td>
-      <td><span class="cat-badge ${catClass}">${escapeHtml(categoryDisplay)}</span></td>
+      <td>${categoryPillHtml}</td>
       <td><span class="status-pill ${statusClass}">${escapeHtml(r.status || 'Pending')}</span></td>
       <td>
         <div class="actions">
@@ -2071,9 +2085,21 @@ function renderCheckedInList(rows){
 
     list.forEach(r => {
       const vehicleDisplay = (Array.isArray(r.vehicleNumbers) && r.vehicleNumbers.length) ? r.vehicleNumbers.join(', ') : (r.vehicleNo || '-');
+      const subCategoryDisplay = (r.subCategory || '').trim();
+      const subCategoryHtml = subCategoryDisplay ? `<span class="subcat-badge" style="background:#e0f2fe;color:#075985;border:1px solid #bfdbfe;font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(9,30,66,0.12);">${escapeHtml(subCategoryDisplay)}</span>` : '';
+      const catStyleMap = {
+        'cat-pelawat': 'background:#2563eb;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+        'cat-kontraktor': 'background:#f59e0b;color:#000; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+        'cat-pindah': 'background:#ef4444;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+        'cat-pelawat-khas': 'background:#6d28d9;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+        'cat-penghantaran': 'background:#10b981;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);',
+        'cat-lain': 'background:#6b7280;color:#fff; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);'
+      };
+      const inlineStyle = catStyleMap[catClass] || 'background:#e5e7eb;color:#0f172a; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 10px;border-radius:8px;min-height:30px;display:inline-flex;align-items:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);';
+      const catPillHtml = `<div class="cat-stack"><span class="cat-badge ${catClass}" style="${inlineStyle}">${escapeHtml(k)}</span>${subCategoryHtml}</div>`;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><span class="cat-badge ${catClass}">${escapeHtml(k)}</span></td>
+        <td>${catPillHtml}</td>
         <td>${escapeHtml(r.hostUnit || '')}${r.hostName ? '<div class="small">'+escapeHtml(r.hostName)+'</div>' : ''}</td>
         <td>${formatDateOnly(r.eta)}</td>
         <td>${formatDateOnly(r.etd)}</td>

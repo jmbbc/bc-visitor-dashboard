@@ -544,7 +544,7 @@ button.btn-edit{ background:var(--warning) !important; color:#fff !important; bo
 .actions .btn-ghost{
   padding:6px 8px;
   min-height:30px;
-  font-size:10px;
+  font-size:10px !important;
   line-height:1.2;
   border-radius:8px;
 }
@@ -1094,16 +1094,26 @@ button:focus, input:focus, select:focus, textarea:focus{
    Kategori badge untuk table
    ------------------------- */
 .cat-badge {
-  display:inline-block;
-  padding:4px 8px;
-  border-radius:999px;
-  font-size:12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px 10px;
+  border-radius:8px;
+  font-size:10px;
   font-weight:700;
-  color:#fff;
+  color:#0f172a;
   text-transform:none;
+  border:1px solid rgba(0,0,0,0.08);
+  line-height:1.2;
+  box-shadow:0 1px 3px rgba(15,23,42,0.12);
+  background:#e5e7eb;
+  min-height:30px;
+  white-space:nowrap;
+  user-select:none;
+  -webkit-user-select:none;
 }
-.cat-pelawat { background:#2563eb; }        /* biru */
-.cat-kontraktor { background:#f59e0b; }     /* oren */
+.cat-pelawat { background:#2563eb !important; color:#fff !important; }        /* biru */
+.cat-kontraktor { background:#f59e0b !important; color:#000 !important; }     /* oren */
 
 /* Arrears category label shown in unit notice modal */
 .arrears-category {
@@ -1124,11 +1134,13 @@ button:focus, input:focus, select:focus, textarea:focus{
 
 /* small text in parking report */
 .parking-report .small { font-size: 10px; }
-.cat-pindah { background:#ef4444; }         /* merah */
-.cat-pelawat-khas { background:#6d28d9; }   /* ungu */
-.cat-penghantaran { background:#10b981; }   /* hijau */
-.cat-lain { background:#6b7280; }           /* kelabu fallback */
+.cat-pindah { background:#ef4444 !important; color:#fff !important; }         /* merah */
+.cat-pelawat-khas { background:#6d28d9 !important; color:#fff !important; }   /* ungu */
+.cat-penghantaran { background:#10b981 !important; color:#fff !important; }   /* hijau */
+.cat-lain { background:#6b7280 !important; color:#fff !important; }           /* kelabu fallback */
 .td-category-small { color:var(--muted); font-size:13px; font-weight:600; }
+.cat-stack { display:flex; flex-direction:column; gap:4px; align-items:flex-start; }
+.subcat-badge { display:inline-flex; align-items:center; justify-content:center; padding:6px 10px; border-radius:8px; font-size:10px !important; font-weight:600; line-height:1.2; background:#e0f2fe; color:#075985; border:1px solid #bfdbfe; box-shadow:0 1px 3px rgba(9,30,66,0.12); min-height:30px; white-space:nowrap; }
 
 /* -------------------------
    Parking report styles

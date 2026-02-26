@@ -1490,6 +1490,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const stayOverWrap = document.getElementById('stayOverWrap');
     const etaEl = document.getElementById('eta');
     const etdEl = document.getElementById('etd');
+    const etdNoteEl = document.getElementById('etdNote');
+    const defaultEtdNote = 'Tarikh keluar boleh dipilih sehingga 2 hari selepas Tarikh masuk (maks. 3 hari termasuk tarikh masuk)';
+    const renovasiEtdNote = '1. Untuk kerja Renovasi, pemohon perlu mengisi 2 borang iaitu :-<br>a) Permit to Work (PTW) di pejabat pengurusan. Caj deposit RM 250 akan dikenakan.<br>b) Borang kebenaran masuk secara online untuk rekod keselamatan.<br><br>2. Untuk tarikh keluar, sila pilih tarikh anggaran bila kerja-kerja Renovasi selesai sama seperti tarikh yang diisi di dalam Borang Permit to Work (PTW).';
+
+    function setEtdNote(isRenovasi) {
+      if (!etdNoteEl) return;
+      if (isRenovasi) {
+        etdNoteEl.innerHTML = renovasiEtdNote;
+      } else {
+        etdNoteEl.textContent = defaultEtdNote;
+      }
+    }
 
     const companyWrap = document.getElementById('companyWrap');
     const companyInput = document.getElementById('companyName');
@@ -1536,8 +1548,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // update ETD (tarikh keluar) visibility & state based on category and stayOver
     function updateEtdState(cat) {
       if (!etdEl || !etaEl) return;
+      const subCategoryVal = subCategoryEl?.value?.trim() || '';
+      const allowEtdForRenovasi = cat === 'Kontraktor' && subCategoryVal === 'Renovasi';
       // when category is empty/default, ETD is not applicable -> hide
       if (!cat) {
+        setEtdNote(false);
         const etdWrap = document.getElementById('etdWrap');
         if (etdWrap) { etdWrap.classList.add('hidden'); try { etdWrap.style.setProperty('display','none','important'); } catch(e){ etdWrap.style.display = 'none'; } etdWrap.setAttribute('aria-hidden','true'); }
         try { etdEl.tabIndex = -1; } catch(e) {}
@@ -1545,14 +1560,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       const etdWrap = document.getElementById('etdWrap');
-      if (categoriesEtdDisabled.has(cat)) {
+      if (categoriesEtdDisabled.has(cat) && !allowEtdForRenovasi) {
         // category-level rule: ETD not applicable
+        setEtdNote(false);
         etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = '';
         if (etdWrap) { etdWrap.classList.add('hidden'); try { etdWrap.style.setProperty('display','none','important'); } catch(e){ etdWrap.style.display = 'none'; } etdWrap.setAttribute('aria-hidden','true'); }
         try { etdEl.tabIndex = -1; } catch(e) {}
         return;
       }
       if (cat === 'Pelawat') {
+        setEtdNote(false);
         const stay = stayOverEl?.value || 'No';
         if (stay === 'Yes') {
           etdEl.disabled = false;
@@ -1584,6 +1601,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return;
       }
+      setEtdNote(allowEtdForRenovasi);
       etdEl.disabled = false;
       if (etdWrap) { etdWrap.classList.remove('hidden'); etdWrap.removeAttribute('aria-hidden'); try { etdWrap.style.removeProperty('display'); } catch(e){ etdWrap.style.display = ''; } }
       try { etdEl.tabIndex = 0; } catch(e) {}
@@ -1591,12 +1609,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (etaVal) {
         const etaDate = dateFromInputDateOnly(etaVal);
         if (etaDate) {
-          const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2)
           const toIso = d => { const yy = d.getFullYear(); const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0'); return `${yy}-${mm}-${dd}`; };
-          etdEl.min = toIso(etaDate); etdEl.max = toIso(maxDate);
+          const maxDate = allowEtdForRenovasi ? null : new Date(etaDate);
+          if (maxDate) maxDate.setDate(maxDate.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2) unless Renovasi exception
+          etdEl.min = toIso(etaDate);
+          etdEl.max = maxDate ? toIso(maxDate) : '';
           if (etdEl.value) {
             const cur = dateFromInputDateOnly(etdEl.value);
-            if (!cur || cur < etaDate || cur > maxDate) etdEl.value = '';
+            if (!cur || cur < etaDate || (maxDate && cur > maxDate)) etdEl.value = '';
           }
         }
       } else { etdEl.min = ''; etdEl.max = ''; }
@@ -1706,7 +1726,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try { renderCategorySectionNote(); } catch(e) { /* ignore */ }
     });
 
-    subCategoryEl?.addEventListener('change', showSubCategoryHelp);
+    subCategoryEl?.addEventListener('change', () => { showSubCategoryHelp(); const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); updatePaymentSummary(); });
     stayOverEl?.addEventListener('change', () => { const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); updatePaymentSummary(); });
     addVehicleBtn?.addEventListener('click', () => { if (addVehicleBtn.disabled) return; if (!vehicleList) return; vehicleList.appendChild(createVehicleRow('')); });
 
