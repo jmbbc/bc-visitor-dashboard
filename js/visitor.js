@@ -387,7 +387,9 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   const hasSnapshot = !!unitSnapshot;
   const arrearsAmount = hasSnapshot ? unitSnapshot.arrearsAmount : null;
   const arrearsCat = hasSnapshot ? computeArrearsCategory(arrearsAmount) : null;
-  const arrearsAmountFormatted = formatAmount(arrearsAmount);
+  const hasNegativeArrears = typeof arrearsAmount === 'number' && arrearsAmount < 0;
+  const arrearsAmountFormatted = formatAmount(hasNegativeArrears ? 0 : arrearsAmount);
+  const arrearsAmountDisplay = hasNegativeArrears ? 'RM 0.00 (Tiada tunggakan)' : `RM ${arrearsAmountFormatted}`;
   const isChargeableCategory = category === 'Pelawat' || category === 'Kontraktor';
   const lastUpdatedAt = hasSnapshot ? (unitSnapshot.lastUpdatedAt || unitImportMetaTs || null) : (unitImportMetaTs || null);
 
@@ -419,7 +421,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
     summary.innerHTML = [
       `<div>Unit: <strong>${unit}</strong></div>`,
       `<div class="small">Kategori : <strong>Kategori 1</strong></div>`,
-      `<div class="small">Jumlah tunggakan : <strong>RM ${arrearsAmountFormatted}</strong></div>`,
+      `<div class="small">Jumlah tunggakan : <strong>${arrearsAmountDisplay}</strong></div>`,
       `<div class="small">Parkir percuma : <strong>${free} hari</strong></div>`,
       `<div class="small">Kadar cas dikenakan : <strong>RM 0.00 / hari</strong></div>`,
       `<div class="small" style="margin-top:6px">Caj parkir pelawat: <strong>Percuma</strong>.</div>`,
@@ -431,7 +433,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   if (!isChargeableCategory) {
     summary.innerHTML = [
       `<div><strong>Unit:</strong> ${unit}</div>`,
-      `<div class="small">Jumlah tunggakan : <strong>RM ${arrearsAmountFormatted}</strong></div>`,
+      `<div class="small">Jumlah tunggakan : <strong>${arrearsAmountDisplay}</strong></div>`,
       `<div class="small">Unit ini mempunyai tunggakan (Kategori ${arrearsCat}). Caj parkir hanya dikenakan untuk kategori Pelawat atau Kontraktor. Tiada caj dikira untuk kategori ini.</div>`,
       renderPaymentUpdateNotice(lastUpdatedAt)
     ].join('');
@@ -441,7 +443,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   if (!etaDate) {
     summary.innerHTML = [
       `<div><strong>Unit:</strong> ${unit}</div>`,
-      `<div class="small">Jumlah tunggakan : <strong>RM ${arrearsAmountFormatted}</strong></div>`,
+      `<div class="small">Jumlah tunggakan : <strong>${arrearsAmountDisplay}</strong></div>`,
       `<div class="small">Unit ini mempunyai tunggakan (Kategori ${arrearsCat}). Pilih tarikh masuk/keluar untuk kira caj.</div>`,
       `<div class="small">Percuma: ${freeDaysForCategory(arrearsCat)} hari. Kadar: ${arrearsCat === 2 ? 'RM 5/hari' : 'RM 15/hari'}.</div>`,
       renderPaymentUpdateNotice(lastUpdatedAt)
@@ -468,7 +470,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   summary.innerHTML = [
     `<div>Unit: <strong>${unit}</strong></div>`,
     `<div class="small">Kategori : <strong>Kategori ${arrearsCat}</strong></div>`,
-    `<div class="small">Jumlah tunggakan : <strong>RM ${arrearsAmountFormatted}</strong></div>`,
+    `<div class="small">Jumlah tunggakan : <strong>${arrearsAmountDisplay}</strong></div>`,
     `<div class="small">Parkir percuma : <strong>${freeDays} hari</strong></div>`,
     `<div class="small">Kadar cas dikenakan : <strong>RM ${rate.toFixed(2)} / hari</strong></div>`,
     `<div class="small" style="margin-top:6px">Julat tarikh: <strong>${fmtDate(start)} hingga ${fmtDate(end)}</strong></div>`,
