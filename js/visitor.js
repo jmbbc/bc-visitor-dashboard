@@ -2627,6 +2627,25 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
+    function buildAdditionalVehicleRows(source, mainVehicleNo) {
+      const mainPlate = normalizeVehicleInput(mainVehicleNo || '');
+      const rowsDetailed = Array.isArray(source?.vehicleRowsDetailed) && source.vehicleRowsDetailed.length
+        ? source.vehicleRowsDetailed
+        : (Array.isArray(source?.vehicleNumbers) ? source.vehicleNumbers.map(v => ({ plate: v })) : []);
+      const seen = new Set();
+      const out = [];
+      rowsDetailed.forEach((item) => {
+        const seed = (item && typeof item === 'object') ? item : { plate: item };
+        const plate = normalizeVehicleInput(seed.plate || '');
+        if (!plate) return;
+        if (mainPlate && plate === mainPlate) return;
+        if (seen.has(plate)) return;
+        seen.add(plate);
+        out.push(Object.assign({}, seed, { plate }));
+      });
+      return out;
+    }
+
     function loadSubmissionIntoForm(s) {
       if (!s || typeof s !== 'object') return false;
       try {
@@ -2668,13 +2687,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (etdEl) etdEl.value = s.etd || '';
 
-        if (vehicleNoEl) vehicleNoEl.value = normalizeVehicleInput(s.vehicleNo || '');
+        const mainVehicleNo = normalizeVehicleInput(s.vehicleNo || (Array.isArray(s.vehicleNumbers) ? (s.vehicleNumbers[0] || '') : ''));
+        if (vehicleNoEl) vehicleNoEl.value = mainVehicleNo;
         if ((Array.isArray(s.vehicleNumbers) || Array.isArray(s.vehicleRowsDetailed)) && vehicleList) {
           vehicleList.innerHTML = '';
           const maxAdditional = getAdditionalVehicleLimit(String(s.category || '').trim());
-          const rowsDetailed = Array.isArray(s.vehicleRowsDetailed) && s.vehicleRowsDetailed.length
-            ? s.vehicleRowsDetailed
-            : (Array.isArray(s.vehicleNumbers) ? s.vehicleNumbers.map(v => ({ plate: v })) : []);
+          const rowsDetailed = buildAdditionalVehicleRows(s, mainVehicleNo);
           rowsDetailed.slice(0, maxAdditional).forEach(v => vehicleList.appendChild(createVehicleRow(v)));
           refreshAddVehicleButtonState(String(s.category || '').trim());
         }
@@ -2719,7 +2737,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (entryDetailsEl) entryDetailsEl.value = d.entryDetails || '';
         if (visitorNameEl) visitorNameEl.value = d.visitorName || '';
         if (visitorPhoneEl2) visitorPhoneEl2.value = normalizePhoneInput(d.visitorPhone || '');
-        if (vehicleNoEl2) vehicleNoEl2.value = normalizeVehicleInput(d.vehicleNo || '');
+        const mainVehicleNo = normalizeVehicleInput(d.vehicleNo || (Array.isArray(d.vehicleNumbers) ? (d.vehicleNumbers[0] || '') : ''));
+        if (vehicleNoEl2) vehicleNoEl2.value = mainVehicleNo;
         if (vehicleTypeEl && d.vehicleType) vehicleTypeEl.value = d.vehicleType;
 
         if (categoryEl && d.category) {
@@ -2748,9 +2767,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const allowMulti = catNow === 'Pelawat Khas' || catNow === 'Pelawat';
           if (allowMulti) {
             const maxAdditional = getAdditionalVehicleLimit(String(catNow || '').trim());
-            const rowsDetailed = Array.isArray(d.vehicleRowsDetailed) && d.vehicleRowsDetailed.length
-              ? d.vehicleRowsDetailed
-              : (Array.isArray(d.vehicleNumbers) ? d.vehicleNumbers.map(v => ({ plate: v })) : []);
+            const rowsDetailed = buildAdditionalVehicleRows(d, mainVehicleNo);
             rowsDetailed.slice(0, maxAdditional).forEach(v => vehicleList.appendChild(createVehicleRow(v)));
             refreshAddVehicleButtonState(catNow);
           }
