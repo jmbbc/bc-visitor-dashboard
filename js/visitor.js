@@ -1,6 +1,6 @@
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
-  collection, serverTimestamp, Timestamp, doc, setDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
+  collection, serverTimestamp, Timestamp, doc, setDoc, deleteDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 /* ---------- full units array (from your List.csv) ---------- */
@@ -85,7 +85,9 @@ let visitorTimeTicker = null;
 let unitImportMetaTs = null;
 let unitImportMetaLabel = '';
 let unitMetaReadDenied = false;
-let dedupeTransactionUnavailable = false;
+let dedupeTransactionUnavailable = (() => {
+  try { return localStorage.getItem('visitor:dedupeTxUnavailable') === '1'; } catch (e) { return false; }
+})();
 let currentUnitSnapshot = null;
 let currentUnitId = '';
 let pendingWaPayload = null;
@@ -1009,15 +1011,22 @@ async function createResponseWithDedupe(payload){
   async function writeDirectFallback() {
     let mappedId = '';
     try { mappedId = String(localStorage.getItem(fallbackAmendKey) || ''); } catch (e) { mappedId = ''; }
-    const targetId = mappedId || responseId;
+
+    // Under stricter response update rules, amend is safer by replacing old mapped doc
+    // with a new created doc rather than attempting update/merge on the old doc.
+    if (mappedId) {
+      try { await deleteDoc(doc(window.__FIRESTORE, 'responses', mappedId)); } catch (e) { /* ignore and proceed */ }
+    }
+
+    const targetId = responseId;
     const targetRef = doc(window.__FIRESTORE, 'responses', targetId);
     const isAmendFallback = !!mappedId;
     const fallbackPayload = Object.assign({}, payload, {
       amendToken,
+      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    if (!isAmendFallback) fallbackPayload.createdAt = serverTimestamp();
-    await setDoc(targetRef, fallbackPayload, { merge: true });
+    await setDoc(targetRef, fallbackPayload);
     try { localStorage.setItem(fallbackAmendKey, targetId); } catch (e) { /* ignore */ }
     return { success: true, id: targetId, fallback: true, amended: isAmendFallback };
   }
@@ -1167,6 +1176,7 @@ async function createResponseWithDedupe(payload){
     // still allow a direct response write so users can submit while rules are being deployed.
     if (code.toLowerCase().includes('permission') || msg.includes('permission-denied')) {
       dedupeTransactionUnavailable = true;
+      try { localStorage.setItem('visitor:dedupeTxUnavailable', '1'); } catch (e) { /* ignore */ }
       try {
         return await writeDirectFallback();
       } catch (fallbackErr) {
