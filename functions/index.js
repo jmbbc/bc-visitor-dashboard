@@ -20,6 +20,13 @@ function isoDateOnlyKey(d) {
   return `${yy}-${mm}-${dd}`;
 }
 
+function toDateOnly(d) {
+  if (!d) return null;
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if (isNaN(dt.getTime())) return null;
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 0, 0, 0, 0);
+}
+
 function shortId() { return Math.random().toString(36).slice(2,9); }
 
 exports.createResponseWithDedupe = functions.https.onCall(async (data, context) => {
@@ -42,6 +49,14 @@ exports.createResponseWithDedupe = functions.https.onCall(async (data, context) 
 
   const dedupeRef = db.doc(`dedupeKeys/${dedupeKey}`);
   const respRef = db.doc(`responses/${responseId}`);
+  const category = String(payload.category || '').trim();
+  const stayOver = String(payload.stayOver || 'No').trim();
+  const enforceCombinedVehicles = category === 'Pelawat' && stayOver === 'Yes';
+
+  const etaStartDate = toDateOnly(etaDate);
+  let etdDate;
+  try { etdDate = payload.etd ? new Date(payload.etd) : null; } catch (e) { etdDate = null; }
+  const etaEndDate = toDateOnly(etdDate) || etaStartDate;
 
   // Policy-driven cooldown for certain units (e.g., with arrears)
   // Read unit and optional policy doc to determine if a cooldown applies
@@ -79,6 +94,7 @@ exports.createResponseWithDedupe = functions.https.onCall(async (data, context) 
   }
 
   const cooldownRef = db.doc(`cooldowns/unit-${hostUnitId}`);
+  const overnightLockRef = db.doc(`overnightLocks/unit-${hostUnitId}`);
 
   try {
     await db.runTransaction(async (tx) => {
@@ -133,6 +149,33 @@ exports.createResponseWithDedupe = functions.https.onCall(async (data, context) 
         }, { merge: true });
       }
 
+      // Prevent split registrations for Pelawat Bermalam that overlap date windows.
+      // Users should add all vehicles in one submission so charges are applied consistently.
+      if (enforceCombinedVehicles && etaStartDate && etaEndDate) {
+        const lockSnap = await tx.get(overnightLockRef);
+        if (lockSnap.exists) {
+          const lock = lockSnap.data() || {};
+          const existingStart = toDateOnly(lock.startDate && lock.startDate.toDate ? lock.startDate.toDate() : lock.startDate);
+          const existingEnd = toDateOnly(lock.endDate && lock.endDate.toDate ? lock.endDate.toDate() : lock.endDate);
+          if (existingStart && existingEnd) {
+            const overlap = etaStartDate.getTime() <= existingEnd.getTime() && existingStart.getTime() <= etaEndDate.getTime();
+            if (overlap) {
+              throw new functions.https.HttpsError('failed-precondition', 'combine_vehicle_registration_required');
+            }
+          }
+        }
+
+        tx.set(overnightLockRef, {
+          unit: hostUnitId,
+          startDate: admin.firestore.Timestamp.fromDate(etaStartDate),
+          endDate: admin.firestore.Timestamp.fromDate(etaEndDate),
+          category: category,
+          stayOver: stayOver,
+          responseId,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+
       tx.set(dedupeRef, {
         responseId,
         hostUnit: payload.hostUnit || '',
@@ -165,6 +208,9 @@ exports.createResponseWithDedupe = functions.https.onCall(async (data, context) 
     }
     // Cooldown precondition
     if (err && err.code === 'failed-precondition' && /cooldown_until:/i.test(String(err.message||''))) {
+      throw new functions.https.HttpsError('failed-precondition', err.message);
+    }
+    if (err && err.code === 'failed-precondition' && /combine_vehicle_registration_required/i.test(String(err.message||''))) {
       throw new functions.https.HttpsError('failed-precondition', err.message);
     }
     console.error('createResponseWithDedupe error', err);

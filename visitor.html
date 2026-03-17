@@ -104,14 +104,14 @@
 <body>
   <main class="container">
     <section class="card">
-      <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div>
+      <header class="visitor-header">
+        <div class="visitor-header-main">
           <a href="index.html" class="small">← Kembali ke Banjaria Court</a>
-          <h1 style="margin:6px 0 0 0">Borang Daftar Pelawat Banjaria Court</h1>
-          <p class="small" style="margin:6px 0 0 0">Sila lengkapkan maklumat. Medan bertanda <span style="color:#ef4444;font-weight:700">*</span> wajib diisi.</p>
+          <h1 class="page-title">Borang Daftar Pelawat Banjaria Court</h1>
+          <p class="small page-subtitle">Sila lengkapkan maklumat. Medan bertanda <span style="color:#ef4444;font-weight:700">*</span> wajib diisi.</p>
         </div>
 
-        <div style="display:flex;gap:12px;align-items:center">
+        <div class="visitor-header-actions">
           <!-- Theme toggle removed: default light theme -->
           <div id="visitorClockWrap" class="clock-card" aria-label="Tarikh dan masa semasa">
             <div id="visitorDate" class="clock-date">--/--/----</div>
@@ -121,11 +121,21 @@
       </header>
 
       <form id="visitorForm" autocomplete="off" novalidate>
+        <div id="formProgressWrap" class="form-progress" aria-live="polite">
+          <div class="form-progress-head">
+            <strong id="formProgressLabel">Kemajuan borang: 0%</strong>
+            <span id="draftState" class="muted-small">Draf automatik aktif</span>
+          </div>
+          <div class="form-progress-track" role="progressbar" aria-label="Kemajuan borang" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div id="formProgressBar" class="form-progress-bar" style="width:0%"></div>
+          </div>
+        </div>
+
         <!-- Bahagian 1 -->
         <div class="form-section section-1">
           <div class="form-section-header">
             <div class="icon" aria-hidden="true">🏠</div>
-            <h3 class="section-title" style="margin:0">Bahagian 1 — Butiran Penghuni</h3>
+            <h3 class="section-title">Bahagian 1 — Butiran Penghuni</h3>
           </div>
 
        <div class="inline-two">
@@ -152,15 +162,18 @@
           <label for="hostPhone">Nombor telefon penghuni</label>
           <input id="hostPhone" name="hostPhone" type="tel" inputmode="tel" placeholder="012-3456789" />
         </div>
-        <hr style="border:none;border-top:1px solid var(--input-border);margin:12px 0" />
+        <hr class="section-divider" />
         </div>
         <!-- Bahagian 2 -->
         <div class="form-section section-2">
           <div class="form-section-header">
             <div class="icon" aria-hidden="true">📋</div>
-            <h3 class="section-title" style="margin:0">Bahagian 2 — Butiran Kemasukkan</h3>
+            <h3 class="section-title">Bahagian 2 — Butiran Kemasukkan</h3>
           </div>
-        <div id="sectionCategoryNote" class="section-note" aria-live="polite" aria-label="Penjelasan kategori kemasukkan"></div>
+        <details id="sectionCategoryInfo" class="section-note-collapse">
+          <summary>Tujuan Kategori</summary>
+          <div id="sectionCategoryNote" class="section-note section-note-panel" aria-live="polite" aria-label="Penjelasan kategori kemasukkan"></div>
+        </details>
 
         <div class="form-row">
           <label for="category" class="required">Kategori</label>
@@ -197,16 +210,6 @@
           <input id="companyName" name="companyName" placeholder="Nama syarikat" disabled aria-hidden="true" />
         </div>
 
-        <div class="form-row span-2">
-          <label for="visitorName" class="required">Nama pelawat</label>
-          <input id="visitorName" name="visitorName" required aria-required="true" placeholder="Contoh: Ahmad bin Ali" />
-        </div>
-
-        <div class="form-row">
-          <label for="visitorPhone">Nombor telefon pelawat</label>
-          <input id="visitorPhone" name="visitorPhone" type="tel" inputmode="tel" placeholder="012-3456789" />
-        </div>
-
         <div class="form-row" id="stayOverWrap">
           <label for="stayOver">Bermalam?</label>
           <select id="stayOver" name="stayOver" disabled>
@@ -215,39 +218,53 @@
           </select>
         </div>
 
-        <div class="form-row" id="etaWrap">
-          <label for="eta" class="required">Tarikh masuk</label>
-          <input id="eta" name="eta" type="date" required aria-required="true" />
-        </div>
-
-        <div class="form-row" id="etdWrap">
-          <label for="etd">Tarikh keluar</label>
-          <input id="etd" name="etd" type="date" disabled />
-          <div id="etdNote" class="field-note">Tarikh keluar boleh dipilih sehingga 2 hari selepas Tarikh masuk (maks. 3 hari termasuk tarikh masuk)</div>
-        </div>
-
-        <hr style="border:none;border-top:1px solid var(--input-border);margin:12px 0" />
+        <hr class="section-divider" />
 
         </div>
         <!-- Bahagian 3 -->
         <div class="form-section section-3">
           <div class="form-section-header">
             <div class="icon" aria-hidden="true">🚗</div>
-            <h3 class="section-title" style="margin:0">Bahagian 3 — Butiran Kenderaan</h3>
+            <h3 class="section-title">Bahagian 3 — Butiran Kenderaan</h3>
           </div>
 
-        <div id="vehicleSingleWrap" class="form-row">
-          <label for="vehicleNo">Nombor kenderaan</label>
-          <input id="vehicleNo" name="vehicleNo" placeholder="ABC1234" />
-        </div>
+          <div class="vehicle-primary-group">
+            <div class="form-row span-2">
+              <label for="visitorName" class="required">Nama pelawat</label>
+              <input id="visitorName" name="visitorName" required aria-required="true" placeholder="Contoh: Ahmad bin Ali" />
+            </div>
+
+            <div class="form-row span-2">
+              <label for="visitorPhone">Nombor telefon pelawat</label>
+              <input id="visitorPhone" name="visitorPhone" type="tel" inputmode="tel" placeholder="012-3456789" />
+            </div>
+
+            <div id="vehicleSingleWrap" class="form-row span-2">
+              <label for="vehicleNo">Kenderaan Pertama (1)</label>
+              <input id="vehicleNo" name="vehicleNo" placeholder="ABC1234" />
+            </div>
+
+            <div class="vehicle-primary-date-wrap">
+              <div id="etaWrap" class="vehicle-field-group">
+                <label for="eta" class="vehicle-field-label required">Tarikh masuk</label>
+                <input id="eta" name="eta" type="date" required aria-required="true" />
+              </div>
+
+              <div id="etdWrap" class="vehicle-field-group">
+                <label for="etd" class="vehicle-field-label">Tarikh keluar</label>
+                <input id="etd" name="etd" type="date" disabled />
+              </div>
+            </div>
+            <div id="etdNote" class="field-note">Tarikh keluar boleh dipilih sehingga 2 hari selepas Tarikh masuk (maks. 3 hari termasuk tarikh masuk)</div>
+          </div>
 
         <div id="vehicleMultiWrap" class="form-row span-2 hidden">
-          <label for="vehicleList">Nombor kenderaan</label>
+          <label for="vehicleList">Kenderaan Tambahan (Pelawat / Pelawat Khas)</label>
           <div>
             <div id="vehicleList" class="vehicle-list" role="list"></div>
-            <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-              <button type="button" id="addVehicleBtn" class="btn-ghost" disabled style="padding:6px 10px;border-radius:8px;">+ Tambah Nombor Kenderaan</button>
-              <span class="field-note" style="margin-left:8px; font-size:12px; color:var(--muted);">Tekan + untuk tambah baris; gunakan − untuk keluarkan baris.</span>
+            <div class="vehicle-multi-actions">
+              <button type="button" id="addVehicleBtn" class="btn-ghost add-vehicle-btn" disabled>+ Tambah Nombor Kenderaan</button>
+              <span class="field-note vehicle-hint">Untuk Pelawat / Pelawat Khas: tekan + untuk tambah kenderaan No.2 dan seterusnya; gunakan − untuk keluarkan baris.</span>
             </div>
           </div>
         </div>
@@ -264,10 +281,10 @@
 
         </div>
         <!-- Bahagian 4 — Ringkasan & Bayaran -->
-        <div class="form-section section-5" style="margin-top:12px">
+        <div class="form-section section-5 section-spacing-top">
           <div class="form-section-header">
             <div class="icon" aria-hidden="true">💳</div>
-            <h3 class="section-title" style="margin:0">Bahagian 4 — Ringkasan & Bayaran</h3>
+            <h3 class="section-title">Bahagian 4 — Ringkasan & Bayaran</h3>
           </div>
           <div id="paymentSummary" class="card payment-summary">
             <div class="muted-small">Pilih unit dan tarikh untuk melihat status tunggakan dan jumlah caj (jika ada).</div>
@@ -276,20 +293,23 @@
 
         </div>
         <!-- Pengesahan -->
-        <div class="form-section section-4" style="margin-top:12px">
+        <div class="form-section section-4 section-spacing-top">
           <div class="form-section-header">
             <div class="icon" aria-hidden="true">✅</div>
-            <h3 class="section-title" style="margin:0">Pengesahan</h3>
+            <h3 class="section-title">Pengesahan</h3>
           </div>
           <fieldset style="border:0;padding:0;margin:0">
             <legend class="required sr-only">Pengesahan</legend>
-            <div style="font-size:13px;color:var(--muted);line-height:1.4;margin-bottom:8px">
-              Dengan ini saya mengesahkan bahawa :-
-              <ol style="margin:6px 0 0 18px;padding:0">
-                <li>Butiran yang di isi adalah benar.</li>
-                <li>Saya juga bertanggungjawab sepenuhnya ke atas apa-apa kerosakan yang dilakukan oleh pelawat / kontraktor / syarikat, sepanjang mereka berada di dalam Banjaria Court.</li>
-                <li>Saya juga akur, sekiranya data yang di isi berbeza, pihak pengurusan berhak untuk tidak benarkan masuk ke Banjaria Court.</li>
-              </ol>
+            <div class="confirm-copy">
+              <p>Dengan ini saya mengesahkan bahawa:</p>
+              <details class="confirm-details">
+                <summary>Lihat syarat pengesahan</summary>
+                <ol>
+                  <li>Butiran yang diisi adalah benar.</li>
+                  <li>Saya bertanggungjawab sepenuhnya atas sebarang kerosakan yang dilakukan oleh pelawat, kontraktor, atau syarikat sepanjang berada di Banjaria Court.</li>
+                  <li>Saya akur bahawa jika data tidak tepat, pihak pengurusan berhak untuk menolak kemasukan ke Banjaria Court.</li>
+                </ol>
+              </details>
             </div>
 
             <div class="form-row confirm-row">
@@ -303,27 +323,42 @@
         </div>
 
         <!-- Langkah penghantaran (separate section) -->
-        <div class="form-section section-steps" style="margin-top:12px">
+        <div class="form-section section-steps section-spacing-top">
           <div class="form-section-header">
             <div class="icon" aria-hidden="true">ℹ️</div>
-            <h3 class="section-title" style="margin:0">Panduan Penghantaran</h3>
+            <h3 class="section-title">Panduan Penghantaran</h3>
           </div>
           <div class="registration-steps">
-            Untuk melengkapkan pendaftaran, sila tekan kedua‑dua butang berikut:
-            <br>1) <strong>(Langkah 1) Hantar ke sistem</strong> - untuk simpanan sistem
-            <br>2) <strong>(Langkah 2) Hantar melalui WhatsApp</strong> - untuk simpanan pihak Keselamatan
+            <p>Untuk melengkapkan pendaftaran, sila tekan kedua-dua butang berikut:</p>
+            <ol class="steps-list">
+              <li><strong>(Langkah 1) Hantar ke sistem</strong><span>untuk simpanan sistem.</span></li>
+              <li><strong>(Langkah 2) Hantar melalui WhatsApp</strong><span>untuk simpanan pihak Keselamatan.</span></li>
+            </ol>
           </div>
         </div>
 
         <!-- aksi -->
-        <div class="form-actions" style="margin-top:12px">
-          <div>
-            <div id="unitUpdateInfo" class="muted-small" aria-live="polite">
+        <div class="form-actions section-spacing-top">
+          <div class="action-meta">
+            <div id="unitUpdateInfo" class="muted-small unit-update-info" aria-live="polite">
               Tarikh kemas kini senarai unit: <span id="unitUpdateValue">Memuat...</span>
             </div>
+            <div class="repeat-mode-wrap">
+              <div class="repeat-mode-control">
+                <label for="repeatMode" class="repeat-mode-main">
+                  <input id="repeatMode" type="checkbox" checked />
+                  <span class="repeat-mode-switch" aria-hidden="true"></span>
+                  <span class="repeat-mode-text">
+                    <strong>Mode Pendaftaran Berulang</strong>
+                  </span>
+                </label>
+                <button type="button" id="repeatModeInfoBtn" class="repeat-mode-info-btn" aria-expanded="false" aria-controls="repeatModeHint" aria-label="Lihat penerangan Mode Pendaftaran Berulang">i</button>
+                <div id="repeatModeHint" class="repeat-mode-hint muted-small" hidden>Kekalkan Unit, Kategori dan Nama Penghuni selepas hantar.</div>
+              </div>
+            </div>
           </div>
-          <div class="actions">
-            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+          <div class="actions action-buttons">
+            <div class="action-block">
               <button type="submit" id="submitBtn" class="btn loader-btn">
                 <span class="loader-label">(Langkah 1) Hantar ke sistem</span>
                 <span class="loader-complete" aria-hidden="true">Selesai</span>
@@ -336,7 +371,7 @@
               <div class="muted-small">Simpan dalam sistem.</div>
             </div>
 
-            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+            <div class="action-block">
               <button type="button" id="waBtn" class="btn loader-btn" disabled>
                 <span class="loader-label">(Langkah 2) Hantar melalui WhatsApp</span>
                 <span class="loader-complete" aria-hidden="true">Selesai</span>
@@ -349,8 +384,11 @@
               <div id="waHint" class="muted-small">Aktif selepas borang dihantar.</div>
             </div>
 
-            <button type="button" id="clearBtn" class="btn-ghost">Kosongkan</button>
-            <div id="statusMsg" role="status" aria-live="polite" class="small" style="align-self:center;margin-left:8px"></div>
+            <div class="secondary-actions">
+              <button type="button" id="amendLastBtn" class="btn-ghost" disabled>Pinda Hantaran Terakhir</button>
+              <button type="button" id="clearBtn" class="btn-ghost">Kosongkan</button>
+            </div>
+            <div id="statusMsg" role="status" aria-live="polite" class="small status-message"></div>
           </div>
         </div>
       </form>

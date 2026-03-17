@@ -1,8 +1,7 @@
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
-  collection, serverTimestamp, Timestamp, doc, setDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
+  collection, serverTimestamp, Timestamp, doc, runTransaction, getDoc, getDocs, query, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-functions.js";
 
 /* ---------- full units array (from your List.csv) ---------- */
 const units = [
@@ -320,6 +319,21 @@ function validatePhone(phone){
   return p.length >= 7 && p.length <= 15;
 }
 
+function normalizePhoneInput(raw){
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 12);
+  if (!digits) return '';
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0,3)}-${digits.slice(3)}`;
+  return `${digits.slice(0,3)}-${digits.slice(3,7)}${digits.slice(7)}`;
+}
+
+function normalizeVehicleInput(raw){
+  return String(raw || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 12);
+}
+
 function dateFromInputDateOnly(val){
   if (!val) return null;
   const parts = val.split('-');
@@ -372,7 +386,22 @@ function renderPaymentUpdateNotice(lastUpdatedAt){
   if (!lastUpdatedAt) return '';
   const ts = formatDateTimeLocal(lastUpdatedAt) || '';
   const suffix = unitImportMetaLabel || '';
-  return `<div class="muted-small" style="margin-top:6px;color:#b91c1c;font-weight:700;font-style:italic;font-size:12px;line-height:1.5;text-align:justify;">Kemaskini bagi rekod pembayaran dijalankan pada : ${ts}${suffix}.<br><br>Untuk makluman, senarai tunggakan yang di paparkan di dalam lif, adalah senarai unit yang mempunyai tunggakan melebihi RM 400.00 dan ke atas, dan unit yang ada tunggakan di bawah RM 400.00 masih di kira sebagai unit yang ada tunggakan cuma tidak dipaparkan didalam senarai tersebut.<br><br>Unit yang dikategorikan sebagai Tiada Tunggakan adalah unit yang selesaikan:<br>- Fi Penyelenggaraan sebelum bulan semasa.<br>- Insurans Kebakaran (selesai untuk tahun semasa).<br><br>Contoh :-<br>Bulan semasa : 31 Januari 2026<br>Fi penyelenggaraan : Fi Penyelenggaraan bulan Dis 2025 selesai<br><br>Sebarang pembayaran secara atas talian (on-line), resit perlu dihantar melalui e-mail yang ditetapkan. Kegagalan untuk membuat demikian, akan menyebabkan rekod pembayaran tidak dapat dikemaskini.</div>`;
+  return `
+    <details class="payment-update-note">
+      <summary>Nota Tunggakan dan Kemaskini Bayaran</summary>
+      <div class="payment-update-note-body">
+        <p>Kemaskini bagi rekod pembayaran dijalankan pada: <strong>${ts}${suffix}</strong>.</p>
+        <p>Untuk makluman, senarai tunggakan yang dipaparkan di dalam lif ialah unit yang mempunyai tunggakan melebihi RM 400.00 ke atas. Unit yang ada tunggakan di bawah RM 400.00 masih dikira sebagai unit tunggakan, cuma tidak dipaparkan dalam senarai tersebut.</p>
+        <p>Unit yang dikategorikan sebagai Tiada Tunggakan adalah unit yang menyelesaikan:</p>
+        <ul>
+          <li>Fi Penyelenggaraan sebelum bulan semasa.</li>
+          <li>Insurans Kebakaran (selesai untuk tahun semasa).</li>
+        </ul>
+        <p><strong>Contoh:</strong><br>Bulan semasa: 31 Januari 2026<br>Fi penyelenggaraan: Fi Penyelenggaraan bulan Dis 2025 selesai</p>
+        <p>Sebarang pembayaran atas talian (on-line), resit perlu dihantar melalui e-mail yang ditetapkan. Kegagalan membuat demikian akan menyebabkan rekod pembayaran tidak dapat dikemaskini.</p>
+      </div>
+    </details>
+  `;
 }
 
 function resetPaymentSummary(msg){
@@ -381,7 +410,7 @@ function resetPaymentSummary(msg){
   summary.innerHTML = msg || '<div class="muted-small">Pilih unit dan tarikh untuk melihat status tunggakan dan jumlah caj (jika ada).</div>';
 }
 
-function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }) {
+function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category, stayOver = 'No', vehicleCount = 0, additionalVehicleEntries = [] }) {
   const summary = document.getElementById('paymentSummary');
   if (!summary) return;
   const hasSnapshot = !!unitSnapshot;
@@ -391,6 +420,12 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   const arrearsAmountFormatted = formatAmount(hasNegativeArrears ? 0 : arrearsAmount);
   const arrearsAmountDisplay = hasNegativeArrears ? 'RM 0.00 (Tiada tunggakan)' : `RM ${arrearsAmountFormatted}`;
   const isChargeableCategory = category === 'Pelawat' || category === 'Kontraktor';
+  const isPelawatKhas = category === 'Pelawat Khas';
+  const isPelawat = category === 'Pelawat';
+  const isPelawatBermalam = isPelawat && stayOver === 'Yes';
+  const extraVehicleCount = isPelawat ? Math.max(0, vehicleCount - 1) : 0;
+  const additionalRateByCategory = { 1: 10, 2: 15, 3: 25 };
+  const additionalRate = isPelawat ? (additionalRateByCategory[arrearsCat] || 0) : 0;
   const lastUpdatedAt = hasSnapshot ? (unitSnapshot.lastUpdatedAt || unitImportMetaTs || null) : (unitImportMetaTs || null);
 
   const fmtDate = (d) => {
@@ -401,30 +436,210 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
     return `${dd}/${mm}/${yy}`;
   };
 
+  const fmtDateShort = (d) => {
+    if (!d) return '-';
+    const dd = d.getDate();
+    const mm = d.getMonth() + 1;
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${dd}/${mm}/${yy}`;
+  };
+
+  const unitHeader = (catLabel = '-') => [
+    '<div class="pay-head">',
+    '<div class="pay-title">Ringkasan Caj Parkir</div>',
+    `<div class="pay-unit">Unit: <strong>${unit}</strong></div>`,
+    `<div class="pay-category">${catLabel}</div>`,
+    '</div>'
+  ].join('');
+
+  const infoRow = (label, value) => `<div class="pay-row"><span>${label}</span><strong>${value}</strong></div>`;
+
   if (!unit) {
     resetPaymentSummary();
     return;
   }
 
   if (!units.includes(unit)) {
-    summary.innerHTML = '<div class="small">Unit tidak ditemui dalam senarai. Sila semak semula.</div>';
+    summary.innerHTML = '<div class="pay-alert">Unit tidak ditemui dalam senarai. Sila semak semula.</div>';
     return;
   }
 
   if (!hasSnapshot) {
-    summary.innerHTML = '<div class="small">Memuat maklumat tunggakan unit...</div>';
+    summary.innerHTML = '<div class="pay-alert">Memuat maklumat tunggakan unit...</div>';
     return;
   }
 
   if (!arrearsCat || arrearsCat === 1) {
     const free = freeDaysForCategory(1);
+    const canChargeExtra = isPelawat && extraVehicleCount > 0;
+    if (!canChargeExtra) {
+      summary.innerHTML = [
+        unitHeader('Kategori 1'),
+        '<div class="pay-grid">',
+        infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+        infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
+        infoRow('Parkir percuma', `${free} hari`),
+        infoRow('Kadar cas', 'RM 0.00 / hari'),
+        '</div>',
+        '<div class="pay-total-wrap">',
+        '<div class="pay-note-line">Caj parkir pelawat: <strong>Percuma</strong></div>',
+        '<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM 0.00</strong></div>',
+        '</div>',
+        renderPaymentUpdateNotice(lastUpdatedAt)
+      ].join('');
+      return;
+    }
+
+    if (!etaDate) {
+      summary.innerHTML = [
+        unitHeader('Kategori 1'),
+        '<div class="pay-grid">',
+        infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+        infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
+        infoRow('Parkir percuma', `${free} hari`),
+        infoRow('Kadar kereta utama', 'RM 0.00 / hari'),
+        infoRow('Kadar kenderaan tambahan', `RM ${additionalRate.toFixed(2)} / kereta / hari`),
+        '</div>',
+        '<div class="pay-note-line">Untuk Pelawat (Kategori 1), kenderaan utama percuma tetapi kenderaan tambahan dikenakan caj.</div>',
+        '<div class="pay-note-line">Pilih tarikh masuk/keluar untuk kira caj sebenar.</div>',
+        renderPaymentUpdateNotice(lastUpdatedAt)
+      ].join('');
+      return;
+    }
+
+    const dayMs = 24 * 60 * 60 * 1000;
+    const start = etaDate;
+    const end = etdDate || start;
+    const totalDays = Math.floor((end.getTime() - start.getTime()) / dayMs) + 1;
+    const category1ExtraVehicleDetailLines = [];
+    const extraVehicleAmount = additionalVehicleEntries.length
+      ? additionalVehicleEntries.reduce((sum, item) => {
+          const s = item.startDate || start;
+          const e = item.endDate || s;
+          const days = Math.max(1, Math.floor((e.getTime() - s.getTime()) / dayMs) + 1);
+          const amount = days * additionalRate;
+          category1ExtraVehicleDetailLines.push({
+            plate: item.plate,
+            start: s,
+            days,
+            amount
+          });
+          return sum + (days * additionalRate);
+        }, 0)
+      : (extraVehicleCount * totalDays * additionalRate);
+
     summary.innerHTML = [
-      `<div>Unit: <strong>${unit}</strong></div>`,
-      `<div class="small">Kategori : <strong>Kategori 1</strong></div>`,
-      `<div class="small">Jumlah tunggakan : <strong>${arrearsAmountDisplay}</strong></div>`,
-      `<div class="small">Parkir percuma : <strong>${free} hari</strong></div>`,
-      `<div class="small">Kadar cas dikenakan : <strong>RM 0.00 / hari</strong></div>`,
-      `<div class="small" style="margin-top:6px">Caj parkir pelawat: <strong>Percuma</strong>.</div>`,
+      unitHeader('Kategori 1'),
+      '<div class="pay-grid">',
+      infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+      infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
+      infoRow('Parkir percuma', `${free} hari`),
+      infoRow('Kadar kereta utama', 'RM 0.00 / hari'),
+      infoRow('Kadar kenderaan tambahan', `RM ${additionalRate.toFixed(2)} / kereta / hari`),
+      infoRow('Julat tarikh', `${fmtDate(start)} hingga ${fmtDate(end)}`),
+      '</div>',
+      '<div class="pay-total-wrap">',
+      `<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${extraVehicleAmount.toFixed(2)}</strong></div>`,
+      '<details class="pay-total-details">',
+      '<summary>Lihat perincian bayaran</summary>',
+      '<div class="pay-total-details-body">',
+      '<details class="pay-charge-box">',
+      `<summary><span class="pay-charge-title">Caj kenderaan utama</span><strong class="pay-charge-amount">RM 0.00</strong></summary>`,
+      '<div class="pay-charge-body">',
+      '<div class="pay-note-line">Kategori 1: kenderaan utama tidak dikenakan caj.</div>',
+      '</div>',
+      '</details>',
+      '<details class="pay-charge-box">',
+      `<summary><span class="pay-charge-title">Caj kenderaan tambahan</span><strong class="pay-charge-amount">RM ${extraVehicleAmount.toFixed(2)}</strong></summary>`,
+      '<div class="pay-charge-body">',
+      '<div class="pay-breakdown-title">Perincian bayaran</div>',
+      `<div class="pay-note-line">${extraVehicleCount} kereta x hari penggunaan x RM ${additionalRate.toFixed(2)} = <strong>RM ${extraVehicleAmount.toFixed(2)}</strong></div>`,
+      (category1ExtraVehicleDetailLines.length
+        ? `<ul class="arrears-payment-list pay-daily-list">${category1ExtraVehicleDetailLines.map((item) => {
+            const dayLines = [];
+            for (let i = 0; i < item.days; i++) {
+              const d = new Date(item.start.getTime());
+              d.setDate(d.getDate() + i);
+              dayLines.push(`<li>- ${fmtDateShort(d)} : <strong>RM ${additionalRate.toFixed(2)}</strong></li>`);
+            }
+            return `<li><strong>${item.plate}</strong><ul class="pay-plate-day-list">${dayLines.join('')}</ul></li>`;
+          }).join('')}</ul>`
+        : ''),
+      '</div>',
+      '</details>',
+      '</div>',
+      '</details>',
+      '</div>',
+      renderPaymentUpdateNotice(lastUpdatedAt)
+    ].join('');
+    return;
+  }
+
+  if (isPelawatKhas) {
+    const pelawatKhasRateByCategory = { 1: 5, 2: 8, 3: 15 };
+    const ratePerCar = pelawatKhasRateByCategory[arrearsCat] || 0;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const start = etaDate || null;
+    const end = etdDate || start;
+    const totalDays = (start && end)
+      ? Math.max(1, Math.floor((end.getTime() - start.getTime()) / dayMs) + 1)
+      : 1;
+    const totalCars = Math.max(1, vehicleCount || 0);
+    const mainAmount = totalCars > 0 ? (ratePerCar * totalDays) : 0;
+    const extraCars = Math.max(0, totalCars - 1);
+    let extraAmount = 0;
+    const extraPlateLines = [];
+
+    if (additionalVehicleEntries.length > 0) {
+      extraAmount = additionalVehicleEntries.reduce((sum, item) => {
+        const s = item.startDate || start;
+        const e = item.endDate || s;
+        const days = (s && e) ? Math.max(1, Math.floor((e.getTime() - s.getTime()) / dayMs) + 1) : totalDays;
+        const amount = days * ratePerCar;
+        extraPlateLines.push({ plate: item.plate, days, amount });
+        return sum + amount;
+      }, 0);
+    } else {
+      extraAmount = extraCars * totalDays * ratePerCar;
+      for (let i = 0; i < extraCars; i++) {
+        extraPlateLines.push({ plate: `Kenderaan ${i + 2}`, days: totalDays, amount: totalDays * ratePerCar });
+      }
+    }
+
+    const totalAmount = mainAmount + extraAmount;
+
+    summary.innerHTML = [
+      unitHeader(`Kategori ${arrearsCat}`),
+      '<div class="pay-grid">',
+      infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+      infoRow('Kategori kemasukan', 'Pelawat Khas'),
+      infoRow('Jumlah kenderaan', String(totalCars)),
+      infoRow('Kadar caj', `RM ${ratePerCar.toFixed(2)} / kereta / hari`),
+      infoRow('Tarikh masuk', etaDate ? fmtDate(etaDate) : '-'),
+      '</div>',
+      '<div class="pay-total-wrap">',
+      `<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${totalAmount.toFixed(2)}</strong></div>`,
+      '<details class="pay-total-details">',
+      '<summary>Lihat perincian bayaran</summary>',
+      '<div class="pay-total-details-body">',
+      '<details class="pay-charge-box">',
+      `<summary><span class="pay-charge-title">Caj kenderaan utama</span><strong class="pay-charge-amount">RM ${mainAmount.toFixed(2)}</strong></summary>`,
+      '<div class="pay-charge-body">',
+      `<div class="pay-note-line">1 kereta x ${totalDays} hari x RM ${ratePerCar.toFixed(2)} = <strong>RM ${mainAmount.toFixed(2)}</strong></div>`,
+      '</div>',
+      '</details>',
+      '<details class="pay-charge-box">',
+      `<summary><span class="pay-charge-title">Caj kenderaan tambahan</span><strong class="pay-charge-amount">RM ${extraAmount.toFixed(2)}</strong></summary>`,
+      '<div class="pay-charge-body">',
+      '<div class="pay-breakdown-title">Perincian bayaran</div>',
+      (extraCars > 0
+        ? `<div class="pay-note-line">${extraCars} kereta x hari penggunaan x RM ${ratePerCar.toFixed(2)} = <strong>RM ${extraAmount.toFixed(2)}</strong></div><ul class="arrears-payment-list pay-daily-list">${extraPlateLines.map((item) => `<li>${item.plate}: ${item.days} hari x RM ${ratePerCar.toFixed(2)} = <strong>RM ${item.amount.toFixed(2)}</strong></li>`).join('')}</ul>`
+        : '<div class="pay-note-line">Tiada caj kenderaan tambahan.</div>'),
+      '</div>',
+      '</details>',
+      '</div>',
+      '</details>',
+      '</div>',
       renderPaymentUpdateNotice(lastUpdatedAt)
     ].join('');
     return;
@@ -432,20 +647,32 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
 
   if (!isChargeableCategory) {
     summary.innerHTML = [
-      `<div><strong>Unit:</strong> ${unit}</div>`,
-      `<div class="small">Jumlah tunggakan : <strong>${arrearsAmountDisplay}</strong></div>`,
-      `<div class="small">Unit ini mempunyai tunggakan (Kategori ${arrearsCat}). Caj parkir hanya dikenakan untuk kategori Pelawat atau Kontraktor. Tiada caj dikira untuk kategori ini.</div>`,
+      unitHeader(`Kategori ${arrearsCat}`),
+      '<div class="pay-grid">',
+      infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+      infoRow('Kategori kemasukan', category || '-'),
+      '</div>',
+      '<div class="pay-note-line">Caj parkir hanya dikenakan untuk kategori Pelawat atau Kontraktor. Tiada caj dikira untuk kategori ini.</div>',
       renderPaymentUpdateNotice(lastUpdatedAt)
     ].join('');
     return;
   }
 
   if (!etaDate) {
+    const extraNote = (isPelawat && extraVehicleCount > 0)
+      ? `<div class="pay-note-line">Tambahan kenderaan pelawat: <strong>${extraVehicleCount}</strong> (kadar tambahan RM ${additionalRate.toFixed(2)} / kereta / hari).</div>`
+      : '';
     summary.innerHTML = [
-      `<div><strong>Unit:</strong> ${unit}</div>`,
-      `<div class="small">Jumlah tunggakan : <strong>${arrearsAmountDisplay}</strong></div>`,
-      `<div class="small">Unit ini mempunyai tunggakan (Kategori ${arrearsCat}). Pilih tarikh masuk/keluar untuk kira caj.</div>`,
-      `<div class="small">Percuma: ${freeDaysForCategory(arrearsCat)} hari. Kadar: ${arrearsCat === 2 ? 'RM 5/hari' : 'RM 15/hari'}.</div>`,
+      unitHeader(`Kategori ${arrearsCat}`),
+      '<div class="pay-grid">',
+      infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+      infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
+      infoRow('Parkir percuma', `${freeDaysForCategory(arrearsCat)} hari`),
+      infoRow('Kadar cas', arrearsCat === 2 ? 'RM 5.00 / hari' : 'RM 15.00 / hari'),
+      (isPelawat ? infoRow('Kadar kenderaan tambahan', `RM ${additionalRate.toFixed(2)} / kereta / hari`) : ''),
+      '</div>',
+      '<div class="pay-note-line">Pilih tarikh masuk/keluar untuk kira caj sebenar.</div>',
+      extraNote,
       renderPaymentUpdateNotice(lastUpdatedAt)
     ].join('');
     return;
@@ -458,24 +685,81 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category }
   const freeDays = Math.max(0, Math.min(freeDaysForCategory(arrearsCat), totalDays));
   const rate = arrearsCat === 2 ? 5 : 15;
   const chargedDays = Math.max(0, totalDays - freeDays);
-  const totalAmount = chargedDays * rate;
+  const firstVehicleAmount = chargedDays * rate;
+  // For Pelawat Bermalam, additional vehicles use a separate rate by arrears category.
+  let extraVehicleAmount = 0;
+  let extraVehicleDetailLines = [];
+  if (isPelawat && extraVehicleCount > 0) {
+    if (additionalVehicleEntries.length > 0) {
+      extraVehicleAmount = additionalVehicleEntries.reduce((sum, item) => {
+        const s = item.startDate || start;
+        const e = item.endDate || s;
+        const days = Math.max(1, Math.floor((e.getTime() - s.getTime()) / dayMs) + 1);
+        const amount = days * additionalRate;
+        extraVehicleDetailLines.push({
+          plate: item.plate,
+          start: s,
+          end: e,
+          days,
+          amount
+        });
+        return sum + amount;
+      }, 0);
+    } else {
+      extraVehicleAmount = extraVehicleCount * totalDays * additionalRate;
+    }
+  }
+  const totalAmount = firstVehicleAmount + extraVehicleAmount;
 
   const rows = [];
   for (let i=0; i<totalDays; i++) {
     const d = new Date(start.getTime()); d.setDate(d.getDate() + i);
     const label = i < freeDays ? 'Percuma' : `RM ${rate.toFixed(2)}`;
-    rows.push(`<li style="margin-bottom:4px">${fmtDate(d)} : <strong>${label}</strong></li>`);
+    rows.push(`<li>${fmtDate(d)} : <strong>${label}</strong></li>`);
   }
 
   summary.innerHTML = [
-    `<div>Unit: <strong>${unit}</strong></div>`,
-    `<div class="small">Kategori : <strong>Kategori ${arrearsCat}</strong></div>`,
-    `<div class="small">Jumlah tunggakan : <strong>${arrearsAmountDisplay}</strong></div>`,
-    `<div class="small">Parkir percuma : <strong>${freeDays} hari</strong></div>`,
-    `<div class="small">Kadar cas dikenakan : <strong>RM ${rate.toFixed(2)} / hari</strong></div>`,
-    `<div class="small" style="margin-top:6px">Julat tarikh: <strong>${fmtDate(start)} hingga ${fmtDate(end)}</strong></div>`,
-    `<ul class="arrears-payment-list small muted" style="margin-top:6px;padding-left:18px">${rows.join('')}</ul>`,
-    `<div style="margin-top:8px">Jumlah perlu bayar: <strong>RM ${totalAmount.toFixed(2)}</strong></div>`,
+    unitHeader(`Kategori ${arrearsCat}`),
+    '<div class="pay-grid">',
+    infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+    infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
+    infoRow('Parkir percuma', `${freeDays} hari`),
+    infoRow('Kadar cas', `RM ${rate.toFixed(2)} / hari`),
+    (isPelawat ? infoRow('Kadar kenderaan tambahan', `RM ${additionalRate.toFixed(2)} / kereta / hari`) : ''),
+    infoRow('Julat tarikh', `${fmtDate(start)} hingga ${fmtDate(end)}`),
+    '</div>',
+    '<div class="pay-total-wrap">',
+    `<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${totalAmount.toFixed(2)}</strong></div>`,
+    '<details class="pay-total-details">',
+    '<summary>Lihat perincian bayaran</summary>',
+    '<div class="pay-total-details-body">',
+    '<details class="pay-charge-box">',
+    `<summary><span class="pay-charge-title">Caj kenderaan utama</span><strong class="pay-charge-amount">RM ${firstVehicleAmount.toFixed(2)}</strong></summary>`,
+    '<div class="pay-charge-body">',
+    `<div class="pay-note-line">${chargedDays} hari bercaj x RM ${rate.toFixed(2)} = <strong>RM ${firstVehicleAmount.toFixed(2)}</strong></div>`,
+    `<ul class="arrears-payment-list pay-daily-list">${rows.join('')}</ul>`,
+    '</div>',
+    '</details>',
+    '<details class="pay-charge-box">',
+    `<summary><span class="pay-charge-title">Caj kenderaan tambahan</span><strong class="pay-charge-amount">RM ${extraVehicleAmount.toFixed(2)}</strong></summary>`,
+    '<div class="pay-charge-body">',
+    '<div class="pay-breakdown-title">Perincian bayaran</div>',
+    (isPelawat && extraVehicleCount > 0
+      ? `<div class="pay-note-line">${extraVehicleCount} kereta x hari penggunaan x RM ${additionalRate.toFixed(2)} = <strong>RM ${extraVehicleAmount.toFixed(2)}</strong></div>${extraVehicleDetailLines.length ? `<ul class="arrears-payment-list pay-daily-list">${extraVehicleDetailLines.map((item) => {
+          const dayLines = [];
+          for (let i = 0; i < item.days; i++) {
+            const d = new Date(item.start.getTime());
+            d.setDate(d.getDate() + i);
+            dayLines.push(`<li>- ${fmtDateShort(d)} : <strong>RM ${additionalRate.toFixed(2)}</strong></li>`);
+          }
+          return `<li><strong>${item.plate}</strong><ul class="pay-plate-day-list">${dayLines.join('')}</ul></li>`;
+        }).join('')}</ul>` : ''}`
+      : '<div class="pay-note-line">Tiada caj kenderaan tambahan.</div>'),
+    '</div>',
+    '</details>',
+    '</div>',
+    '</details>',
+    '</div>',
     renderPaymentUpdateNotice(lastUpdatedAt)
   ].join('');
 }
@@ -492,13 +776,22 @@ async function updatePaymentSummary(){
   const etdEl = document.getElementById('etd');
   const category = categoryEl?.value || '';
   const stayOver = stayOverEl?.value || 'No';
+  const singleVehicleNo = normalizeVehicleInput(document.getElementById('vehicleNo')?.value || '');
+  const multiVehicleNumbers = getVehicleNumbersFromList().map(v => normalizeVehicleInput(v)).filter(Boolean);
+  const additionalVehicleEntriesRaw = (category === 'Pelawat Khas' || category === 'Pelawat') ? getAdditionalVehicleEntries() : [];
+  const additionalVehicleEntries = additionalVehicleEntriesRaw.filter(v => v.plate && v.plate !== singleVehicleNo);
+  const allowMultiVehicle = category === 'Pelawat Khas' || category === 'Pelawat';
+  const combinedVehicleNumbers = allowMultiVehicle
+    ? Array.from(new Set([...multiVehicleNumbers, singleVehicleNo].filter(Boolean)))
+    : (singleVehicleNo ? [singleVehicleNo] : []);
+  const vehicleCount = combinedVehicleNumbers.length;
   const etaDate = etaEl?.value ? dateFromInputDateOnly(etaEl.value) : null;
   // For Pelawat with Tidak Bermalam, treat ETD as ETA
   let etdDate = etdEl?.value ? dateFromInputDateOnly(etdEl.value) : null;
   if (category === 'Pelawat' && stayOver !== 'Yes') etdDate = etaDate;
 
   if (!unitVal) { resetPaymentSummary(); currentUnitId = ''; currentUnitSnapshot = null; return; }
-  if (!units.includes(unitVal)) { renderChargesSummary({ unit: unitVal, unitSnapshot: null, etaDate, etdDate, category }); return; }
+  if (!units.includes(unitVal)) { renderChargesSummary({ unit: unitVal, unitSnapshot: null, etaDate, etdDate, category, stayOver, vehicleCount, additionalVehicleEntries }); return; }
 
   const reqId = ++paymentSummaryRequestId;
   if (currentUnitId !== unitVal) {
@@ -521,7 +814,7 @@ async function updatePaymentSummary(){
   }
 
   if (reqId !== paymentSummaryRequestId) return;
-  renderChargesSummary({ unit: unitVal, unitSnapshot: currentUnitSnapshot, etaDate, etdDate, category });
+  renderChargesSummary({ unit: unitVal, unitSnapshot: currentUnitSnapshot, etaDate, etdDate, category, stayOver, vehicleCount, additionalVehicleEntries });
 }
 
 function showUnitNoticeModal({ category, amount, eta, etd, visitorCategory, lastUpdatedAt }){
@@ -653,81 +946,189 @@ function showUnitNoticeModal({ category, amount, eta, etd, visitorCategory, last
  */
 function _shortId(){ return Math.random().toString(36).slice(2,9); }
 
-async function createResponseWithDedupe(payload){
-  // Use Cloud Function (callable) to perform server-side transaction (avoids client permission issues)
-  if (!window.__FIREBASE_APP) throw new Error('Firebase app not available');
-
-  // Normalize ETA/ETD to ISO strings (callable serializes JSON cleanly)
-  const safePayload = Object.assign({}, payload);
-  try { if (safePayload.eta && safePayload.eta.toDate) safePayload.eta = safePayload.eta.toDate().toISOString(); } catch(e) {}
-  try { if (safePayload.etd && safePayload.etd.toDate) safePayload.etd = safePayload.etd.toDate().toISOString(); } catch(e) {}
-  // (server-side callable will compute dedupe key and run the transaction)
-
-  const funcs = getFunctions(window.__FIREBASE_APP);
-  const fn = httpsCallable(funcs, 'createResponseWithDedupe');
+function getOrCreateAmendToken(hostUnitId, dateKey) {
+  const key = `amendToken:${hostUnitId}:${dateKey}`;
   try {
-    const res = await fn({ payload: safePayload });
-    if (res && res.data && res.data.success) return { success: true, id: res.data.id, fallback: false };
-    throw new Error('function_failed');
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+    const generated = `${_shortId()}${_shortId()}${Date.now().toString(36)}`;
+    localStorage.setItem(key, generated);
+    return generated;
+  } catch (e) {
+    return `${_shortId()}${_shortId()}`;
+  }
+}
+
+function collectVehicleSetFromPayloadLike(src) {
+  const arr = Array.isArray(src && src.vehicleNumbers) ? src.vehicleNumbers : [];
+  const out = arr.map(v => normalizeVehicleInput(v)).filter(Boolean);
+  if (!out.length && src && src.vehicleNo) {
+    const v = normalizeVehicleInput(src.vehicleNo);
+    if (v) out.push(v);
+  }
+  return out;
+}
+
+function _toDateOnly(v) {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  if (!d || isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+async function createResponseWithDedupe(payload){
+  if (!window.__FIRESTORE) throw new Error('Firestore not available');
+
+  const etaDate = payload && payload.eta && payload.eta.toDate ? payload.eta.toDate() : null;
+  if (!etaDate || isNaN(etaDate.getTime())) {
+    const e = new Error('Invalid ETA');
+    e.code = 'INVALID_ETA';
+    throw e;
+  }
+
+  const dateKey = clientIsoDateOnlyKey(etaDate);
+  const hostUnitId = String(payload.hostUnit || '').replace(/\s+/g, '');
+  const phoneNorm = String(payload.visitorPhone || '').replace(/[^0-9+]/g, '');
+  const nameKey = payload.visitorName ? String(payload.visitorName).trim().toLowerCase().replace(/\s+/g, '_').slice(0, 64) : '';
+  const dedupeIdentity = phoneNorm || nameKey || 'noid';
+  const dedupeKey = `dedupe-${dateKey}_${hostUnitId}_${dedupeIdentity}`;
+
+  const responseId = `resp-${Date.now()}-${_shortId()}`;
+  const dedupeRef = doc(window.__FIRESTORE, 'dedupeKeys', dedupeKey);
+  const respRef = doc(window.__FIRESTORE, 'responses', responseId);
+
+  const category = String(payload.category || '').trim();
+  const stayOver = String(payload.stayOver || 'No').trim();
+  // Apply anti-split lock for all Pelawat submissions (Bermalam and Tidak Bermalam).
+  const enforcePelawatLock = category === 'Pelawat';
+  const lockRef = doc(window.__FIRESTORE, 'overnightLocks', `unit-${hostUnitId}`);
+  const etaStart = _toDateOnly(etaDate);
+  const etdDate = payload && payload.etd && payload.etd.toDate ? payload.etd.toDate() : null;
+  const etaEnd = _toDateOnly(etdDate) || etaStart;
+  const amendToken = payload && payload.amendToken ? String(payload.amendToken) : getOrCreateAmendToken(hostUnitId, dateKey);
+
+  try {
+    let amended = false;
+    let finalResponseId = responseId;
+    await runTransaction(window.__FIRESTORE, async (tx) => {
+      let targetRespId = responseId;
+      let targetRespRef = respRef;
+
+      const dedupeSnap = await tx.get(dedupeRef);
+      if (dedupeSnap.exists()) {
+        const existing = dedupeSnap.data() || {};
+        const existingTs = existing.createdAt && existing.createdAt.toDate ? existing.createdAt.toDate() : null;
+        if (existingTs) {
+          const ageMs = Date.now() - existingTs.getTime();
+          if (ageMs < CLIENT_DEDUPE_WINDOW_MIN * 60 * 1000) {
+            if (existing.responseId && existing.amendToken === amendToken) {
+              targetRespId = existing.responseId;
+              targetRespRef = doc(window.__FIRESTORE, 'responses', targetRespId);
+              amended = true;
+              finalResponseId = targetRespId;
+            } else {
+              const err = new Error('duplicate');
+              err.code = 'DUPLICATE';
+              throw err;
+            }
+          }
+        }
+      }
+
+      if (enforcePelawatLock && etaStart && etaEnd) {
+        const lockSnap = await tx.get(lockRef);
+        if (lockSnap.exists()) {
+          const lock = lockSnap.data() || {};
+          const lockStart = _toDateOnly(lock.startDate && lock.startDate.toDate ? lock.startDate.toDate() : lock.startDate);
+          const lockEnd = _toDateOnly(lock.endDate && lock.endDate.toDate ? lock.endDate.toDate() : lock.endDate);
+          if (lockStart && lockEnd) {
+            const overlap = etaStart.getTime() <= lockEnd.getTime() && lockStart.getTime() <= etaEnd.getTime();
+            if (overlap) {
+              if (lock.responseId && lock.amendToken === amendToken) {
+                targetRespId = lock.responseId;
+                targetRespRef = doc(window.__FIRESTORE, 'responses', targetRespId);
+                amended = true;
+                finalResponseId = targetRespId;
+              } else {
+                const err = new Error('combine_vehicle_registration_required');
+                err.code = 'COMBINE_REQUIRED';
+                throw err;
+              }
+            }
+          }
+        }
+
+        tx.set(lockRef, {
+          unit: hostUnitId,
+          startDate: Timestamp.fromDate(etaStart),
+          endDate: Timestamp.fromDate(etaEnd),
+          category,
+          stayOver,
+          responseId: targetRespId,
+          amendToken,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
+      tx.set(dedupeRef, {
+        responseId: targetRespId,
+        hostUnit: payload.hostUnit || '',
+        visitorPhone: payload.visitorPhone || '',
+        visitorName: payload.visitorName || '',
+        etaDate: dateKey,
+        amendToken,
+        createdAt: serverTimestamp()
+      });
+
+      const docPayload = Object.assign({}, payload, {
+        amendToken,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      if (!amended) {
+        tx.set(targetRespRef, docPayload);
+      } else {
+        const existingRespSnap = await tx.get(targetRespRef);
+        if (!existingRespSnap.exists()) {
+          const err = new Error('response_not_found_for_amend');
+          err.code = 'AMEND_TARGET_NOT_FOUND';
+          throw err;
+        }
+        const existingResp = existingRespSnap.data() || {};
+        const existingVehicles = collectVehicleSetFromPayloadLike(existingResp);
+        const incomingVehicles = collectVehicleSetFromPayloadLike(docPayload);
+        const shouldMergeVehicles = String(docPayload.stayOver || 'No') === 'Yes';
+        const mergedVehicles = shouldMergeVehicles
+          ? Array.from(new Set([...existingVehicles, ...incomingVehicles]))
+          : incomingVehicles;
+
+        const amendedPayload = Object.assign({}, existingResp, docPayload, {
+          createdAt: existingResp.createdAt || docPayload.createdAt,
+          updatedAt: serverTimestamp(),
+          amendToken,
+          vehicleNumbers: mergedVehicles,
+          vehicleNo: mergedVehicles.length ? mergedVehicles[0] : (docPayload.vehicleNo || '')
+        });
+        tx.update(targetRespRef, amendedPayload);
+      }
+    });
+    return { success: true, id: finalResponseId, fallback: false, amended };
   } catch (err) {
-    // firebase functions throws HttpsError with code property
-    const code = err && err.code ? err.code : (err && err.message ? err.message : 'server_error');
-    // duplicate error returned from server-side transaction (explicit duplicate) -> bubble up
-    if (String(code).toLowerCase().includes('already-exists') || String(err).toLowerCase().includes('duplicate')) {
+    const code = err && err.code ? String(err.code) : '';
+    const msg = String(err && (err.message || err)).toLowerCase();
+    if (code === 'DUPLICATE' || msg.includes('duplicate') || msg.includes('already-exists')) {
       const e = new Error('duplicate'); e.code = 'DUPLICATE'; throw e;
     }
-
-    // cooldown enforcement from server: don't attempt client fallback, surface to UI
-    const codeStr = String(code).toLowerCase();
-    const msgStr = String(err && (err.message || err)).toLowerCase();
-    if (codeStr.includes('failed-precondition') || msgStr.includes('cooldown_until')) {
-      const rawMsg = String(err && (err.message || err)) || '';
-      const m = rawMsg.match(/cooldown_until:([^\s]+)/i);
-      const iso = m && m[1] ? m[1] : null;
-      const until = iso ? new Date(iso) : null;
-      const e = new Error('cooldown');
-      e.code = 'COOLDOWN';
-      if (until && !isNaN(until.getTime())) { e.until = until; e.untilISO = iso; }
+    if (code === 'COMBINE_REQUIRED' || msg.includes('combine_vehicle_registration_required')) {
+      const e = new Error('combine_vehicle_registration_required');
+      e.code = 'COMBINE_REQUIRED';
       throw e;
     }
-
-    // If the callable failed for permission reasons (client can't touch dedupeKeys) or
-    // the function is not deployed, fall back to a best-effort client-only write to
-    // `responses` (no dedupe). This keeps the user's submission from being blocked.
-    console.warn('createResponseWithDedupe callable failed — attempting client-only fallback', err);
-
-    try {
-      // wait for Firestore to be available in the page context
-      await waitForFirestore(3000);
-    } catch (waitErr) {
-      // if firestore not available, rethrow the original error
-      console.error('firestore unavailable for fallback', waitErr);
-      throw err;
-    }
-
-    // Build a deterministic-ish id so we can still reference the submission if needed
-    const fallbackId = `resp-${Date.now()}-${_shortId()}`;
-    const ref = doc(window.__FIRESTORE, 'responses', fallbackId);
-
-    // Use the original payload (keep timestamps as sent) and ensure createdAt/updatedAt are present
-    const clientPayload = Object.assign({}, payload);
-    if (!clientPayload.createdAt) clientPayload.createdAt = serverTimestamp();
-    if (!clientPayload.updatedAt) clientPayload.updatedAt = serverTimestamp();
-
-    try {
-      await setDoc(ref, clientPayload);
-      // indicate fallback was used
-      return { success: true, id: fallbackId, fallback: true };
-    } catch (writeErr) {
-      console.error('fallback write to responses failed', writeErr);
-      // return a richer error so callers can show a precise message
-      const e = new Error('fallback_failed');
-      e.code = writeErr.code || err.code || 'FALLBACK_FAILED';
-      e.message = `Fallback write failed: ${writeErr?.message || writeErr} — original: ${err?.message || err}`;
-      e.writeError = writeErr;
-      e.originalError = err;
-      throw e;
-    }
+    const e = new Error('transaction_failed');
+    e.code = code || 'TRANSACTION_FAILED';
+    e.message = err && err.message ? err.message : 'Transaction failed';
+    throw e;
   }
 }
 
@@ -773,44 +1174,308 @@ function clientMarkSubmission(fingerprint){
 
 /* ---------- vehicle helpers ---------- */
 function createVehicleRow(value=''){
+  const rowSeed = (value && typeof value === 'object') ? value : { plate: value };
   const wrapper = document.createElement('div');
   wrapper.className = 'vehicle-row';
-  wrapper.style.display = 'flex';
-  wrapper.style.gap = '8px';
-  wrapper.style.alignItems = 'center';
-  wrapper.style.marginTop = '6px';
 
   const input = document.createElement('input');
   input.type = 'text';
   input.placeholder = 'ABC1234';
-  input.value = value;
+  input.value = normalizeVehicleInput(rowSeed.plate || '');
   input.className = 'vehicle-input';
   input.setAttribute('aria-label','Nombor kenderaan');
-  input.style.flex = '1';
-  input.style.padding = '8px';
-  input.style.borderRadius = '8px';
-  input.style.border = '1px solid var(--input-border, #e5e7eb)';
-  input.style.background = 'var(--card, #fff)';
-  input.style.color = 'var(--form-text, #111)';
+  input.addEventListener('input', () => {
+    input.value = normalizeVehicleInput(input.value);
+    try { updatePaymentSummary(); } catch (e) { /* ignore */ }
+  });
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'vehicle-row-title';
+
+  const title = document.createElement('div');
+  title.className = 'vehicle-row-heading';
+  title.textContent = 'Kenderaan Tambahan (2)';
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
   removeBtn.className = 'vehicle-remove btn-ghost';
   removeBtn.textContent = '−';
   removeBtn.title = 'Keluarkan baris';
-  removeBtn.style.padding = '8px 10px';
-  removeBtn.style.borderRadius = '8px';
-  removeBtn.style.cursor = 'pointer';
   removeBtn.setAttribute('aria-label','Keluarkan nombor kenderaan');
-  removeBtn.addEventListener('click', () => wrapper.remove());
+  removeBtn.addEventListener('click', () => {
+    wrapper.remove();
+    refreshVehicleRowIndices();
+    try { updatePaymentSummary(); } catch (e) { /* ignore */ }
+  });
 
-  wrapper.appendChild(input);
-  wrapper.appendChild(removeBtn);
+  titleRow.appendChild(title);
+  titleRow.appendChild(removeBtn);
+
+  const visitorNameGroup = document.createElement('div');
+  visitorNameGroup.className = 'vehicle-field-group';
+  const visitorNameLabel = document.createElement('label');
+  visitorNameLabel.className = 'vehicle-field-label';
+  visitorNameLabel.textContent = 'Nama pelawat';
+  const visitorNameInput = document.createElement('input');
+  visitorNameInput.type = 'text';
+  visitorNameInput.className = 'vehicle-visitor-name-input';
+  visitorNameInput.placeholder = 'Nama pelawat';
+  visitorNameInput.value = (rowSeed.visitorName || '').trim();
+  visitorNameGroup.appendChild(visitorNameLabel);
+  visitorNameGroup.appendChild(visitorNameInput);
+
+  const visitorPhoneGroup = document.createElement('div');
+  visitorPhoneGroup.className = 'vehicle-field-group';
+  const visitorPhoneLabel = document.createElement('label');
+  visitorPhoneLabel.className = 'vehicle-field-label';
+  visitorPhoneLabel.textContent = 'Nombor telefon pelawat';
+  const visitorPhoneInput = document.createElement('input');
+  visitorPhoneInput.type = 'tel';
+  visitorPhoneInput.inputMode = 'tel';
+  visitorPhoneInput.className = 'vehicle-visitor-phone-input';
+  visitorPhoneInput.placeholder = '012-3456789';
+  visitorPhoneInput.value = normalizePhoneInput(rowSeed.visitorPhone || '');
+  visitorPhoneGroup.appendChild(visitorPhoneLabel);
+  visitorPhoneGroup.appendChild(visitorPhoneInput);
+
+  const plateGroup = document.createElement('div');
+  plateGroup.className = 'vehicle-field-group';
+  const plateLabel = document.createElement('label');
+  plateLabel.className = 'vehicle-field-label';
+  plateLabel.textContent = 'Nombor Kenderaan';
+  plateGroup.appendChild(plateLabel);
+  plateGroup.appendChild(input);
+
+  const dateWrap = document.createElement('div');
+  dateWrap.className = 'vehicle-extra-date-wrap hidden';
+
+  const startDate = document.createElement('input');
+  startDate.type = 'date';
+  startDate.className = 'vehicle-extra-start';
+  startDate.setAttribute('aria-label','Tarikh masuk kenderaan tambahan');
+
+  const endDate = document.createElement('input');
+  endDate.type = 'date';
+  endDate.className = 'vehicle-extra-end';
+  endDate.setAttribute('aria-label','Tarikh keluar kenderaan tambahan');
+
+  const inGroup = document.createElement('div');
+  inGroup.className = 'vehicle-field-group';
+  const inLabel = document.createElement('label');
+  inLabel.className = 'vehicle-field-label';
+  inLabel.textContent = 'Tarikh masuk';
+  inGroup.appendChild(inLabel);
+  inGroup.appendChild(startDate);
+
+  const outGroup = document.createElement('div');
+  outGroup.className = 'vehicle-field-group';
+  const outLabel = document.createElement('label');
+  outLabel.className = 'vehicle-field-label';
+  outLabel.textContent = 'Tarikh keluar';
+  outGroup.appendChild(outLabel);
+  outGroup.appendChild(endDate);
+
+  const syncLabel = document.createElement('label');
+  syncLabel.className = 'vehicle-date-sync';
+  const syncCheck = document.createElement('input');
+  syncCheck.type = 'checkbox';
+  syncCheck.className = 'vehicle-date-sync-check';
+  syncCheck.checked = rowSeed.useMainDate !== false;
+  const syncSwitch = document.createElement('span');
+  syncSwitch.className = 'vehicle-date-sync-switch';
+  syncSwitch.setAttribute('aria-hidden', 'true');
+  const syncText = document.createElement('span');
+  syncText.className = 'vehicle-date-sync-text';
+  syncText.textContent = 'Guna tarikh sama seperti Kenderaan Pertama (1)';
+  syncLabel.appendChild(syncCheck);
+  syncLabel.appendChild(syncSwitch);
+  syncLabel.appendChild(syncText);
+
+  syncCheck.addEventListener('change', () => {
+    refreshVehicleRowDateFields(wrapper);
+    try { updatePaymentSummary(); } catch (e) { /* ignore */ }
+  });
+
+  startDate.addEventListener('change', () => {
+    if (startDate.value && (!endDate.value || endDate.value < startDate.value)) endDate.value = startDate.value;
+    refreshVehicleRowDateFields(wrapper);
+    try { updatePaymentSummary(); } catch (e) { /* ignore */ }
+  });
+
+  endDate.addEventListener('change', () => {
+    if (startDate.value && endDate.value && endDate.value < startDate.value) endDate.value = startDate.value;
+    refreshVehicleRowDateFields(wrapper);
+    try { updatePaymentSummary(); } catch (e) { /* ignore */ }
+  });
+
+  dateWrap.appendChild(inGroup);
+  dateWrap.appendChild(outGroup);
+  dateWrap.appendChild(syncLabel);
+
+  wrapper.appendChild(titleRow);
+  wrapper.appendChild(visitorNameGroup);
+  wrapper.appendChild(visitorPhoneGroup);
+  wrapper.appendChild(plateGroup);
+  wrapper.appendChild(dateWrap);
+
+  const rowNameInput = wrapper.querySelector('.vehicle-visitor-name-input');
+  const rowPhoneInput = wrapper.querySelector('.vehicle-visitor-phone-input');
+  if (rowPhoneInput) {
+    rowPhoneInput.addEventListener('input', () => {
+      rowPhoneInput.value = normalizePhoneInput(rowPhoneInput.value || '');
+    });
+  }
+
+  startDate.value = rowSeed.startDate || '';
+  endDate.value = rowSeed.endDate || '';
+  refreshVehicleRowDateFields(wrapper);
+  if (rowSeed.useMainDate === false && !syncCheck.disabled) {
+    syncCheck.checked = false;
+    refreshVehicleRowDateFields(wrapper);
+    if (rowSeed.startDate) startDate.value = rowSeed.startDate;
+    if (rowSeed.endDate) endDate.value = rowSeed.endDate;
+    refreshVehicleRowDateFields(wrapper);
+  }
+  queueMicrotask(refreshVehicleRowIndices);
   return wrapper;
 }
 
+function refreshVehicleRowIndices() {
+  const rows = Array.from(document.querySelectorAll('#vehicleList .vehicle-row'));
+  rows.forEach((row, idx) => {
+    const heading = row.querySelector('.vehicle-row-heading');
+    if (heading) heading.textContent = `Kenderaan Tambahan (${idx + 2})`;
+  });
+}
+
+function refreshVehicleRowDateFields(rowEl) {
+  if (!rowEl) return;
+  const wrap = rowEl.querySelector('.vehicle-extra-date-wrap');
+  const startInput = rowEl.querySelector('.vehicle-extra-start');
+  const endInput = rowEl.querySelector('.vehicle-extra-end');
+  const syncCheck = rowEl.querySelector('.vehicle-date-sync-check');
+  const syncRow = syncCheck ? syncCheck.closest('.vehicle-date-sync') : null;
+  const outGroup = endInput ? endInput.closest('.vehicle-field-group') : null;
+  if (!wrap || !startInput || !endInput) return;
+
+  const category = (document.getElementById('category')?.value || '').trim();
+  const stayOver = (document.getElementById('stayOver')?.value || 'No').trim();
+  const enabled = category === 'Pelawat' || category === 'Pelawat Khas';
+
+  if (!enabled) {
+    wrap.style.display = 'none';
+    wrap.classList.add('hidden');
+    startInput.value = '';
+    endInput.value = '';
+    startInput.disabled = false;
+    endInput.disabled = false;
+    if (outGroup) outGroup.style.display = '';
+    return;
+  }
+
+  const etaVal = document.getElementById('eta')?.value || '';
+  const etdVal = document.getElementById('etd')?.value || etaVal;
+  if (!etaVal) {
+    // For Pelawat Khas, keep the date section visible as locked fields that follow Kenderaan Pertama.
+    if (category === 'Pelawat Khas') {
+      wrap.style.display = 'grid';
+      wrap.classList.remove('hidden');
+      if (syncCheck) {
+        syncCheck.checked = true;
+        syncCheck.disabled = true;
+      }
+      if (syncRow) syncRow.classList.add('is-locked');
+      if (outGroup) outGroup.style.display = '';
+      startInput.value = '';
+      endInput.value = '';
+      startInput.disabled = true;
+      endInput.disabled = true;
+      return;
+    }
+    wrap.style.display = 'none';
+    wrap.classList.add('hidden');
+    startInput.value = '';
+    endInput.value = '';
+    startInput.disabled = false;
+    endInput.disabled = false;
+    if (outGroup) outGroup.style.display = '';
+    return;
+  }
+
+  wrap.style.display = 'grid';
+  wrap.classList.remove('hidden');
+
+  // Pelawat Tidak Bermalam and Pelawat Khas: additional vehicles follow Kenderaan Pertama dates.
+  const noOvernight = category === 'Pelawat Khas' || stayOver !== 'Yes';
+  if (noOvernight) {
+    if (syncCheck) {
+      syncCheck.checked = true;
+      syncCheck.disabled = true;
+    }
+    if (syncRow) syncRow.classList.add('is-locked');
+    startInput.value = etaVal;
+    startInput.disabled = true;
+    if (outGroup) outGroup.style.display = '';
+    endInput.value = startInput.value;
+    endInput.disabled = true;
+    return;
+  }
+
+  if (syncCheck) syncCheck.disabled = false;
+  if (syncRow) syncRow.classList.remove('is-locked');
+  if (outGroup) outGroup.style.display = '';
+
+  if (syncCheck && syncCheck.checked) {
+    startInput.value = etaVal;
+    endInput.value = etdVal || etaVal;
+    startInput.disabled = true;
+    endInput.disabled = true;
+    return;
+  }
+
+  startInput.disabled = false;
+  endInput.disabled = false;
+  startInput.min = etaVal;
+  startInput.max = etdVal || etaVal;
+  endInput.min = startInput.value || etaVal;
+  endInput.max = etdVal || etaVal;
+
+  if (!startInput.value) startInput.value = etaVal;
+  if (!endInput.value) endInput.value = etdVal || startInput.value;
+
+  if (startInput.value < etaVal) startInput.value = etaVal;
+  if ((etdVal || etaVal) && startInput.value > (etdVal || etaVal)) startInput.value = etdVal || etaVal;
+  if (endInput.value < startInput.value) endInput.value = startInput.value;
+  if ((etdVal || etaVal) && endInput.value > (etdVal || etaVal)) endInput.value = etdVal || etaVal;
+
+  endInput.min = startInput.value;
+}
+
+function refreshAllVehicleDateFields() {
+  document.querySelectorAll('#vehicleList .vehicle-row').forEach(row => refreshVehicleRowDateFields(row));
+}
+
+function getAdditionalVehicleEntries() {
+  const rows = document.querySelectorAll('#vehicleList .vehicle-row');
+  const out = [];
+  const seen = new Set();
+  rows.forEach(row => {
+    const plate = normalizeVehicleInput(row.querySelector('.vehicle-input')?.value || '');
+    if (!plate || seen.has(plate)) return;
+    seen.add(plate);
+    const sVal = row.querySelector('.vehicle-extra-start')?.value || '';
+    const eVal = row.querySelector('.vehicle-extra-end')?.value || '';
+    out.push({
+      plate,
+      startDate: sVal ? dateFromInputDateOnly(sVal) : null,
+      endDate: eVal ? dateFromInputDateOnly(eVal) : null
+    });
+  });
+  return out;
+}
+
 function getVehicleNumbersFromList(){
-  const list = document.querySelectorAll('#vehicleList .vehicle-row input');
+  const list = document.querySelectorAll('#vehicleList .vehicle-row .vehicle-input');
   const out = [];
   list.forEach(i => {
     const v = i.value.trim();
@@ -1037,6 +1702,7 @@ const categoryHelpMap = {
 // Render the Bahagian 2 category note using the same descriptions as the inline helper
 function renderCategorySectionNote() {
   const note = document.getElementById('sectionCategoryNote');
+  const noteWrap = document.getElementById('sectionCategoryInfo');
   if (!note) return;
   const select = document.getElementById('category');
 
@@ -1055,12 +1721,12 @@ function renderCategorySectionNote() {
   if (!items.length) {
     note.textContent = '';
     note.setAttribute('aria-hidden', 'true');
+    if (noteWrap) noteWrap.classList.add('hidden');
     return;
   }
 
+  if (noteWrap) noteWrap.classList.remove('hidden');
   note.innerHTML = '';
-  const title = document.createElement('strong');
-  title.textContent = 'Tujuan kategori:';
   const ul = document.createElement('ul');
   ul.className = 'section-note-list';
   items.forEach(([label, text]) => {
@@ -1071,9 +1737,14 @@ function renderCategorySectionNote() {
     li.appendChild(document.createTextNode(`: ${text}`));
     ul.appendChild(li);
   });
-  note.appendChild(title);
   note.appendChild(ul);
   note.removeAttribute('aria-hidden');
+  if (noteWrap) {
+    const summary = noteWrap.querySelector('summary');
+    if (summary) {
+      summary.textContent = 'Penerangan Kategori';
+    }
+  }
 }
 
 function setCompanyFieldState(show) {
@@ -1184,9 +1855,113 @@ function buildWhatsAppUrlForAdmin(payload){
 
   const etaText = payload.eta ? formatLocalDate(payload.eta) : '-';
   const etdText = payload.etd ? formatLocalDate(payload.etd) : '-';
+  const messageTimestamp = (() => {
+    const ts = payload && payload.createdAt;
+    if (ts && typeof ts.toDate === 'function') {
+      try { return ts.toDate(); } catch (e) { /* ignore */ }
+    }
+    return new Date();
+  })();
+  const messageDateText = formatLocalDate(messageTimestamp);
 
-  const lines = [
+  const normalizeArrearsCategory = (raw) => {
+    if (raw === null || raw === undefined) return 1;
+    if (typeof raw === 'number') {
+      const n = Math.round(raw);
+      return (n >= 1 && n <= 3) ? n : 1;
+    }
+    const s = String(raw).trim();
+    const m = s.match(/(1|2|3)/);
+    return m ? Number(m[1]) : 1;
+  };
+
+  const toDateOnly = (v) => {
+    if (!v) return null;
+    const d = v.toDate ? v.toDate() : new Date(v);
+    if (!d || isNaN(d.getTime())) return null;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+  };
+
+  const computeChargeSummaryForWa = (p) => {
+    const category = String(p.category || '');
+    const arrearsCat = normalizeArrearsCategory(p.unitCategory);
+    const vehicleList = Array.isArray(p.vehicleNumbers) && p.vehicleNumbers.length
+      ? p.vehicleNumbers.filter(Boolean)
+      : (p.vehicleNo ? [p.vehicleNo] : []);
+    const totalCars = Math.max(1, vehicleList.length || 0);
+    const extraCars = Math.max(0, totalCars - 1);
+    const start = toDateOnly(p.eta);
+    const end = toDateOnly(p.etd) || start;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const totalDays = (start && end) ? Math.max(1, Math.floor((end.getTime() - start.getTime()) / dayMs) + 1) : 1;
+
+    if (category === 'Pelawat Khas') {
+      const rateMap = { 1: 5, 2: 8, 3: 15 };
+      const rate = rateMap[arrearsCat] || 0;
+      const main = rate * totalDays;
+      const extra = extraCars * rate * totalDays;
+      const total = main + extra;
+      return {
+        arrearsCat,
+        total,
+        lines: [
+          `Kadar Pelawat Khas: RM ${rate.toFixed(2)} / kereta / hari`,
+          `Kenderaan utama: 1 x ${totalDays} hari x RM ${rate.toFixed(2)} = RM ${main.toFixed(2)}`,
+          `Kenderaan tambahan: ${extraCars} x ${totalDays} hari x RM ${rate.toFixed(2)} = RM ${extra.toFixed(2)}`
+        ]
+      };
+    }
+
+    if (category === 'Pelawat') {
+      const additionalRateMap = { 1: 10, 2: 15, 3: 25 };
+      const additionalRate = additionalRateMap[arrearsCat] || 0;
+      let main = 0;
+      if (arrearsCat !== 1) {
+        const free = freeDaysForCategory(arrearsCat);
+        const baseRate = arrearsCat === 2 ? 5 : 15;
+        const chargedDays = Math.max(0, totalDays - Math.max(0, Math.min(free, totalDays)));
+        main = chargedDays * baseRate;
+      }
+      const extra = extraCars * totalDays * additionalRate;
+      const total = main + extra;
+      return {
+        arrearsCat,
+        total,
+        lines: [
+          `Kadar pelawat tambahan: RM ${additionalRate.toFixed(2)} / kereta / hari`,
+          `Kenderaan utama: RM ${main.toFixed(2)}`,
+          `Kenderaan tambahan: ${extraCars} x ${totalDays} hari x RM ${additionalRate.toFixed(2)} = RM ${extra.toFixed(2)}`
+        ]
+      };
+    }
+
+    if (category === 'Kontraktor') {
+      let main = 0;
+      if (arrearsCat !== 1) {
+        const free = freeDaysForCategory(arrearsCat);
+        const baseRate = arrearsCat === 2 ? 5 : 15;
+        const chargedDays = Math.max(0, totalDays - Math.max(0, Math.min(free, totalDays)));
+        main = chargedDays * baseRate;
+      }
+      return {
+        arrearsCat,
+        total: main,
+        lines: [
+          `Caj kontraktor: RM ${main.toFixed(2)}`
+        ]
+      };
+    }
+
+    return null;
+  };
+
+  const vehicles = (payload.vehicleNumbers && payload.vehicleNumbers.length)
+    ? payload.vehicleNumbers
+    : (payload.vehicleNo ? [payload.vehicleNo] : []);
+  const vehiclesForWa = vehicles.length ? vehicles : ['-'];
+  const blocks = vehiclesForWa.map((plate) => ([
     'Pendaftaran Pelawat Baru',
+    `Tarikh : ${messageDateText}`,
     `Unit: ${payload.hostUnit || '-'}`,
     `Nama penghuni: ${payload.hostName || '-'}`,
     `Nombor telefon penghuni: ${payload.hostPhone || '-'}`,
@@ -1194,10 +1969,11 @@ function buildWhatsAppUrlForAdmin(payload){
     `Nombor telefon pelawat: ${payload.visitorPhone || '-'}`,
     `Tarikh masuk: ${etaText}`,
     `Tarikh keluar: ${etdText}`,
-    `Kenderaan: ${ (payload.vehicleNumbers && payload.vehicleNumbers.length) ? payload.vehicleNumbers.join('; ') : (payload.vehicleNo || '-') }`,
-    `Kategori: ${payload.category || '-'}`,
-  ];
-  const text = encodeURIComponent(lines.join('\n'));
+    `Kenderaan: ${plate || '-'}`,
+    `Kategori: ${payload.category || '-'}`
+  ].join('\n')));
+  const blockSeparator = '\n------------------------------\n';
+  const text = encodeURIComponent(blocks.join(blockSeparator));
   // Web URL (works in browsers)
   const waWebUrl = `https://wa.me/${adminNumber}?text=${text}`;
   // App URL (prefer opening the WhatsApp app directly where supported). Include phone so recipient is prefilled.
@@ -1277,7 +2053,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const confirmAgreeEl = document.getElementById('confirmAgree');
   const waBtn = document.getElementById('waBtn');
   const waHint = document.getElementById('waHint');
+  const repeatModeEl = document.getElementById('repeatMode');
+  const repeatModeWrapEl = document.querySelector('.repeat-mode-wrap');
+  const repeatModeInfoBtnEl = document.getElementById('repeatModeInfoBtn');
+  const repeatModeHintEl = document.getElementById('repeatModeHint');
+  const draftStateEl = document.getElementById('draftState');
+  const progressBarEl = document.getElementById('formProgressBar');
+  const progressLabelEl = document.getElementById('formProgressLabel');
+  const progressTrackEl = document.querySelector('.form-progress-track');
+  const VISITOR_DRAFT_KEY = 'visitorForm:draft:v2';
+  const VISITOR_REPEAT_KEY = 'visitorForm:repeatMode';
+  const VISITOR_LAST_SUBMISSION_KEY = 'visitorForm:lastSubmission:v1';
   let isMockSubmit = false;
+  let draftTimer = null;
 
   function resetWhatsAppAction(){
     pendingWaPayload = null;
@@ -1308,6 +2096,155 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.classList.add('is-active');
   }
 
+  function setDraftState(text, isError = false) {
+    if (!draftStateEl) return;
+    draftStateEl.textContent = text;
+    draftStateEl.style.color = isError ? 'var(--danger, #ef4444)' : 'var(--muted, #6b7280)';
+  }
+
+  function saveRepeatModePreference() {
+    if (!repeatModeEl) return;
+    try { localStorage.setItem(VISITOR_REPEAT_KEY, repeatModeEl.checked ? '1' : '0'); } catch (e) { /* ignore */ }
+  }
+
+  function restoreRepeatModePreference() {
+    if (!repeatModeEl) return;
+    try {
+      const raw = localStorage.getItem(VISITOR_REPEAT_KEY);
+      if (raw === '0') repeatModeEl.checked = false;
+      if (raw === '1') repeatModeEl.checked = true;
+    } catch (e) { /* ignore */ }
+  }
+
+  function setRepeatHintOpen(open) {
+    if (!repeatModeHintEl || !repeatModeInfoBtnEl || !repeatModeWrapEl) return;
+    if (open) {
+      repeatModeHintEl.hidden = false;
+      repeatModeWrapEl.classList.add('is-hint-open');
+      repeatModeInfoBtnEl.setAttribute('aria-expanded', 'true');
+    } else {
+      repeatModeHintEl.hidden = true;
+      repeatModeWrapEl.classList.remove('is-hint-open');
+      repeatModeInfoBtnEl.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function isVisibleEnabledField(el) {
+    if (!el || el.disabled) return false;
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    if (el.closest('.hidden')) return false;
+    return true;
+  }
+
+  function getProgressTargets() {
+    const targets = ['hostUnit', 'hostName', 'category', 'visitorName', 'eta'];
+    const subCategoryEl = document.getElementById('subCategory');
+    if (subCategoryEl?.required && isVisibleEnabledField(subCategoryEl)) targets.push('subCategory');
+    const companyEl = document.getElementById('companyName');
+    if (companyEl?.required && isVisibleEnabledField(companyEl)) targets.push('companyName');
+    return targets;
+  }
+
+  function updateProgress(totalDone, totalRequired) {
+    const safeTotal = Math.max(1, totalRequired || 1);
+    const pct = Math.max(0, Math.min(100, Math.round((totalDone / safeTotal) * 100)));
+    if (progressBarEl) progressBarEl.style.width = `${pct}%`;
+    if (progressLabelEl) progressLabelEl.textContent = `Kemajuan borang: ${pct}% (${totalDone}/${safeTotal})`;
+    if (progressTrackEl) progressTrackEl.setAttribute('aria-valuenow', String(pct));
+  }
+
+  function updateFormProgress() {
+    const targetIds = getProgressTargets();
+    let done = 0;
+    for (const id of targetIds) {
+      const el = document.getElementById(id);
+      if (!el || !isVisibleEnabledField(el)) continue;
+      const value = (el.value || '').trim();
+      if (!value) continue;
+      if (id === 'hostUnit') {
+        const normalized = normalizeUnitInput(value);
+        if (normalized) done += 1;
+        continue;
+      }
+      done += 1;
+    }
+    const confirmAgree = !!document.getElementById('confirmAgree')?.checked;
+    const totalRequired = targetIds.length + 1;
+    updateProgress(done + (confirmAgree ? 1 : 0), totalRequired);
+  }
+
+  function collectDraftData() {
+    const vehicleRowsDetailed = Array.from(document.querySelectorAll('#vehicleList .vehicle-row')).map((row) => ({
+      plate: normalizeVehicleInput(row.querySelector('.vehicle-input')?.value || ''),
+      visitorName: (row.querySelector('.vehicle-visitor-name-input')?.value || '').trim(),
+      visitorPhone: normalizePhoneInput(row.querySelector('.vehicle-visitor-phone-input')?.value || ''),
+      startDate: row.querySelector('.vehicle-extra-start')?.value || '',
+      endDate: row.querySelector('.vehicle-extra-end')?.value || '',
+      useMainDate: !!row.querySelector('.vehicle-date-sync-check')?.checked
+    }));
+    const vehicleRows = vehicleRowsDetailed.map(v => v.plate).filter(Boolean);
+    return {
+      hostUnit: document.getElementById('hostUnit')?.value || '',
+      hostName: document.getElementById('hostName')?.value || '',
+      hostPhone: document.getElementById('hostPhone')?.value || '',
+      category: document.getElementById('category')?.value || '',
+      subCategory: document.getElementById('subCategory')?.value || '',
+      entryDetails: document.getElementById('entryDetails')?.value || '',
+      companyName: document.getElementById('companyName')?.value || '',
+      visitorName: document.getElementById('visitorName')?.value || '',
+      visitorPhone: document.getElementById('visitorPhone')?.value || '',
+      stayOver: document.getElementById('stayOver')?.value || 'No',
+      eta: document.getElementById('eta')?.value || '',
+      etd: document.getElementById('etd')?.value || '',
+      vehicleNo: document.getElementById('vehicleNo')?.value || '',
+      vehicleType: document.getElementById('vehicleType')?.value || '',
+      vehicleNumbers: vehicleRows,
+      vehicleRowsDetailed,
+      confirmAgree: !!document.getElementById('confirmAgree')?.checked,
+      savedAt: Date.now()
+    };
+  }
+
+  function scheduleDraftSave() {
+    if (draftTimer) clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => {
+      try {
+        const data = collectDraftData();
+        localStorage.setItem(VISITOR_DRAFT_KEY, JSON.stringify(data));
+        setDraftState('Draf disimpan automatik');
+      } catch (e) {
+        setDraftState('Gagal simpan draf', true);
+      }
+    }, 350);
+  }
+
+  function clearDraft() {
+    try { localStorage.removeItem(VISITOR_DRAFT_KEY); } catch (e) { /* ignore */ }
+    setDraftState('Draf automatik aktif');
+  }
+
+  function getSavedLastSubmission() {
+    try {
+      const raw = localStorage.getItem(VISITOR_LAST_SUBMISSION_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      return (data && typeof data === 'object') ? data : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveLastSubmission(data) {
+    try { localStorage.setItem(VISITOR_LAST_SUBMISSION_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+  }
+
+  function setAmendButtonState(btn, enabled) {
+    if (!btn) return;
+    btn.disabled = !enabled;
+    btn.classList.toggle('btn-disabled', !enabled);
+  }
+
   // Debug helper: if URL contains ?debug=1, show a visible test button to simulate WhatsApp open (useful for iPhone tests)
   try {
     const params = new URLSearchParams(window.location.search);
@@ -1328,6 +2265,27 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   } catch(e) {}
+
+  restoreRepeatModePreference();
+  setDraftState('Draf automatik aktif');
+  repeatModeEl?.addEventListener('change', () => {
+    saveRepeatModePreference();
+    scheduleDraftSave();
+  });
+  repeatModeInfoBtnEl?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const isOpen = repeatModeInfoBtnEl.getAttribute('aria-expanded') === 'true';
+    setRepeatHintOpen(!isOpen);
+  });
+  document.addEventListener('click', (e) => {
+    if (!repeatModeWrapEl) return;
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    if (!repeatModeWrapEl.contains(target)) setRepeatHintOpen(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setRepeatHintOpen(false);
+  });
 
   // Show floating memo before allowing form fill (once per browser)
   try {
@@ -1376,6 +2334,28 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (pendingWaPayload) resetWhatsAppAction();
     } catch (err) { /* ignore */ }
+  });
+
+  const hostPhoneEl = document.getElementById('hostPhone');
+  const visitorPhoneEl = document.getElementById('visitorPhone');
+  const vehicleNoEl = document.getElementById('vehicleNo');
+
+  hostPhoneEl?.addEventListener('input', () => {
+    hostPhoneEl.value = normalizePhoneInput(hostPhoneEl.value);
+    scheduleDraftSave();
+    updateFormProgress();
+  });
+
+  visitorPhoneEl?.addEventListener('input', () => {
+    visitorPhoneEl.value = normalizePhoneInput(visitorPhoneEl.value);
+    scheduleDraftSave();
+    updateFormProgress();
+  });
+
+  vehicleNoEl?.addEventListener('input', () => {
+    vehicleNoEl.value = normalizeVehicleInput(vehicleNoEl.value);
+    scheduleDraftSave();
+    updatePaymentSummary();
   });
 
   // keyboard navigation
@@ -1505,23 +2485,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const form = document.getElementById('visitorForm');
     const clearBtn = document.getElementById('clearBtn');
+    const amendLastBtn = document.getElementById('amendLastBtn');
     const categoryEl = document.getElementById('category');
     const subCategoryEl = document.getElementById('subCategory');
     const stayOverEl = document.getElementById('stayOver');
     const stayOverWrap = document.getElementById('stayOverWrap');
+    const visitorNameElMain = document.getElementById('visitorName');
+    const visitorPhoneElMain = document.getElementById('visitorPhone');
     const etaEl = document.getElementById('eta');
     const etdEl = document.getElementById('etd');
     const etdNoteEl = document.getElementById('etdNote');
     const defaultEtdNote = 'Tarikh keluar boleh dipilih sehingga 2 hari selepas Tarikh masuk (maks. 3 hari termasuk tarikh masuk)';
     const renovasiEtdNote = '1. Untuk kerja Renovasi, pemohon perlu mengisi 2 borang iaitu :-<br>a) Permit to Work (PTW) di pejabat pengurusan. Caj deposit RM 250 akan dikenakan.<br>b) Borang kebenaran masuk secara online untuk rekod keselamatan.<br><br>2. Untuk tarikh keluar, sila pilih tarikh anggaran bila kerja-kerja Renovasi selesai sama seperti tarikh yang diisi di dalam Borang Permit to Work (PTW).';
 
-    function setEtdNote(isRenovasi) {
+    function setEtdNote(mode) {
       if (!etdNoteEl) return;
-      if (isRenovasi) {
+      if (mode === 'renovasi') {
         etdNoteEl.innerHTML = renovasiEtdNote;
-      } else {
-        etdNoteEl.textContent = defaultEtdNote;
+        etdNoteEl.classList.remove('hidden');
+        return;
       }
+      if (mode === 'pelawat-bermalam') {
+        etdNoteEl.textContent = defaultEtdNote;
+        etdNoteEl.classList.remove('hidden');
+        return;
+      }
+      etdNoteEl.classList.add('hidden');
     }
 
     const companyWrap = document.getElementById('companyWrap');
@@ -1531,11 +2520,243 @@ document.addEventListener('DOMContentLoaded', () => {
     const vehicleMultiWrap = document.getElementById('vehicleMultiWrap');
     const vehicleList = document.getElementById('vehicleList');
     const addVehicleBtn = document.getElementById('addVehicleBtn');
+    const getAdditionalVehicleLimit = (cat) => (cat === 'Pelawat' ? 2 : Number.POSITIVE_INFINITY);
+
+    function refreshAddVehicleButtonState(catOverride) {
+      if (!addVehicleBtn || !vehicleList) return;
+      const cat = (typeof catOverride === 'string') ? catOverride : (categoryEl?.value?.trim() || '');
+      const allowMulti = cat === 'Pelawat Khas' || cat === 'Pelawat';
+      if (!allowMulti) {
+        addVehicleBtn.disabled = true;
+        addVehicleBtn.classList.add('btn-disabled');
+        return;
+      }
+      const limit = getAdditionalVehicleLimit(cat);
+      const count = vehicleList.querySelectorAll('.vehicle-row').length;
+      const atLimit = Number.isFinite(limit) && count >= limit;
+      // For Pelawat, keep button clickable and show a toast when user tries to exceed limit.
+      if (cat === 'Pelawat') {
+        addVehicleBtn.disabled = false;
+        addVehicleBtn.classList.remove('btn-disabled');
+      } else {
+        addVehicleBtn.disabled = atLimit;
+        addVehicleBtn.classList.toggle('btn-disabled', atLimit);
+      }
+      if (Number.isFinite(limit)) {
+        if (cat === 'Pelawat' && atLimit) {
+          addVehicleBtn.title = `Maksimum ${limit} kenderaan tambahan untuk Pelawat. Pilih Pelawat Khas untuk tambah lagi.`;
+        } else {
+          addVehicleBtn.title = atLimit
+            ? `Maksimum ${limit} kenderaan tambahan untuk kategori ini.`
+            : `Tambah kenderaan tambahan (maksimum ${limit}).`;
+        }
+      } else {
+        addVehicleBtn.title = 'Tambah nombor kenderaan';
+      }
+    }
     resetWhatsAppAction();
 
     await updateUnitsLastUpdatedLabel();
+    setAmendButtonState(amendLastBtn, !!getSavedLastSubmission());
 
     if (!form) { console.error('visitorForm missing'); return; }
+
+    function refreshVehicleVisitorMeta() {
+      const name = (visitorNameElMain?.value || '').trim() || '-';
+      const phone = (visitorPhoneElMain?.value || '').trim() || '-';
+      document.querySelectorAll('.vehicle-visitor-name-input').forEach((el) => {
+        if (!el.value || el.value === '-') el.value = name === '-' ? '' : name;
+      });
+      document.querySelectorAll('.vehicle-visitor-phone-input').forEach((el) => {
+        if (!el.value || el.value === '-') el.value = phone === '-' ? '' : phone;
+      });
+    }
+
+    function captureRepeatPreset() {
+      return {
+        hostUnit: normalizeUnitInput(document.getElementById('hostUnit')?.value || ''),
+        hostName: (document.getElementById('hostName')?.value || '').trim(),
+        hostPhone: (document.getElementById('hostPhone')?.value || '').trim(),
+        category: categoryEl?.value || '',
+        subCategory: subCategoryEl?.value || '',
+        companyName: (document.getElementById('companyName')?.value || '').trim()
+      };
+    }
+
+    function loadSubmissionIntoForm(s) {
+      if (!s || typeof s !== 'object') return false;
+      try {
+        const hostUnitEl = document.getElementById('hostUnit');
+        const hostNameEl = document.getElementById('hostName');
+        const hostPhoneEl = document.getElementById('hostPhone');
+        const entryDetailsEl = document.getElementById('entryDetails');
+        const companyEl = document.getElementById('companyName');
+        const visitorNameEl = document.getElementById('visitorName');
+        const visitorPhoneEl = document.getElementById('visitorPhone');
+        const vehicleNoEl = document.getElementById('vehicleNo');
+        const vehicleTypeEl = document.getElementById('vehicleType');
+
+        if (hostUnitEl) hostUnitEl.value = normalizeUnitInput(s.hostUnit || '');
+        if (hostNameEl) hostNameEl.value = s.hostName || '';
+        if (hostPhoneEl) hostPhoneEl.value = normalizePhoneInput(s.hostPhone || '');
+        if (entryDetailsEl) entryDetailsEl.value = s.entryDetails || '';
+        if (companyEl) companyEl.value = s.companyName || '';
+        if (visitorNameEl) visitorNameEl.value = s.visitorName || '';
+        if (visitorPhoneEl) visitorPhoneEl.value = normalizePhoneInput(s.visitorPhone || '');
+        if (vehicleTypeEl && s.vehicleType) vehicleTypeEl.value = s.vehicleType;
+
+        if (categoryEl && s.category) {
+          categoryEl.value = s.category;
+          categoryEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (subCategoryEl && s.subCategory) {
+          subCategoryEl.value = s.subCategory;
+          subCategoryEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (stayOverEl && s.stayOver) {
+          stayOverEl.value = s.stayOver;
+          stayOverEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (etaEl && s.eta) {
+          etaEl.disabled = false;
+          etaEl.value = s.eta;
+          etaEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (etdEl) etdEl.value = s.etd || '';
+
+        if (vehicleNoEl) vehicleNoEl.value = normalizeVehicleInput(s.vehicleNo || '');
+        if ((Array.isArray(s.vehicleNumbers) || Array.isArray(s.vehicleRowsDetailed)) && vehicleList) {
+          vehicleList.innerHTML = '';
+          const maxAdditional = getAdditionalVehicleLimit(String(s.category || '').trim());
+          const rowsDetailed = Array.isArray(s.vehicleRowsDetailed) && s.vehicleRowsDetailed.length
+            ? s.vehicleRowsDetailed
+            : (Array.isArray(s.vehicleNumbers) ? s.vehicleNumbers.map(v => ({ plate: v })) : []);
+          rowsDetailed.slice(0, maxAdditional).forEach(v => vehicleList.appendChild(createVehicleRow(v)));
+          refreshAddVehicleButtonState(String(s.category || '').trim());
+        }
+
+        if (confirmAgreeEl) confirmAgreeEl.checked = true;
+        scheduleDraftSave();
+        updateFormProgress();
+        refreshVehicleVisitorMeta();
+        try { updatePaymentSummary(); } catch (e) { /* ignore */ }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function restoreDraftIfAny() {
+      let raw = '';
+      try { raw = localStorage.getItem(VISITOR_DRAFT_KEY) || ''; } catch (e) { raw = ''; }
+      if (!raw) return;
+      try {
+        const d = JSON.parse(raw);
+        if (!d || typeof d !== 'object') return;
+        const hasMeaningfulData = !!((d.hostUnit || d.hostName || d.visitorName || d.category || d.eta));
+        if (!hasMeaningfulData) return;
+
+        const hostUnitEl = document.getElementById('hostUnit');
+        const hostNameEl = document.getElementById('hostName');
+        const hostPhoneEl2 = document.getElementById('hostPhone');
+        const entryDetailsEl = document.getElementById('entryDetails');
+        const companyEl = document.getElementById('companyName');
+        const visitorNameEl = document.getElementById('visitorName');
+        const visitorPhoneEl2 = document.getElementById('visitorPhone');
+        const stayOverEl2 = document.getElementById('stayOver');
+        const etaEl2 = document.getElementById('eta');
+        const etdEl2 = document.getElementById('etd');
+        const vehicleNoEl2 = document.getElementById('vehicleNo');
+        const vehicleTypeEl = document.getElementById('vehicleType');
+
+        if (hostUnitEl) hostUnitEl.value = normalizeUnitInput(d.hostUnit || '');
+        if (hostNameEl) hostNameEl.value = d.hostName || '';
+        if (hostPhoneEl2) hostPhoneEl2.value = normalizePhoneInput(d.hostPhone || '');
+        if (entryDetailsEl) entryDetailsEl.value = d.entryDetails || '';
+        if (visitorNameEl) visitorNameEl.value = d.visitorName || '';
+        if (visitorPhoneEl2) visitorPhoneEl2.value = normalizePhoneInput(d.visitorPhone || '');
+        if (vehicleNoEl2) vehicleNoEl2.value = normalizeVehicleInput(d.vehicleNo || '');
+        if (vehicleTypeEl && d.vehicleType) vehicleTypeEl.value = d.vehicleType;
+
+        if (categoryEl && d.category) {
+          categoryEl.value = d.category;
+          categoryEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (subCategoryEl && d.subCategory) {
+          subCategoryEl.value = d.subCategory;
+          subCategoryEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (companyEl) companyEl.value = d.companyName || '';
+        if (stayOverEl2 && d.stayOver) {
+          stayOverEl2.value = d.stayOver;
+          stayOverEl2.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (etaEl2 && d.eta) {
+          etaEl2.disabled = false;
+          etaEl2.value = d.eta;
+          etaEl2.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (etdEl2 && d.etd) etdEl2.value = d.etd;
+
+        if ((Array.isArray(d.vehicleNumbers) || Array.isArray(d.vehicleRowsDetailed)) && vehicleList) {
+          vehicleList.innerHTML = '';
+          const catNow = categoryEl?.value || '';
+          const allowMulti = catNow === 'Pelawat Khas' || catNow === 'Pelawat';
+          if (allowMulti) {
+            const maxAdditional = getAdditionalVehicleLimit(String(catNow || '').trim());
+            const rowsDetailed = Array.isArray(d.vehicleRowsDetailed) && d.vehicleRowsDetailed.length
+              ? d.vehicleRowsDetailed
+              : (Array.isArray(d.vehicleNumbers) ? d.vehicleNumbers.map(v => ({ plate: v })) : []);
+            rowsDetailed.slice(0, maxAdditional).forEach(v => vehicleList.appendChild(createVehicleRow(v)));
+            refreshAddVehicleButtonState(catNow);
+          }
+        }
+
+        if (confirmAgreeEl) confirmAgreeEl.checked = !!d.confirmAgree;
+        updateUnitStatus(document.getElementById('hostUnit'));
+        refreshVehicleVisitorMeta();
+        updatePaymentSummary();
+        updateFormProgress();
+        setDraftState('Draf dipulihkan automatik');
+      } catch (e) {
+        setDraftState('Draf rosak dan diabaikan', true);
+      }
+    }
+
+    form.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (t && t.matches && t.matches('#vehicleList .vehicle-row .vehicle-input')) {
+        t.value = normalizeVehicleInput(t.value);
+      }
+      scheduleDraftSave();
+      updateFormProgress();
+    });
+
+    form.addEventListener('change', () => {
+      scheduleDraftSave();
+      updateFormProgress();
+    });
+
+    visitorNameElMain?.addEventListener('input', refreshVehicleVisitorMeta);
+    visitorPhoneElMain?.addEventListener('input', refreshVehicleVisitorMeta);
+    visitorNameElMain?.addEventListener('change', refreshVehicleVisitorMeta);
+    visitorPhoneElMain?.addEventListener('change', refreshVehicleVisitorMeta);
+
+    amendLastBtn?.addEventListener('click', () => {
+      const saved = getSavedLastSubmission();
+      if (!saved) {
+        showStatus('Tiada hantaran terakhir untuk dipinda.', false);
+        setAmendButtonState(amendLastBtn, false);
+        return;
+      }
+      const ok = loadSubmissionIntoForm(saved);
+      if (!ok) {
+        showStatus('Gagal muat data hantaran terakhir.', false);
+        return;
+      }
+      showStatus('Data hantaran terakhir dimuat. Sila kemas kini butiran dan tekan Hantar ke sistem.', true);
+      try { document.getElementById('vehicleNo')?.focus(); } catch (e) { /* ignore */ }
+    });
 
     // Prevent backdated ETA on the client: set min to today so datepicker blocks past dates
     try {
@@ -1548,16 +2769,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateVehicleControlsForCategory(cat) {
       if (!vehicleSingleWrap || !vehicleMultiWrap || !addVehicleBtn || !vehicleList) return;
-      if (cat === 'Pelawat Khas') {
-        vehicleSingleWrap.classList.add('hidden');
+      const allowMulti = cat === 'Pelawat Khas' || cat === 'Pelawat';
+      if (allowMulti) {
+        vehicleSingleWrap.classList.remove('hidden');
         vehicleMultiWrap.classList.remove('hidden');
-        addVehicleBtn.disabled = false;
-        addVehicleBtn.classList.remove('btn-disabled');
-        if (!vehicleList.querySelector('.vehicle-row')) {
-          vehicleList.innerHTML = '';
-          vehicleList.appendChild(createVehicleRow(''));
+        // Keep additional list empty by default; user adds rows explicitly via + button.
+        if (!vehicleList.querySelector('.vehicle-row')) vehicleList.innerHTML = '';
+        const limit = getAdditionalVehicleLimit(cat);
+        const rows = Array.from(vehicleList.querySelectorAll('.vehicle-row'));
+        if (Number.isFinite(limit) && rows.length > limit) {
+          rows.slice(limit).forEach(r => r.remove());
         }
+        refreshAddVehicleButtonState(cat);
+        refreshAllVehicleDateFields();
       } else {
+        const firstMulti = normalizeVehicleInput(getVehicleNumbersFromList()[0] || '');
+        const vehicleNoEl = document.getElementById('vehicleNo');
+        if (vehicleNoEl && firstMulti) vehicleNoEl.value = firstMulti;
         vehicleSingleWrap.classList.remove('hidden');
         vehicleMultiWrap.classList.add('hidden');
         addVehicleBtn.disabled = true;
@@ -1573,7 +2801,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const allowEtdForRenovasi = cat === 'Kontraktor' && subCategoryVal === 'Renovasi';
       // when category is empty/default, ETD is not applicable -> hide
       if (!cat) {
-        setEtdNote(false);
+        setEtdNote(null);
         const etdWrap = document.getElementById('etdWrap');
         if (etdWrap) { etdWrap.classList.add('hidden'); try { etdWrap.style.setProperty('display','none','important'); } catch(e){ etdWrap.style.display = 'none'; } etdWrap.setAttribute('aria-hidden','true'); }
         try { etdEl.tabIndex = -1; } catch(e) {}
@@ -1583,16 +2811,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const etdWrap = document.getElementById('etdWrap');
       if (categoriesEtdDisabled.has(cat) && !allowEtdForRenovasi) {
         // category-level rule: ETD not applicable
-        setEtdNote(false);
+        setEtdNote(null);
         etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = '';
         if (etdWrap) { etdWrap.classList.add('hidden'); try { etdWrap.style.setProperty('display','none','important'); } catch(e){ etdWrap.style.display = 'none'; } etdWrap.setAttribute('aria-hidden','true'); }
         try { etdEl.tabIndex = -1; } catch(e) {}
         return;
       }
       if (cat === 'Pelawat') {
-        setEtdNote(false);
         const stay = stayOverEl?.value || 'No';
         if (stay === 'Yes') {
+          setEtdNote('pelawat-bermalam');
           etdEl.disabled = false;
           if (etdWrap) { etdWrap.classList.remove('hidden'); etdWrap.removeAttribute('aria-hidden'); try { etdWrap.style.removeProperty('display'); } catch(e){ etdWrap.style.display = ''; } }
           try { etdEl.tabIndex = 0; } catch(e) {}
@@ -1615,14 +2843,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         } else {
-          // user chose Tidak Bermalam (No) -> hide and disable ETD
-          etdEl.disabled = true; etdEl.value = ''; etdEl.min = ''; etdEl.max = '';
-          if (etdWrap) { etdWrap.classList.add('hidden'); try { etdWrap.style.setProperty('display','none','important'); } catch(e){ etdWrap.style.display = 'none'; } etdWrap.setAttribute('aria-hidden','true'); }
+          setEtdNote(null);
+          // user chose Tidak Bermalam (No) -> show ETD but lock to ETA value
+          etdEl.disabled = true;
+          if (etdWrap) { etdWrap.classList.remove('hidden'); etdWrap.removeAttribute('aria-hidden'); try { etdWrap.style.removeProperty('display'); } catch(e){ etdWrap.style.display = ''; } }
           try { etdEl.tabIndex = -1; } catch(e) {}
+          const etaVal = etaEl.value;
+          if (etaVal) {
+            etdEl.value = etaVal;
+            etdEl.min = etaVal;
+            etdEl.max = etaVal;
+          } else {
+            etdEl.value = '';
+            etdEl.min = '';
+            etdEl.max = '';
+          }
         }
         return;
       }
-      setEtdNote(allowEtdForRenovasi);
+      setEtdNote(allowEtdForRenovasi ? 'renovasi' : null);
       etdEl.disabled = false;
       if (etdWrap) { etdWrap.classList.remove('hidden'); etdWrap.removeAttribute('aria-hidden'); try { etdWrap.style.removeProperty('display'); } catch(e){ etdWrap.style.display = ''; } }
       try { etdEl.tabIndex = 0; } catch(e) {}
@@ -1719,6 +2958,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (subWrap) { subWrap.classList.add('hidden'); try { subWrap.style.setProperty('display','none','important'); } catch(e) { subWrap.style.display='none'; } subWrap.setAttribute('aria-hidden','true'); }
         setCompanyFieldState(false);
+        // hide stayOver for Pelawat Khas (not applicable)
+        if (stayOverWrap) {
+          try { stayOverWrap.style.setProperty('display','none','important'); } catch(e) { stayOverWrap.style.display='none'; }
+          stayOverWrap.classList.add('hidden');
+          stayOverWrap.setAttribute('aria-hidden','true');
+        }
+        if (stayOverEl) {
+          stayOverEl.value = 'No';
+          stayOverEl.disabled = true;
+          try { stayOverEl.tabIndex = -1; } catch(e) {}
+        }
         // show ETA; ensure required
         const etaWrapPK = document.getElementById('etaWrap');
         if (etaWrapPK) { etaWrapPK.classList.remove('hidden'); etaWrapPK.removeAttribute('aria-hidden'); try { etaWrapPK.style.removeProperty('display'); } catch(e) { etaWrapPK.style.display = ''; } }
@@ -1743,13 +2993,56 @@ document.addEventListener('DOMContentLoaded', () => {
       if (stayOverEl) { /* stayOver logic preserved from before */ }
       updateVehicleControlsForCategory(v);
       updateEtdState(v);
+      refreshAllVehicleDateFields();
       updatePaymentSummary();
       try { renderCategorySectionNote(); } catch(e) { /* ignore */ }
     });
 
     subCategoryEl?.addEventListener('change', () => { showSubCategoryHelp(); const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); updatePaymentSummary(); });
-    stayOverEl?.addEventListener('change', () => { const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); updatePaymentSummary(); });
-    addVehicleBtn?.addEventListener('click', () => { if (addVehicleBtn.disabled) return; if (!vehicleList) return; vehicleList.appendChild(createVehicleRow('')); });
+    stayOverEl?.addEventListener('change', () => { const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); updateVehicleControlsForCategory(cat); refreshAllVehicleDateFields(); updatePaymentSummary(); });
+    addVehicleBtn?.addEventListener('click', () => {
+      if (addVehicleBtn.disabled) return;
+      if (!vehicleList) return;
+      const cat = categoryEl?.value?.trim() || '';
+      const limit = getAdditionalVehicleLimit(cat);
+      const count = vehicleList.querySelectorAll('.vehicle-row').length;
+      if (Number.isFinite(limit) && count >= limit) {
+        if (cat === 'Pelawat') {
+          showStatus('Untuk tambah lebih banyak kenderaan, sila pilih kategori Pelawat Khas.', false);
+        } else {
+          showStatus(`Maksimum ${limit} kenderaan tambahan untuk kategori ini.`, false);
+        }
+        refreshAddVehicleButtonState(cat);
+        return;
+      }
+      vehicleList.appendChild(createVehicleRow(''));
+      refreshVehicleVisitorMeta();
+      refreshAddVehicleButtonState(cat);
+      updatePaymentSummary();
+    });
+
+    // Safety net: recalculate charges for any vehicle-list field edits or row mutations.
+    vehicleList?.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (!(t instanceof Element)) return;
+      if (t.matches('.vehicle-input, .vehicle-extra-start, .vehicle-extra-end')) {
+        try { updatePaymentSummary(); } catch (e) { /* ignore */ }
+      }
+    });
+    vehicleList?.addEventListener('change', (ev) => {
+      const t = ev.target;
+      if (!(t instanceof Element)) return;
+      if (t.matches('.vehicle-input, .vehicle-extra-start, .vehicle-extra-end')) {
+        try { updatePaymentSummary(); } catch (e) { /* ignore */ }
+      }
+    });
+    if (vehicleList && typeof MutationObserver !== 'undefined') {
+      const vehicleListObserver = new MutationObserver(() => {
+        refreshAddVehicleButtonState();
+        try { updatePaymentSummary(); } catch (e) { /* ignore */ }
+      });
+      vehicleListObserver.observe(vehicleList, { childList: true });
+    }
 
     etaEl?.addEventListener('change', () => {
       const etaVal = etaEl.value;
@@ -1759,10 +3052,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const maxDate = new Date(etaDate); maxDate.setDate(maxDate.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2)
       const toIso = d => { const yy = d.getFullYear(); const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0'); return `${yy}-${mm}-${dd}`; };
       if (etdEl) { etdEl.min = toIso(etaDate); etdEl.max = toIso(maxDate); const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); }
+      refreshAllVehicleDateFields();
       updatePaymentSummary();
     });
 
-    etdEl?.addEventListener('change', () => { updatePaymentSummary(); });
+    etdEl?.addEventListener('change', () => { refreshAllVehicleDateFields(); updatePaymentSummary(); });
 
     const initCat = categoryEl?.value?.trim() || '';
     // If initial category is empty/default or Pelawat or Pelawat Khas, hide both sub-category and company
@@ -1819,8 +3113,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateVehicleControlsForCategory(initCat);
     updateEtdState(initCat);
+    refreshAllVehicleDateFields();
+    refreshVehicleVisitorMeta();
     try { renderCategorySectionNote(); } catch(e) { /* ignore */ }
     updatePaymentSummary();
+    restoreDraftIfAny();
+    updateFormProgress();
 
     const submitBtn = document.getElementById('submitBtn');
 
@@ -1828,6 +3126,15 @@ document.addEventListener('DOMContentLoaded', () => {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       showStatus('', true);
+
+      const focusFieldWithStatus = (fieldId, message) => {
+        const el = document.getElementById(fieldId);
+        if (el) {
+          try { el.focus(); } catch (err) { /* ignore */ }
+          try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (err) { /* ignore */ }
+        }
+        showStatus(message, false);
+      };
 
       if (isMockSubmit) {
         if (submitBtn) {
@@ -1864,16 +3171,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const vehicleType = document.getElementById('vehicleType')?.value || '';
 
       // basic validation
-      if (!hostUnit) { showStatus('Sila masukkan Unit rumah.', false); return; }
-      if (!isPatternValidUnit(hostUnit)) { showStatus('Format Unit tidak sah. Gunakan contoh A-12-03.', false); return; }
-      if (!hostName) { showStatus('Sila lengkapkan Butiran Penghuni (Nama).', false); return; }
-      if (!category) { showStatus('Sila pilih Kategori.', false); return; }
-      if (subCategoryMap[category] && !subCategory) { showStatus('Sila pilih pilihan bagi kategori ini.', false); return; }
-      if (companyCategories.has(category) && !companyName) { showStatus('Sila masukkan Nama syarikat.', false); return; }
-      if (!visitorName) { showStatus('Sila masukkan Nama Pelawat.', false); return; }
-      if (!etaVal) { showStatus('Sila pilih Tarikh masuk.', false); return; }
-      if (!validatePhone(visitorPhone)) { showStatus('Nombor telefon pelawat tidak sah.', false); return; }
-      if (hostPhone && !validatePhone(hostPhone)) { showStatus('Nombor telefon penghuni tidak sah.', false); return; }
+      if (!hostUnit) { focusFieldWithStatus('hostUnit', 'Sila masukkan Unit rumah.'); return; }
+      if (!isPatternValidUnit(hostUnit)) { focusFieldWithStatus('hostUnit', 'Format Unit tidak sah. Gunakan contoh A-12-03.'); return; }
+      if (!hostName) { focusFieldWithStatus('hostName', 'Sila lengkapkan Butiran Penghuni (Nama).'); return; }
+      if (!category) { focusFieldWithStatus('category', 'Sila pilih Kategori.'); return; }
+      if (subCategoryMap[category] && !subCategory) { focusFieldWithStatus('subCategory', 'Sila pilih pilihan bagi kategori ini.'); return; }
+      if (companyCategories.has(category) && !companyName) { focusFieldWithStatus('companyName', 'Sila masukkan Nama syarikat.'); return; }
+      if (!visitorName) { focusFieldWithStatus('visitorName', 'Sila masukkan Nama Pelawat.'); return; }
+      if (!etaVal) { focusFieldWithStatus('eta', 'Sila pilih Tarikh masuk.'); return; }
+      if (!validatePhone(visitorPhone)) { focusFieldWithStatus('visitorPhone', 'Nombor telefon pelawat tidak sah.'); return; }
+      if (hostPhone && !validatePhone(hostPhone)) { focusFieldWithStatus('hostPhone', 'Nombor telefon penghuni tidak sah.'); return; }
 
       const etaDate = dateFromInputDateOnly(etaVal);
       const etdDate = etdVal ? dateFromInputDateOnly(etdVal) : null;
@@ -1913,9 +3220,17 @@ document.addEventListener('DOMContentLoaded', () => {
       // vehicle handling
       let vehicleNo = '';
       let vehicleNumbers = [];
-      if (category === 'Pelawat Khas') {
-        vehicleNumbers = getVehicleNumbersFromList().map(v => String(v).trim().toUpperCase());
-        if (!vehicleNumbers.length) { showStatus('Sila masukkan sekurang-kurangnya satu nombor kenderaan untuk Pelawat Khas.', false); return; }
+      const allowMultiVehicle = category === 'Pelawat Khas' || category === 'Pelawat';
+      if (allowMultiVehicle) {
+        const fromList = getVehicleNumbersFromList().map(v => String(v).trim().toUpperCase()).filter(Boolean);
+        const fromSingle = (document.getElementById('vehicleNo')?.value || '').trim().toUpperCase();
+        vehicleNumbers = Array.from(new Set([...fromList, fromSingle].filter(Boolean)));
+        if (category === 'Pelawat' && vehicleNumbers.length > 3) {
+          showStatus('Kategori Pelawat hanya dibenarkan maksimum 3 kenderaan (1 utama + 2 tambahan).', false);
+          return;
+        }
+        if (category === 'Pelawat Khas' && !vehicleNumbers.length) { showStatus('Sila masukkan sekurang-kurangnya satu nombor kenderaan untuk Pelawat Khas.', false); return; }
+        vehicleNo = vehicleNumbers.length ? vehicleNumbers[0] : '';
       } else {
         vehicleNo = (document.getElementById('vehicleNo')?.value || '').trim().toUpperCase();
       }
@@ -1957,6 +3272,25 @@ document.addEventListener('DOMContentLoaded', () => {
         updatedAt: serverTimestamp()
       };
 
+      const lastSubmissionSnapshot = {
+        hostUnit,
+        hostName,
+        hostPhone: hostPhone || '',
+        category,
+        subCategory,
+        entryDetails: entryDetails || '',
+        companyName: companyName || '',
+        visitorName,
+        visitorPhone: visitorPhone || '',
+        stayOver: (category === 'Pelawat') ? (stayOver === 'Yes' ? 'Yes' : 'No') : 'No',
+        eta: etaVal || '',
+        etd: etdVal || '',
+        vehicleNo: vehicleNo || '',
+        vehicleNumbers: vehicleNumbers.length ? vehicleNumbers : (vehicleNo ? [vehicleNo] : []),
+        vehicleType: vehicleType || '',
+        savedAt: Date.now()
+      };
+
       // if units/{hostUnit} exists, snapshot category/arrears into payload for future reference
       if (unitSnapshot) {
         payload.unitCategory = unitSnapshot.category || '';
@@ -1968,7 +3302,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // client-side duplicate guard: prevent same submission within short window
       const _fingerprint = clientFingerprintForSubmission({ etaDate, hostUnit, visitorPhone, visitorName });
       const _dupCheck = clientIsDuplicateRecently(_fingerprint);
-      if (_dupCheck && _dupCheck.duplicate) {
+      if (category !== 'Pelawat' && _dupCheck && _dupCheck.duplicate) {
         const mins = Math.ceil((_dupCheck.remainingMs || 0) / 60000);
         showStatus(`Pendaftaran serupa dihantar baru-baru ini — sila tunggu ${mins} minit sebelum cuba lagi.`, false);
         return;
@@ -1992,8 +3326,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           try { clientMarkSubmission(_fingerprint); } catch(e) {}
         }
+        if (resp && resp.amended) {
+          showStatus('Pendaftaran sedia ada berjaya dikemaskini dengan butiran kenderaan baharu.', true);
+        }
+        saveLastSubmission(lastSubmissionSnapshot);
+        setAmendButtonState(amendLastBtn, true);
         enableWhatsAppAction(payload);
         playButtonSuccessAnimation(submitBtn);
+        const repeatPreset = (repeatModeEl && repeatModeEl.checked) ? captureRepeatPreset() : null;
         form.reset();
         // clear any visual error state left on the hostUnit input after reset
         try { clearFieldError(document.getElementById('hostUnit')); updateUnitStatus(document.getElementById('hostUnit')); } catch(e) {}
@@ -2012,11 +3352,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if (etaWrapAfter) { try { etaWrapAfter.style.setProperty('display','none','important'); } catch(e) { etaWrapAfter.style.display='none'; } etaWrapAfter.classList.add('hidden'); etaWrapAfter.setAttribute('aria-hidden','true'); }
         if (etaEl) { etaEl.disabled = true; etaEl.value = ''; try { etaEl.tabIndex = -1; } catch(e) {} etaEl.required = false; }
         if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; etdEl.disabled = true; try { etdEl.tabIndex = -1; } catch(e) {} }
+
+        if (repeatPreset) {
+          const hostUnitEl = document.getElementById('hostUnit');
+          const hostNameEl = document.getElementById('hostName');
+          const hostPhoneEl2 = document.getElementById('hostPhone');
+          const companyEl = document.getElementById('companyName');
+          if (hostUnitEl) hostUnitEl.value = repeatPreset.hostUnit;
+          if (hostNameEl) hostNameEl.value = repeatPreset.hostName;
+          if (hostPhoneEl2) hostPhoneEl2.value = normalizePhoneInput(repeatPreset.hostPhone);
+          if (categoryEl) {
+            categoryEl.value = repeatPreset.category;
+            categoryEl.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (subCategoryEl && repeatPreset.subCategory) {
+            subCategoryEl.value = repeatPreset.subCategory;
+            subCategoryEl.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (companyEl) companyEl.value = repeatPreset.companyName || '';
+          setDraftState('Sedia untuk pendaftaran seterusnya');
+        } else {
+          clearDraft();
+        }
+        updateFormProgress();
       } catch (err) {
         console.error('visitor add error', err);
         // handle duplicate returned from transaction
         if (err && (err.code === 'DUPLICATE' || String(err).toLowerCase().includes('duplicate'))) {
           showStatus('Pendaftaran serupa telah wujud untuk tarikh ini — tidak dihantar.', false);
+        } else if (err && err.code === 'COMBINE_REQUIRED') {
+          showStatus('Pendaftaran Pelawat untuk unit dan julat tarikh ini telah wujud dari peranti lain. Sila kemas kini rekod asal pada peranti yang sama, atau hubungi pentadbir untuk bantuan pindaan.', false, { duration: 12000 });
         } else if (err && err.code === 'COOLDOWN') {
           try {
             const d = err.until instanceof Date ? err.until : (err.untilISO ? new Date(err.untilISO) : null);
@@ -2092,6 +3457,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (etaWrapClear) { try { etaWrapClear.style.setProperty('display','none','important'); } catch(e) { etaWrapClear.style.display='none'; } etaWrapClear.classList.add('hidden'); etaWrapClear.setAttribute('aria-hidden','true'); }
       if (etaEl) { etaEl.disabled = true; etaEl.value = ''; try { etaEl.tabIndex = -1; } catch(e) {} etaEl.required = false; }
       if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; etdEl.disabled = true; try { etdEl.tabIndex = -1; } catch(e) {} }
+      refreshVehicleVisitorMeta();
+      clearDraft();
+      updateFormProgress();
     });
   })();
 });

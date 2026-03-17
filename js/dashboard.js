@@ -490,6 +490,7 @@ let parkingSearchTimer = null;
 
 // auto-refresh timer handle
 let autoRefreshTimer = null;
+const ENABLE_AUTO_REFRESH = false;
 // live clock timer
 let timeTicker = null;
 // whether the user manually changed the date filter — prevents unwanted auto-reset
@@ -727,7 +728,7 @@ onAuthStateChanged(window.__AUTH, user => {
     if (filterDateCheckedIn && !filterDateCheckedIn.value) filterDateCheckedIn.value = todayKey;
     if (!parkingCurrentDate) parkingCurrentDate = todayKey;
     loadTodayList();
-    startAutoRefresh();
+    if (ENABLE_AUTO_REFRESH) startAutoRefresh();
   } else {
     // teardown passdown sync on sign-out
     try { teardownPassdownRemoteSync(); } catch(e) {}
@@ -1882,8 +1883,31 @@ function determineCategory(r){
 }
 
 /* ---------- Render summary ---------- */
+function expandRowsByVehicleForSummary(rows){
+  const out = [];
+  (rows || []).forEach((r) => {
+    const fromArray = Array.isArray(r.vehicleNumbers)
+      ? r.vehicleNumbers.map(v => String(v || '').trim()).filter(Boolean)
+      : [];
+    const fromSingle = r.vehicleNo ? [String(r.vehicleNo).trim()] : [];
+    const vehicles = Array.from(new Set([...fromArray, ...fromSingle].filter(Boolean)));
+
+    if (!vehicles.length) {
+      out.push(Object.assign({}, r, { _summaryVehicle: '-' }));
+      return;
+    }
+
+    vehicles.forEach((plate) => {
+      out.push(Object.assign({}, r, { _summaryVehicle: plate }));
+    });
+  });
+  return out;
+}
+
 function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
   if (!rows || !rows.length) { containerEl.innerHTML = '<div class="small">Tiada rekod</div>'; return; }
+  const displayRows = expandRowsByVehicleForSummary(rows);
+  if (!displayRows.length) { containerEl.innerHTML = '<div class="small">Tiada rekod</div>'; return; }
   const wrap = document.createElement('div');
   wrap.className = 'table-wrap';
   const table = document.createElement('table');
@@ -1904,10 +1928,8 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
   table.appendChild(thead);
   const tbody = document.createElement('tbody');
 
-  rows.forEach(r => {
-    let vehicleDisplay = '-';
-    if (Array.isArray(r.vehicleNumbers) && r.vehicleNumbers.length) vehicleDisplay = r.vehicleNumbers.join(', ');
-    else if (r.vehicleNo) vehicleDisplay = r.vehicleNo;
+  displayRows.forEach(r => {
+    const vehicleDisplay = r._summaryVehicle || '-';
 
     let hostContactHtml = '';
     if (r.hostName || r.hostPhone) {
@@ -2032,10 +2054,12 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
 function renderCheckedInList(rows){
   const containerEl = listAreaCheckedIn;
   if (!rows || rows.length === 0) { containerEl.innerHTML = '<div class="small">Tiada rekod</div>'; return; }
+  const displayRows = expandRowsByVehicleForSummary(rows);
+  if (!displayRows.length) { containerEl.innerHTML = '<div class="small">Tiada rekod</div>'; return; }
 
   // group rows by category
   const groups = {};
-  rows.forEach(r => {
+  displayRows.forEach(r => {
     const c = determineCategory(r);
     groups[c] = groups[c] || [];
     groups[c].push(r);
@@ -2089,7 +2113,7 @@ function renderCheckedInList(rows){
     tbody.id = tbodyId;
 
     list.forEach(r => {
-      const vehicleDisplay = (Array.isArray(r.vehicleNumbers) && r.vehicleNumbers.length) ? r.vehicleNumbers.join(', ') : (r.vehicleNo || '-');
+      const vehicleDisplay = r._summaryVehicle || '-';
       let subCategoryDisplay = (r.subCategory || '').trim();
       if (!subCategoryDisplay && k === 'Pelawat') {
         subCategoryDisplay = r.stayOver === 'Yes' ? 'Bermalam' : 'Tidak Bermalam';

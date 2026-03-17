@@ -41,7 +41,24 @@ service cloud.firestore {
     // Visitor form responses: allow public create with strict validation
     match /responses/{respId} {
       allow create: if isValidResponse(request.resource.data);
-      allow read, update, delete: if request.auth != null;
+      allow update: if canAmendResponse(resource.data, request.resource.data, respId);
+      allow read, delete: if request.auth != null;
+    }
+
+    // Dedupe keys for transaction-based duplicate prevention (public create/update only with linked response in same request)
+    match /dedupeKeys/{keyId} {
+      allow get: if true;
+      allow create, update: if isValidDedupeKey(request.resource.data)
+        && existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId));
+      allow delete, list: if false;
+    }
+
+    // Overnight lock to force Pelawat Bermalam vehicle combination in one submission
+    match /overnightLocks/{lockId} {
+      allow get: if true;
+      allow create, update: if isValidOvernightLock(request.resource.data, lockId)
+        && existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId));
+      allow delete, list: if false;
     }
 
     // Audit logs: authenticated users may write and read; deletes disabled
@@ -79,6 +96,7 @@ service cloud.firestore {
           'hostUnit','hostUnitFound','hostName','hostPhone','category','subCategory','entryDetails','companyName',
           'visitorName','visitorPhone','stayOver','eta','etd','vehicleNo','vehicleNumbers','vehicleType',
           'subCategoryHelp','status','createdAt','updatedAt',
+          'amendToken',
           // unit snapshot fields
           'unitCategory','unitArrears','unitArrearsAmount','unitLastUpdatedAt'
         ])
@@ -103,11 +121,59 @@ service cloud.firestore {
         && (data.status is string)
         && (data.createdAt is timestamp)
         && (data.updatedAt is timestamp)
+        && (data.amendToken is string || !('amendToken' in data))
         // unit snapshot optional types
         && (data.unitCategory is string || !('unitCategory' in data))
         && (data.unitArrears is bool || !('unitArrears' in data))
         && (data.unitArrearsAmount is number || !('unitArrearsAmount' in data))
         && (data.unitLastUpdatedAt is timestamp || !('unitLastUpdatedAt' in data));
+    }
+
+    function isValidDedupeKey(data) {
+      return data is map
+        && data.keys().hasOnly(['responseId','hostUnit','visitorPhone','visitorName','etaDate','createdAt','amendToken'])
+        && (data.responseId is string)
+        && (data.hostUnit is string)
+        && (data.visitorPhone is string)
+        && (data.visitorName is string)
+        && (data.etaDate is string)
+        && (data.createdAt is timestamp)
+        && (data.amendToken is string || !('amendToken' in data));
+    }
+
+    function isValidOvernightLock(data, lockId) {
+      return data is map
+        && data.keys().hasOnly(['unit','startDate','endDate','category','stayOver','responseId','updatedAt','amendToken'])
+        && (data.unit is string)
+        && (data.startDate is timestamp)
+        && (data.endDate is timestamp)
+        && (data.category is string)
+        && (data.stayOver is string)
+        && (data.responseId is string)
+        && (data.updatedAt is timestamp)
+        && (data.amendToken is string || !('amendToken' in data))
+        && (data.category == 'Pelawat')
+        && (data.stayOver in ['Yes', 'No'])
+        && (lockId == ('unit-' + data.unit))
+        && (data.startDate <= data.endDate);
+    }
+
+    function canAmendResponse(oldData, newData, respId) {
+      let lockId = 'unit-' + oldData.hostUnit;
+      return isValidResponse(newData)
+        && oldData.category == 'Pelawat'
+        && oldData.status == 'Pending'
+        && newData.status == oldData.status
+        && oldData.hostUnit == newData.hostUnit
+        && oldData.category == newData.category
+        && oldData.eta == newData.eta
+        && oldData.createdAt == newData.createdAt
+        && oldData.amendToken is string
+        && newData.amendToken == oldData.amendToken
+        && request.time < oldData.createdAt + duration.value(24, 'h')
+        && exists(/databases/$(database)/documents/overnightLocks/$(lockId))
+        && get(/databases/$(database)/documents/overnightLocks/$(lockId)).data.responseId == respId
+        && get(/databases/$(database)/documents/overnightLocks/$(lockId)).data.amendToken == oldData.amendToken;
     }
   }
 }
