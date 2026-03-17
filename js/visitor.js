@@ -85,6 +85,7 @@ let visitorTimeTicker = null;
 let unitImportMetaTs = null;
 let unitImportMetaLabel = '';
 let unitMetaReadDenied = false;
+let dedupeTransactionUnavailable = false;
 let currentUnitSnapshot = null;
 let currentUnitId = '';
 let pendingWaPayload = null;
@@ -1005,6 +1006,15 @@ async function createResponseWithDedupe(payload){
   const dedupeRef = doc(window.__FIRESTORE, 'dedupeKeys', dedupeKey);
   const respRef = doc(window.__FIRESTORE, 'responses', responseId);
 
+  async function writeDirectFallback() {
+    const fallbackPayload = Object.assign({}, payload, {
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await setDoc(respRef, fallbackPayload);
+    return { success: true, id: responseId, fallback: true, amended: false };
+  }
+
   const category = String(payload.category || '').trim();
   const stayOver = String(payload.stayOver || 'No').trim();
   // Apply anti-split lock for all Pelawat submissions (Bermalam and Tidak Bermalam).
@@ -1014,6 +1024,17 @@ async function createResponseWithDedupe(payload){
   const etdDate = payload && payload.etd && payload.etd.toDate ? payload.etd.toDate() : null;
   const etaEnd = _toDateOnly(etdDate) || etaStart;
   const amendToken = payload && payload.amendToken ? String(payload.amendToken) : getOrCreateAmendToken(hostUnitId, dateKey);
+
+  if (dedupeTransactionUnavailable) {
+    try {
+      return await writeDirectFallback();
+    } catch (fallbackErr) {
+      const e = new Error('fallback_failed');
+      e.code = String(fallbackErr && fallbackErr.code ? fallbackErr.code : 'FALLBACK_FAILED');
+      e.message = fallbackErr && fallbackErr.message ? fallbackErr.message : 'Fallback write failed';
+      throw e;
+    }
+  }
 
   try {
     let amended = false;
@@ -1137,13 +1158,9 @@ async function createResponseWithDedupe(payload){
     // Backward-compatible safety net: if new transaction paths are denied by old rules,
     // still allow a direct response write so users can submit while rules are being deployed.
     if (code.toLowerCase().includes('permission') || msg.includes('permission-denied')) {
+      dedupeTransactionUnavailable = true;
       try {
-        const fallbackPayload = Object.assign({}, payload, {
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        await setDoc(respRef, fallbackPayload);
-        return { success: true, id: responseId, fallback: true, amended: false };
+        return await writeDirectFallback();
       } catch (fallbackErr) {
         const e = new Error('fallback_failed');
         e.code = String(fallbackErr && fallbackErr.code ? fallbackErr.code : 'FALLBACK_FAILED');
