@@ -84,12 +84,14 @@ function waitForFirestore(timeout = 5000){
 let visitorTimeTicker = null;
 let unitImportMetaTs = null;
 let unitImportMetaLabel = '';
+let unitMetaReadDenied = false;
 let currentUnitSnapshot = null;
 let currentUnitId = '';
 let pendingWaPayload = null;
 
 async function ensureUnitImportMeta(){
   if (unitImportMetaTs) return { ts: unitImportMetaTs, label: unitImportMetaLabel };
+  if (unitMetaReadDenied) return { ts: null, label: '' };
   if (!window.__FIRESTORE) return { ts: null, label: '' };
   try {
     const metaRef = doc(window.__FIRESTORE, 'unitMeta', 'import');
@@ -101,6 +103,12 @@ async function ensureUnitImportMeta(){
       return { ts: unitImportMetaTs, label: unitImportMetaLabel };
     }
   } catch (e) {
+    const code = String(e && e.code ? e.code : '').toLowerCase();
+    const msg = String(e && (e.message || e) ? (e.message || e) : '').toLowerCase();
+    if (code.includes('permission') || msg.includes('insufficient permissions')) {
+      unitMetaReadDenied = true;
+      return { ts: null, label: '' };
+    }
     console.warn('ensureUnitImportMeta failed', e);
   }
   return { ts: null, label: '' };
