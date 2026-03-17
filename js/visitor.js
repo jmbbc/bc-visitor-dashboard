@@ -1,6 +1,6 @@
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
-  collection, serverTimestamp, Timestamp, doc, runTransaction, getDoc, getDocs, query, orderBy, limit
+  collection, serverTimestamp, Timestamp, doc, setDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 /* ---------- full units array (from your List.csv) ---------- */
@@ -1125,6 +1125,25 @@ async function createResponseWithDedupe(payload){
       e.code = 'COMBINE_REQUIRED';
       throw e;
     }
+
+    // Backward-compatible safety net: if new transaction paths are denied by old rules,
+    // still allow a direct response write so users can submit while rules are being deployed.
+    if (code.toLowerCase().includes('permission') || msg.includes('permission-denied')) {
+      try {
+        const fallbackPayload = Object.assign({}, payload, {
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        await setDoc(respRef, fallbackPayload);
+        return { success: true, id: responseId, fallback: true, amended: false };
+      } catch (fallbackErr) {
+        const e = new Error('fallback_failed');
+        e.code = String(fallbackErr && fallbackErr.code ? fallbackErr.code : 'FALLBACK_FAILED');
+        e.message = fallbackErr && fallbackErr.message ? fallbackErr.message : 'Fallback write failed';
+        throw e;
+      }
+    }
+
     const e = new Error('transaction_failed');
     e.code = code || 'TRANSACTION_FAILED';
     e.message = err && err.message ? err.message : 'Transaction failed';
