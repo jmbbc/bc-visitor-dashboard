@@ -791,7 +791,7 @@ async function updatePaymentSummary(){
   const additionalVehicleEntries = additionalVehicleEntriesRaw.filter(v => v.plate && v.plate !== singleVehicleNo);
   const allowMultiVehicle = category === 'Pelawat Khas' || category === 'Pelawat';
   const combinedVehicleNumbers = allowMultiVehicle
-    ? Array.from(new Set([...multiVehicleNumbers, singleVehicleNo].filter(Boolean)))
+    ? Array.from(new Set([singleVehicleNo, ...multiVehicleNumbers].filter(Boolean)))
     : (singleVehicleNo ? [singleVehicleNo] : []);
   const vehicleCount = combinedVehicleNumbers.length;
   const etaDate = etaEl?.value ? dateFromInputDateOnly(etaEl.value) : null;
@@ -1007,12 +1007,19 @@ async function createResponseWithDedupe(payload){
   const respRef = doc(window.__FIRESTORE, 'responses', responseId);
 
   async function writeDirectFallback() {
+    let mappedId = '';
+    try { mappedId = String(localStorage.getItem(fallbackAmendKey) || ''); } catch (e) { mappedId = ''; }
+    const targetId = mappedId || responseId;
+    const targetRef = doc(window.__FIRESTORE, 'responses', targetId);
+    const isAmendFallback = !!mappedId;
     const fallbackPayload = Object.assign({}, payload, {
-      createdAt: serverTimestamp(),
+      amendToken,
       updatedAt: serverTimestamp()
     });
-    await setDoc(respRef, fallbackPayload);
-    return { success: true, id: responseId, fallback: true, amended: false };
+    if (!isAmendFallback) fallbackPayload.createdAt = serverTimestamp();
+    await setDoc(targetRef, fallbackPayload, { merge: true });
+    try { localStorage.setItem(fallbackAmendKey, targetId); } catch (e) { /* ignore */ }
+    return { success: true, id: targetId, fallback: true, amended: isAmendFallback };
   }
 
   const category = String(payload.category || '').trim();
@@ -1024,6 +1031,7 @@ async function createResponseWithDedupe(payload){
   const etdDate = payload && payload.etd && payload.etd.toDate ? payload.etd.toDate() : null;
   const etaEnd = _toDateOnly(etdDate) || etaStart;
   const amendToken = payload && payload.amendToken ? String(payload.amendToken) : getOrCreateAmendToken(hostUnitId, dateKey);
+  const fallbackAmendKey = `fallbackResponseId:${hostUnitId}:${dateKey}:${amendToken}`;
 
   if (dedupeTransactionUnavailable) {
     try {
@@ -3299,13 +3307,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (allowMultiVehicle) {
         const fromList = getVehicleNumbersFromList().map(v => String(v).trim().toUpperCase()).filter(Boolean);
         const fromSingle = (document.getElementById('vehicleNo')?.value || '').trim().toUpperCase();
-        vehicleNumbers = Array.from(new Set([...fromList, fromSingle].filter(Boolean)));
+        const mainVehicle = fromSingle || (fromList[0] || '');
+        const additionalVehicles = fromList.filter(v => v && v !== mainVehicle);
+        vehicleNumbers = Array.from(new Set([mainVehicle, ...additionalVehicles].filter(Boolean)));
         if (category === 'Pelawat' && vehicleNumbers.length > 3) {
           showStatus('Kategori Pelawat hanya dibenarkan maksimum 3 kenderaan (1 utama + 2 tambahan).', false);
           return;
         }
         if (category === 'Pelawat Khas' && !vehicleNumbers.length) { showStatus('Sila masukkan sekurang-kurangnya satu nombor kenderaan untuk Pelawat Khas.', false); return; }
-        vehicleNo = vehicleNumbers.length ? vehicleNumbers[0] : '';
+        vehicleNo = mainVehicle || (vehicleNumbers.length ? vehicleNumbers[0] : '');
       } else {
         vehicleNo = (document.getElementById('vehicleNo')?.value || '').trim().toUpperCase();
       }
@@ -3348,6 +3358,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       const lastSubmissionSnapshot = {
+        responseId: '',
         hostUnit,
         hostName,
         hostPhone: hostPhone || '',
@@ -3404,6 +3415,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (resp && resp.amended) {
           showStatus('Pendaftaran sedia ada berjaya dikemaskini dengan butiran kenderaan baharu.', true);
         }
+        lastSubmissionSnapshot.responseId = resp && resp.id ? String(resp.id) : '';
         saveLastSubmission(lastSubmissionSnapshot);
         setAmendButtonState(amendLastBtn, true);
         enableWhatsAppAction(payload);
