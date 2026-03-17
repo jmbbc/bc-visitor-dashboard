@@ -2628,10 +2628,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function buildAdditionalVehicleRows(source, mainVehicleNo) {
-      const mainPlate = normalizeVehicleInput(mainVehicleNo || '');
       const rowsDetailed = Array.isArray(source?.vehicleRowsDetailed) && source.vehicleRowsDetailed.length
         ? source.vehicleRowsDetailed
         : (Array.isArray(source?.vehicleNumbers) ? source.vehicleNumbers.map(v => ({ plate: v })) : []);
+      const inferredFirstPlate = (() => {
+        for (const item of rowsDetailed) {
+          const seed = (item && typeof item === 'object') ? item : { plate: item };
+          const plate = normalizeVehicleInput(seed.plate || '');
+          if (plate) return plate;
+        }
+        return '';
+      })();
+      const mainPlate = normalizeVehicleInput(mainVehicleNo || '') || inferredFirstPlate;
       const seen = new Set();
       const out = [];
       rowsDetailed.forEach((item) => {
@@ -2687,7 +2695,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (etdEl) etdEl.value = s.etd || '';
 
-        const mainVehicleNo = normalizeVehicleInput(s.vehicleNo || (Array.isArray(s.vehicleNumbers) ? (s.vehicleNumbers[0] || '') : ''));
+        const rowsSeedForMain = Array.isArray(s.vehicleRowsDetailed) && s.vehicleRowsDetailed.length
+          ? s.vehicleRowsDetailed
+          : (Array.isArray(s.vehicleNumbers) ? s.vehicleNumbers.map(v => ({ plate: v })) : []);
+        const mainVehicleNo = normalizeVehicleInput(s.vehicleNo || (Array.isArray(s.vehicleNumbers) ? (s.vehicleNumbers[0] || '') : '') || ((rowsSeedForMain[0] && rowsSeedForMain[0].plate) || ''));
         if (vehicleNoEl) vehicleNoEl.value = mainVehicleNo;
         if ((Array.isArray(s.vehicleNumbers) || Array.isArray(s.vehicleRowsDetailed)) && vehicleList) {
           vehicleList.innerHTML = '';
@@ -2737,7 +2748,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (entryDetailsEl) entryDetailsEl.value = d.entryDetails || '';
         if (visitorNameEl) visitorNameEl.value = d.visitorName || '';
         if (visitorPhoneEl2) visitorPhoneEl2.value = normalizePhoneInput(d.visitorPhone || '');
-        const mainVehicleNo = normalizeVehicleInput(d.vehicleNo || (Array.isArray(d.vehicleNumbers) ? (d.vehicleNumbers[0] || '') : ''));
+        const rowsSeedForMain = Array.isArray(d.vehicleRowsDetailed) && d.vehicleRowsDetailed.length
+          ? d.vehicleRowsDetailed
+          : (Array.isArray(d.vehicleNumbers) ? d.vehicleNumbers.map(v => ({ plate: v })) : []);
+        const mainVehicleNo = normalizeVehicleInput(d.vehicleNo || (Array.isArray(d.vehicleNumbers) ? (d.vehicleNumbers[0] || '') : '') || ((rowsSeedForMain[0] && rowsSeedForMain[0].plate) || ''));
         if (vehicleNoEl2) vehicleNoEl2.value = mainVehicleNo;
         if (vehicleTypeEl && d.vehicleType) vehicleTypeEl.value = d.vehicleType;
 
