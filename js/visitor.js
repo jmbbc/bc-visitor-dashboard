@@ -1022,10 +1022,11 @@ async function createResponseWithDedupe(payload){
     const targetRef = doc(window.__FIRESTORE, 'responses', targetId);
     const isAmendFallback = !!mappedId;
     const fallbackPayload = Object.assign({}, payload, {
-      amendToken,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+    // Keep fallback payload legacy-compatible for projects still on older rules.
+    try { delete fallbackPayload.amendToken; } catch (e) { /* ignore */ }
     await setDoc(targetRef, fallbackPayload);
     try { localStorage.setItem(fallbackAmendKey, targetId); } catch (e) { /* ignore */ }
     return { success: true, id: targetId, fallback: true, amended: isAmendFallback };
