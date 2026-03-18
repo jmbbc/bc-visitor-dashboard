@@ -189,6 +189,8 @@ const who = document.getElementById('who');
 const listAreaSummary = document.getElementById('listAreaSummary');
 const listAreaCheckedIn = document.getElementById('listAreaCheckedIn');
 const summarySearch = document.getElementById('summarySearch');
+const purgeBeforeDate = document.getElementById('purgeBeforeDate');
+const purgeOldBtn = document.getElementById('purgeOldBtn');
 // per-page date inputs (summary, checked-in, parking)
 const filterDateSummary = document.getElementById('filterDateSummary');
 const filterDateCheckedIn = document.getElementById('filterDateCheckedIn');
@@ -259,6 +261,80 @@ function handlePermissionDenied(e, friendlyMsg){
     }
   } catch(err){}
   return false;
+}
+
+function parseDateInputAtMidnight(v){
+  if (!v) return null;
+  const p = String(v).split('-');
+  if (p.length !== 3) return null;
+  const y = parseInt(p[0], 10);
+  const m = parseInt(p[1], 10) - 1;
+  const d = parseInt(p[2], 10);
+  const dt = new Date(y, m, d, 0, 0, 0, 0);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+async function deleteOldResponsesBeforeDate(){
+  if (!window.__FIRESTORE) { toast('Firestore belum sedia.', false); return; }
+  const cutoffDate = parseDateInputAtMidnight(purgeBeforeDate?.value || '');
+  if (!cutoffDate) { toast('Sila pilih tarikh cutoff dahulu.', false); return; }
+
+  const cutoffLabel = formatDateOnly(cutoffDate);
+  const ok = await showConfirm(
+    'Padam Data Lama?',
+    `Rekod responses dengan ETA sebelum ${cutoffLabel} akan dipadam. Tindakan ini tidak boleh dibatalkan.`,
+    { confirmText: 'Ya, Padam', cancelText: 'Batal' }
+  );
+  if (!ok) return;
+
+  if (purgeOldBtn) purgeOldBtn.disabled = true;
+  try {
+    const colRef = collection(window.__FIRESTORE, 'responses');
+    const qRef = query(colRef, where('eta', '<', Timestamp.fromDate(cutoffDate)));
+    const snap = await getDocs(qRef);
+    if (snap.empty) {
+      toast('Tiada data lama untuk dipadam.', true);
+      return;
+    }
+
+    const total = snap.docs.length;
+    const ok2 = await showConfirm(
+      'Pengesahan Akhir',
+      `Jumpa ${total} rekod. Teruskan padam semua rekod ini?`,
+      { confirmText: 'Padam Semua', cancelText: 'Batal' }
+    );
+    if (!ok2) return;
+
+    const CHUNK = 400;
+    let deleted = 0;
+    for (let i = 0; i < snap.docs.length; i += CHUNK) {
+      const batch = writeBatch(window.__FIRESTORE);
+      const part = snap.docs.slice(i, i + CHUNK);
+      part.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      deleted += part.length;
+    }
+
+    try {
+      await addDoc(collection(window.__FIRESTORE, 'audit'), {
+        action: 'bulk-delete-responses-before-date',
+        cutoffDate: Timestamp.fromDate(cutoffDate),
+        totalDeleted: deleted,
+        at: serverTimestamp(),
+        by: (window.__AUTH?.currentUser?.email || window.__AUTH?.currentUser?.uid || 'unknown')
+      });
+    } catch(e) { /* ignore audit failure */ }
+
+    toast(`Selesai padam ${deleted} rekod lama.`, true);
+    await loadTodayList();
+  } catch (e) {
+    console.error('deleteOldResponsesBeforeDate error', e);
+    if (!handlePermissionDenied(e, 'Gagal padam data lama: tiada kebenaran yang mencukupi.')) {
+      toast('Gagal padam data lama.', false);
+    }
+  } finally {
+    if (purgeOldBtn) purgeOldBtn.disabled = false;
+  }
 }
 
 /* ---------- Passdown notes (sidebar mini notepad) ---------- */
@@ -726,6 +802,7 @@ onAuthStateChanged(window.__AUTH, user => {
     const todayKey = isoDateString(now);
     if (filterDateSummary && !filterDateSummary.value) filterDateSummary.value = todayKey;
     if (filterDateCheckedIn && !filterDateCheckedIn.value) filterDateCheckedIn.value = todayKey;
+    if (purgeBeforeDate && !purgeBeforeDate.value) purgeBeforeDate.value = todayKey;
     if (!parkingCurrentDate) parkingCurrentDate = todayKey;
     loadTodayList();
     if (ENABLE_AUTO_REFRESH) startAutoRefresh();
@@ -1510,6 +1587,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 if (summarySearch) summarySearch.addEventListener('input', () => {
   renderSummaryWithSearch(responseCache.rows || []);
+});
+if (purgeOldBtn) purgeOldBtn.addEventListener('click', async ()=> {
+  await deleteOldResponsesBeforeDate();
 });
 if (filterDateSummary) filterDateSummary.addEventListener('change', ()=>{
   const todayKey = isoDateString(new Date());

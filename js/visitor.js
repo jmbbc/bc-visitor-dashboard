@@ -415,6 +415,105 @@ function renderPaymentUpdateNotice(lastUpdatedAt){
   `;
 }
 
+const PAYMENT_QR_IMAGE = (window.__APP_CONFIG && window.__APP_CONFIG.paymentQrImage)
+  ? String(window.__APP_CONFIG.paymentQrImage)
+  : 'assets/QR%20Akaun%20Banjaria%20Court.jpeg';
+const PAYMENT_QR_DOWNLOAD_NAME = (window.__APP_CONFIG && window.__APP_CONFIG.paymentQrDownloadName)
+  ? String(window.__APP_CONFIG.paymentQrDownloadName)
+  : 'QR-Akaun-Banjaria-Court.jpeg';
+const PAYMENT_BANK_NAME = (window.__APP_CONFIG && window.__APP_CONFIG.paymentBankName)
+  ? String(window.__APP_CONFIG.paymentBankName)
+  : 'Maybank';
+const PAYMENT_ACCOUNT_NAME = (window.__APP_CONFIG && window.__APP_CONFIG.paymentAccountName)
+  ? String(window.__APP_CONFIG.paymentAccountName)
+  : 'BADAN PENGURUSAN BERSAMA BANJARIA COURT';
+const PAYMENT_ACCOUNT_NUMBER = (window.__APP_CONFIG && window.__APP_CONFIG.paymentAccountNumber)
+  ? String(window.__APP_CONFIG.paymentAccountNumber)
+  : '564799121894';
+
+function renderPaymentCollectionInfo(totalAmount = 0) {
+  return [
+    '<details class="pay-collection-details">',
+    '<summary>Maklumat Bayaran (QR & Akaun Bank)</summary>',
+    '<div class="pay-collection-body">',
+    '<div class="pay-collection-grid">',
+    '<div class="pay-collection-qr">',
+    `<button type="button" class="pay-qr-preview-trigger" data-pay-qr-src="${PAYMENT_QR_IMAGE}" data-pay-qr-alt="QR bayaran" aria-label="Lihat QR lebih besar"><img src="${PAYMENT_QR_IMAGE}" alt="QR bayaran" class="pay-qr-image" loading="lazy" /></button>`,
+    `<a href="${PAYMENT_QR_IMAGE}" download="${PAYMENT_QR_DOWNLOAD_NAME}" class="btn-ghost pay-qr-download">Muat Turun QR</a>`,
+    '</div>',
+    '<div class="pay-collection-bank">',
+    `<div><span>Bank</span><strong>${PAYMENT_BANK_NAME}</strong></div>`,
+    `<div><span>Nama Akaun</span><strong>${PAYMENT_ACCOUNT_NAME}</strong></div>`,
+    `<div><span>No. Akaun</span><strong>${PAYMENT_ACCOUNT_NUMBER}</strong></div>`,
+    '</div>',
+    '</div>',
+    '</div>',
+    '</details>'
+  ].join('');
+}
+
+function closePaymentQrOverlay() {
+  const overlay = document.getElementById('payQrOverlay');
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  overlay.setAttribute('aria-hidden', 'true');
+  const img = document.getElementById('payQrOverlayImage');
+  if (img) {
+    img.removeAttribute('src');
+    img.removeAttribute('alt');
+  }
+}
+
+function ensurePaymentQrOverlay() {
+  let overlay = document.getElementById('payQrOverlay');
+  if (overlay) return overlay;
+
+  overlay = document.createElement('div');
+  overlay.id = 'payQrOverlay';
+  overlay.className = 'pay-qr-overlay hidden';
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.innerHTML = [
+    '<div class="pay-qr-overlay-backdrop" data-pay-qr-close="1"></div>',
+    '<div class="pay-qr-overlay-dialog" role="dialog" aria-modal="true" aria-label="Preview QR bayaran">',
+    '<button type="button" class="pay-qr-overlay-close" data-pay-qr-close="1" aria-label="Tutup preview QR">×</button>',
+    '<img id="payQrOverlayImage" class="pay-qr-overlay-image" alt="" loading="lazy" />',
+    '</div>'
+  ].join('');
+
+  overlay.addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (!(t instanceof Element)) return;
+    if (t.closest('[data-pay-qr-close="1"]')) closePaymentQrOverlay();
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') closePaymentQrOverlay();
+  });
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function openPaymentQrOverlay(src, altText) {
+  if (!src) return;
+  const overlay = ensurePaymentQrOverlay();
+  const img = document.getElementById('payQrOverlayImage');
+  if (img) {
+    img.src = src;
+    img.alt = altText || 'QR bayaran';
+  }
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+
+document.addEventListener('click', (ev) => {
+  const t = ev.target;
+  if (!(t instanceof Element)) return;
+  const trigger = t.closest('.pay-qr-preview-trigger');
+  if (!trigger) return;
+  const src = trigger.getAttribute('data-pay-qr-src') || '';
+  const altText = trigger.getAttribute('data-pay-qr-alt') || 'QR bayaran';
+  openPaymentQrOverlay(src, altText);
+});
+
 function resetPaymentSummary(msg){
   const summary = document.getElementById('paymentSummary');
   if (!summary) return;
@@ -495,6 +594,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category, 
         '<div class="pay-total-wrap">',
         '<div class="pay-note-line">Caj parkir pelawat: <strong>Percuma</strong></div>',
         '<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM 0.00</strong></div>',
+        renderPaymentCollectionInfo(0),
         '</div>',
         renderPaymentUpdateNotice(lastUpdatedAt)
       ].join('');
@@ -551,6 +651,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category, 
       '</div>',
       '<div class="pay-total-wrap">',
       `<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${extraVehicleAmount.toFixed(2)}</strong></div>`,
+      renderPaymentCollectionInfo(extraVehicleAmount),
       '<details class="pay-total-details">',
       '<summary>Lihat perincian bayaran</summary>',
       '<div class="pay-total-details-body">',
@@ -630,6 +731,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category, 
       '</div>',
       '<div class="pay-total-wrap">',
       `<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${totalAmount.toFixed(2)}</strong></div>`,
+      renderPaymentCollectionInfo(totalAmount),
       '<details class="pay-total-details">',
       '<summary>Lihat perincian bayaran</summary>',
       '<div class="pay-total-details-body">',
@@ -741,6 +843,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category, 
     '</div>',
     '<div class="pay-total-wrap">',
     `<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${totalAmount.toFixed(2)}</strong></div>`,
+    renderPaymentCollectionInfo(totalAmount),
     '<details class="pay-total-details">',
     '<summary>Lihat perincian bayaran</summary>',
     '<div class="pay-total-details-body">',

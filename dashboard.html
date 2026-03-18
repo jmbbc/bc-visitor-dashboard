@@ -254,7 +254,12 @@
 
           <!-- Pages -->
           <div id="pageSummary">
-            <div id="summarySearchWrap" style="margin-top:6px; margin-bottom:6px; display:flex; justify-content:flex-end;">
+            <div id="summarySearchWrap" style="margin-top:6px; margin-bottom:6px; display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <label for="purgeBeforeDate" class="small muted">Padam data sebelum tarikh:</label>
+                <input id="purgeBeforeDate" type="date" style="padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Tarikh cutoff padam data lama" />
+                <button id="purgeOldBtn" type="button" class="btn-ghost" style="padding:8px 10px; border-radius:10px;">Padam Data Lama</button>
+              </div>
               <input id="summarySearch" type="search" placeholder="Cari nama / unit / telefon / kenderaan / kategori" style="min-width:260px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari senarai pendaftaran" />
             </div>
             <h3 class="page-heading-box" style="margin-top:6px">Senarai pendaftaran</h3>
