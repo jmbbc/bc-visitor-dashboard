@@ -480,7 +480,7 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category, 
     return;
   }
 
-  if (!arrearsCat || arrearsCat === 1) {
+  if ((!arrearsCat || arrearsCat === 1) && !isPelawatKhas) {
     const free = freeDaysForCategory(1);
     const canChargeExtra = isPelawat && extraVehicleCount > 0;
     if (!canChargeExtra) {
