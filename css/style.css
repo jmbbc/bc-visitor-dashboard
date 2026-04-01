@@ -979,6 +979,57 @@ body{
 #confirmModal .btn { min-width: 96px; }
 #confirmModal .btn.danger { background: #dc2626; color: #fff; border-color: transparent; }
 
+/* Visitor memo popup actions */
+#visitorMemoOverlay .visitor-memo-close {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  border: 1px solid #14b8a6 !important;
+  background: linear-gradient(180deg, #ecfeff, #ccfbf1) !important;
+  color: #0f766e !important;
+  font-weight: 900;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  box-shadow: 0 6px 14px rgba(20, 184, 166, 0.22);
+  appearance: none;
+  aspect-ratio: 1 / 1;
+}
+
+#visitorMemoOverlay .visitor-memo-close:hover {
+  background: linear-gradient(180deg, #ccfbf1, #99f6e4) !important;
+  border-color: #0d9488 !important;
+  color: #115e59 !important;
+}
+
+#visitorMemoOverlay .visitor-memo-close:focus-visible {
+  outline: 3px solid rgba(37,99,235,0.24);
+  outline-offset: 2px;
+}
+
+#visitorMemoOverlay .visitor-memo-ok {
+  background: linear-gradient(120deg, #14b8a6 0%, #0ea5a4 55%, #22c55e 100%) !important;
+  border-color: #0f766e !important;
+  color: #f0fdfa !important;
+  box-shadow: 0 10px 22px rgba(20, 184, 166, 0.24) !important;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+#visitorMemoOverlay .visitor-memo-ok:hover {
+  background: linear-gradient(120deg, #0f766e 0%, #0d9488 55%, #16a34a 100%) !important;
+  border-color: #115e59 !important;
+  color: #ffffff !important;
+}
+
 /* Emphasize each pw-vehicle-item as a visible box when viewing the Parking page */
 #pageParking .pw-vehicle-item {
   border: 1px solid #000 !important;

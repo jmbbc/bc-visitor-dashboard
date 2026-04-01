@@ -186,33 +186,12 @@ function showFloatMemo(message, opts = {}){
   // Allow scroll for long content
   memo.style.maxHeight = '80vh';
   memo.style.overflow = 'auto';
-  const close = document.createElement('button'); close.id = 'visitorMemoClose'; close.setAttribute('aria-label','Tutup memo'); close.textContent = '×'; close.style.position = 'absolute'; close.style.right = '12px'; close.style.top = '10px'; close.style.border = '0'; close.style.background = 'transparent'; close.style.fontWeight = '700'; close.style.cursor = 'pointer';
+  const close = document.createElement('button'); close.id = 'visitorMemoClose'; close.className = 'visitor-memo-close'; close.setAttribute('aria-label','Tutup memo'); close.textContent = '×'; close.style.position = 'absolute'; close.style.right = '12px'; close.style.top = '10px';
   const title = document.createElement('h3'); title.id = 'visitorMemoTitle'; title.style.marginTop = '0'; title.textContent = 'Makluman';
   const body = document.createElement('div'); body.className = 'small'; body.style.whiteSpace = 'pre-wrap'; body.style.marginTop = '6px'; body.style.lineHeight = '1.5';
-  // support HTML messages when caller passes opts.html = true
-  if (opts && opts.html) {
-    try { body.innerHTML = message || 'Sila baca makluman ini sebelum isi borang.'; } catch(e) { body.textContent = message || 'Sila baca makluman ini sebelum isi borang.'; }
-  } else {
-    body.textContent = message || 'Sila baca makluman ini sebelum isi borang.';
-  }
-  if (opts && opts.imageSrc) {
-    const img = document.createElement('img');
-    img.src = opts.imageSrc;
-    img.alt = 'Maklumat tambahan';
-    img.style.display = 'block';
-    img.style.maxWidth = '100%';
-    img.style.marginTop = '10px';
-    img.style.borderRadius = '8px';
-    img.loading = 'lazy';
-    // Fallback: if the provided image fails to load, try a known asset path and then hide
-    img.addEventListener('error', () => {
-      try {
-        if (img._triedFallback) { img.style.display = 'none'; return; }
-        img._triedFallback = true;
-        img.src = 'assets/visitor_parking_charges.jpeg';
-      } catch(e) { img.style.display = 'none'; }
-    });
-    // Click-to-zoom: open image in full-screen overlay
+
+  function attachZoomBehavior(img){
+    if (!img) return;
     img.style.cursor = 'zoom-in';
     img.addEventListener('click', () => {
       try {
@@ -234,20 +213,47 @@ function showFloatMemo(message, opts = {}){
         bigImg.style.boxShadow = '0 8px 24px rgba(0,0,0,0.4)';
         bigImg.style.cursor = 'zoom-out';
 
-        // Close interactions: click anywhere or press Escape
         const closeOverlay = () => { try { fullOverlay.remove(); } catch(e) {} };
         fullOverlay.addEventListener('click', closeOverlay);
         fullOverlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay(); });
-        fullOverlay.tabIndex = 0; // allow key events
+        fullOverlay.tabIndex = 0;
 
         fullOverlay.appendChild(bigImg);
         document.body.appendChild(fullOverlay);
         setTimeout(() => { try { fullOverlay.focus(); } catch(e) {} }, 0);
       } catch(e) { /* ignore click zoom errors */ }
     });
+  }
+
+  // support HTML messages when caller passes opts.html = true
+  if (opts && opts.html) {
+    try { body.innerHTML = message || 'Sila baca makluman ini sebelum isi borang.'; } catch(e) { body.textContent = message || 'Sila baca makluman ini sebelum isi borang.'; }
+    try { body.querySelectorAll('img').forEach(attachZoomBehavior); } catch(e) { /* ignore */ }
+  } else {
+    body.textContent = message || 'Sila baca makluman ini sebelum isi borang.';
+  }
+  if (opts && opts.imageSrc) {
+    const img = document.createElement('img');
+    img.src = opts.imageSrc;
+    img.alt = 'Maklumat tambahan';
+    img.style.display = 'block';
+    img.style.maxWidth = '100%';
+    img.style.marginTop = '10px';
+    img.style.borderRadius = '8px';
+    img.loading = 'lazy';
+    // Fallback: if the provided image fails to load, try a known asset path and then hide
+    img.addEventListener('error', () => {
+      try {
+        if (img._triedFallback) { img.style.display = 'none'; return; }
+        img._triedFallback = true;
+        img.src = 'assets/visitor_parking_charges.jpeg';
+      } catch(e) { img.style.display = 'none'; }
+    });
+    // Click-to-zoom: open image in full-screen overlay
+    attachZoomBehavior(img);
     body.appendChild(img);
   }
-  const ok = document.createElement('button'); ok.className = 'btn'; ok.textContent = 'Saya faham'; ok.style.marginTop = '10px';
+  const ok = document.createElement('button'); ok.className = 'btn visitor-memo-ok'; ok.textContent = 'Saya faham'; ok.style.marginTop = '10px';
   memo.appendChild(close); memo.appendChild(title); memo.appendChild(body); memo.appendChild(ok); overlay.appendChild(memo); document.body.appendChild(overlay);
   const block = opts.blockUntilClose !== false; let formEl = null; try { formEl = document.getElementById('visitorForm') || document.querySelector('form'); } catch(e) {}
   if (block && formEl) {
@@ -2457,21 +2463,15 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     // Show every time: pass storageKey: null so it doesn't persist dismissal
     const memoText = [
-      '<p>Pihak Pengurusan akan mula melaksanakan <strong>Pelaksanaan SOP Kemasukan Pelawat & Kontraktor</strong>, seperti yang dibincangkan didalam <strong>EGM 3.0</strong> pada <strong>22 Nov 2025</strong>.</p>',
-      '<p>Unit pelawat / kontraktor yang mempunyai tunggakan akan dikenakan caj bagi penggunaan parkir pelawat. Berikut adalah ringkasan jadual bagi kadar caj penggunaan lot parkir pelawat :-</p>',
-      '<ol>',
-      '<li><span class="memo-cat-1"><strong>Kategori 1</strong></span><br> Tunggakan: Tiada<br> Caj parkir pelawat: <strong>Percuma - 3 hari pertama</strong><br> Jika ingin sambung - dikenakan pembayaran atau tempoh bertenang 3 hari sebelum boleh daftar masuk.</li>',
-      '<li><span class="memo-cat-2"><strong>Kategori 2</strong></span><br> Tunggakan: RM 1.00 hingga RM 400.00<br> Caj parkir pelawat: <strong>Percuma untuk 1 hari pertama; caj bermula pada hari ke-2</strong><br> Jika ingin sambung - dikenakan bayaran atau tempoh bertenang 3 hari sebelum boleh daftar masuk.</li>',
-      '<li><span class="memo-cat-3"><strong>Kategori 3</strong></span><br> Tunggakan: RM 400.00 ke atas<br> Caj parkir pelawat: <strong>RM 15/hari</strong>. Rujuk jadual untuk jumlah pembayaran.</li>',
-      '</ol>',
-      '<p>Untuk makluman, senarai tunggakan yang di paparkan di dalam lif, adalah senarai unit yang mempunyai tunggakan <strong>melebihi RM 400.00</strong> dan ke atas. Unit yang ada tunggakan di bawah RM 400.00 masih di kira sebagai unit yang ada tunggakan cuma tidak dipaparkan didalam senarai tersebut.</p>',
-      '<p>Unit yang dikategorikan sebagai <strong>Tiada Tunggakan</strong> adalah unit yang selesaikan:</p>',
-      '<ul><li>Fi Penyelenggaraan sebelum bulan semasa.</li><li>Insurans Kebakaran (selesai untuk tahun semasa).</li></ul>',
-      '<p>Contoh :-<br>Bulan semasa : <strong>31 Januari 2026</strong><br>Fi penyelenggaraan : <strong>Fi Penyelenggaraan bulan Dis 2025 selesai</strong></p>',
-      '<p>Sebarang pembayaran secara atas talian (on-line), resit perlu dihantar melalui e-mail yang ditetapkan. Kegagalan untuk membuat demikian, akan menyebabkan rekod pembayaran tidak dapat dikemaskini.</p>',
-      '<p>Sila pastikan maklumat yang disi adalah tepat untuk meneruskan. Tekan "X" atau "Saya faham" untuk meneruskan.</p>'
+      '<details open style="border:1px solid #dbe5f0;border-radius:10px;background:#fff;overflow:hidden;">',
+      '<summary style="cursor:pointer;padding:10px 12px;font-weight:700;color:#0f172a;">Lihat Makluman Bergambar</summary>',
+      '<div style="padding:10px 12px;display:grid;gap:10px;">',
+      '<img src="assets/OK-3.jpg" alt="Makluman bergambar" style="width:100%;max-width:420px;border:1px solid #d1d5db;border-radius:8px;background:#fff;">',
+      '<img src="assets/visitor_parking_charges.jpeg" alt="Jadual caj parkir pelawat" style="width:100%;max-width:420px;border:1px solid #d1d5db;border-radius:8px;background:#fff;">',
+      '</div>',
+      '</details>'
     ].join('');
-    showFloatMemo(memoText, { storageKey: null, blockUntilClose: true, imageSrc: 'assets/visitor_parking_charges.jpeg', html: true });
+    showFloatMemo(memoText, { storageKey: null, blockUntilClose: true, html: true });
   } catch(e) { /* ignore */ }
 
   // input handlers
