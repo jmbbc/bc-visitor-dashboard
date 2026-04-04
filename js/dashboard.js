@@ -1989,10 +1989,15 @@ function expandRowsByVehicleForSummary(rows){
 
     const attachPerVehicleVisitor = (baseRow, plate) => {
       const detail = detailsByPlate.get(toVehicleKey(plate));
+      const isPelawatKhas = String(baseRow && baseRow.category ? baseRow.category : '').trim() === 'Pelawat Khas';
       return Object.assign({}, baseRow, {
         _summaryVehicle: plate,
-        _summaryVisitorName: (detail && detail.visitorName) ? detail.visitorName : (baseRow.visitorName || ''),
-        _summaryVisitorPhone: (detail && detail.visitorPhone) ? detail.visitorPhone : (baseRow.visitorPhone || '')
+        _summaryVisitorName: isPelawatKhas
+          ? ((detail && typeof detail.visitorName === 'string') ? detail.visitorName : '')
+          : ((detail && detail.visitorName) ? detail.visitorName : (baseRow.visitorName || '')),
+        _summaryVisitorPhone: isPelawatKhas
+          ? ((detail && typeof detail.visitorPhone === 'string') ? detail.visitorPhone : '')
+          : ((detail && detail.visitorPhone) ? detail.visitorPhone : (baseRow.visitorPhone || ''))
       });
     };
 

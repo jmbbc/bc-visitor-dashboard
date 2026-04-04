@@ -2205,6 +2205,7 @@ function buildWhatsAppUrlForAdmin(payload){
   const vehicles = (payload.vehicleNumbers && payload.vehicleNumbers.length)
     ? payload.vehicleNumbers
     : (payload.vehicleNo ? [payload.vehicleNo] : []);
+  const isPelawatKhas = String(payload.category || '').trim() === 'Pelawat Khas';
   const detailRows = Array.isArray(payload.vehicleRowsDetailed) ? payload.vehicleRowsDetailed : [];
   const detailMap = new Map();
   detailRows.forEach((row) => {
@@ -2219,16 +2220,20 @@ function buildWhatsAppUrlForAdmin(payload){
   const blocks = vehiclesForWa.map((plate) => {
     const normalizedPlate = normalizeVehicleInput(plate || '');
     const perVehicle = normalizedPlate ? detailMap.get(normalizedPlate) : null;
-    const waVisitorName = (perVehicle && perVehicle.visitorName) || payload.visitorName || '-';
-    const waVisitorPhone = (perVehicle && perVehicle.visitorPhone) || payload.visitorPhone || '-';
+    const waVisitorName = isPelawatKhas
+      ? ((perVehicle && typeof perVehicle.visitorName === 'string') ? perVehicle.visitorName : '')
+      : ((perVehicle && perVehicle.visitorName) || payload.visitorName || '');
+    const waVisitorPhone = isPelawatKhas
+      ? ((perVehicle && typeof perVehicle.visitorPhone === 'string') ? perVehicle.visitorPhone : '')
+      : ((perVehicle && perVehicle.visitorPhone) || payload.visitorPhone || '');
     return ([
     'Pendaftaran Pelawat Baru',
     `Tarikh : ${messageDateText}`,
     `Unit: ${payload.hostUnit || '-'}`,
     `Nama penghuni: ${payload.hostName || '-'}`,
     `Nombor telefon penghuni: ${payload.hostPhone || '-'}`,
-    `Nama pelawat: ${waVisitorName}`,
-    `Nombor telefon pelawat: ${waVisitorPhone}`,
+    `Nama pelawat: ${waVisitorName || '-'}`,
+    `Nombor telefon pelawat: ${waVisitorPhone || '-'}`,
     `Tarikh masuk: ${etaText}`,
     `Tarikh keluar: ${etdText}`,
     `Kenderaan: ${plate || '-'}`,
@@ -3306,7 +3311,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       vehicleList.appendChild(createVehicleRow(''));
-      refreshVehicleVisitorMeta();
+      if (cat !== 'Pelawat Khas') refreshVehicleVisitorMeta();
       refreshAddVehicleButtonState(cat);
       updatePaymentSummary();
     });
@@ -3512,6 +3517,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let vehicleNumbers = [];
       let vehicleRowsDetailed = [];
       const allowMultiVehicle = category === 'Pelawat Khas' || category === 'Pelawat';
+      const isPelawatKhas = category === 'Pelawat Khas';
       if (allowMultiVehicle) {
         const fromList = getVehicleNumbersFromList().map(v => String(v).trim().toUpperCase()).filter(Boolean);
         const rowsDetailed = Array.from(document.querySelectorAll('#vehicleList .vehicle-row')).map((row) => ({
@@ -3535,8 +3541,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!row.plate) return;
           detailsMap.set(row.plate, {
             plate: row.plate,
-            visitorName: row.visitorName || visitorName || '',
-            visitorPhone: row.visitorPhone || normalizePhoneInput(visitorPhone || '')
+            visitorName: isPelawatKhas ? (row.visitorName || '') : (row.visitorName || visitorName || ''),
+            visitorPhone: isPelawatKhas ? (row.visitorPhone || '') : (row.visitorPhone || normalizePhoneInput(visitorPhone || ''))
           });
         });
         vehicleRowsDetailed = vehicleNumbers.map((plate) => {
@@ -3544,8 +3550,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (found) return found;
           return {
             plate,
-            visitorName: visitorName || '',
-            visitorPhone: normalizePhoneInput(visitorPhone || '')
+            visitorName: isPelawatKhas ? '' : (visitorName || ''),
+            visitorPhone: isPelawatKhas ? '' : normalizePhoneInput(visitorPhone || '')
           };
         });
         if (category === 'Pelawat' && vehicleNumbers.length > 3) {
