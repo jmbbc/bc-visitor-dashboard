@@ -95,6 +95,7 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'hostUnit','hostUnitFound','hostName','hostPhone','category','subCategory','entryDetails','companyName',
           'visitorName','visitorPhone','stayOver','eta','etd','vehicleNo','vehicleNumbers','vehicleType',
+          'vehicleRowsDetailed',
           'subCategoryHelp','status','createdAt','updatedAt',
           'amendToken',
           // unit snapshot fields
@@ -116,6 +117,7 @@ service cloud.firestore {
         && (data.etd is timestamp || data.etd == null || !('etd' in data))
         && (data.vehicleNo is string || !('vehicleNo' in data))
         && (data.vehicleNumbers is list || !('vehicleNumbers' in data))
+        && (data.vehicleRowsDetailed is list || !('vehicleRowsDetailed' in data))
         && (data.vehicleType is string || !('vehicleType' in data))
         && (data.subCategoryHelp is string || !('subCategoryHelp' in data))
         && (data.status is string)

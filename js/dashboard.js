@@ -1654,7 +1654,8 @@ async function loadListForDateStr(yyyymmdd){
     } catch(e){ return null; }
   };
 
-  // Helper: keep only rows whose ETA/ETD overlaps the target day (inclusive of multi-day stays).
+  // Helper: keep rows whose ETA/ETD overlaps the target day, and also include
+  // rows created on that day so newly submitted records are visible immediately.
   const filterRowsForDay = (rows) => {
     const startMs = from.getTime();
     const endMs = to.getTime();
@@ -1662,12 +1663,13 @@ async function loadListForDateStr(yyyymmdd){
       const eta = toJsDate(r.eta);
       const etd = toJsDate(r.etd);
       const created = toJsDate(r.createdAt);
+      const createdInDay = !!(created && created.getTime() >= startMs && created.getTime() < endMs);
       // Multi-day stay: include if the interval [eta, etd] overlaps the target day
-      if (eta && etd) return eta.getTime() < endMs && etd.getTime() >= startMs;
+      if (eta && etd) return (eta.getTime() < endMs && etd.getTime() >= startMs) || createdInDay;
       // Single-day: include if ETA falls on the target day
-      if (eta) return eta.getTime() >= startMs && eta.getTime() < endMs;
+      if (eta) return (eta.getTime() >= startMs && eta.getTime() < endMs) || createdInDay;
       // Fallback: use createdAt when ETA missing
-      if (created) return created.getTime() >= startMs && created.getTime() < endMs;
+      if (created) return createdInDay;
       return false;
     });
   };
@@ -1964,21 +1966,43 @@ function determineCategory(r){
 
 /* ---------- Render summary ---------- */
 function expandRowsByVehicleForSummary(rows){
+  const toVehicleKey = (raw) => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
   const out = [];
   (rows || []).forEach((r) => {
+    const detailsByPlate = new Map();
+    if (Array.isArray(r.vehicleRowsDetailed)) {
+      r.vehicleRowsDetailed.forEach((item) => {
+        const key = toVehicleKey(item && item.plate ? item.plate : '');
+        if (!key || detailsByPlate.has(key)) return;
+        detailsByPlate.set(key, {
+          visitorName: (item && item.visitorName ? String(item.visitorName).trim() : '') || '',
+          visitorPhone: (item && item.visitorPhone ? String(item.visitorPhone).trim() : '') || ''
+        });
+      });
+    }
+
     const fromArray = Array.isArray(r.vehicleNumbers)
       ? r.vehicleNumbers.map(v => String(v || '').trim()).filter(Boolean)
       : [];
     const fromSingle = r.vehicleNo ? [String(r.vehicleNo).trim()] : [];
     const vehicles = Array.from(new Set([...fromArray, ...fromSingle].filter(Boolean)));
 
+    const attachPerVehicleVisitor = (baseRow, plate) => {
+      const detail = detailsByPlate.get(toVehicleKey(plate));
+      return Object.assign({}, baseRow, {
+        _summaryVehicle: plate,
+        _summaryVisitorName: (detail && detail.visitorName) ? detail.visitorName : (baseRow.visitorName || ''),
+        _summaryVisitorPhone: (detail && detail.visitorPhone) ? detail.visitorPhone : (baseRow.visitorPhone || '')
+      });
+    };
+
     if (!vehicles.length) {
-      out.push(Object.assign({}, r, { _summaryVehicle: '-' }));
+      out.push(attachPerVehicleVisitor(r, '-'));
       return;
     }
 
     vehicles.forEach((plate) => {
-      out.push(Object.assign({}, r, { _summaryVehicle: plate }));
+      out.push(attachPerVehicleVisitor(r, plate));
     });
   });
   return out;
@@ -2010,6 +2034,8 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
 
   displayRows.forEach(r => {
     const vehicleDisplay = r._summaryVehicle || '-';
+    const visitorNameDisplay = r._summaryVisitorName || r.visitorName || '';
+    const visitorPhoneDisplay = r._summaryVisitorPhone || r.visitorPhone || '';
 
     let hostContactHtml = '';
     if (r.hostName || r.hostPhone) {
@@ -2091,7 +2117,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     if (highlightIds && highlightIds.has(r.id)) tr.classList.add('conflict');
     tr.innerHTML = `
       <td class="timestamp-cell"><div class="ts-date">${formatDateOnly(r.createdAt)}</div><div class="ts-time">${formatTime(r.createdAt)}</div></td>
-      <td class="visitor-cell">${escapeHtml(r.visitorName || '')}${r.entryDetails ? '<div class="small">'+escapeHtml(r.entryDetails || '')+'</div>' : ''}${r.visitorPhone ? (function(){ const waHref = normalizePhoneForWhatsapp(r.visitorPhone); return '<div class="small visitor-phone"><a class="tel-link" href="'+waHref+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(r.visitorPhone)+'</a></div>'; })() : ''}</td>
+      <td class="visitor-cell">${escapeHtml(visitorNameDisplay || '')}${r.entryDetails ? '<div class="small">'+escapeHtml(r.entryDetails || '')+'</div>' : ''}${visitorPhoneDisplay ? (function(){ const waHref = normalizePhoneForWhatsapp(visitorPhoneDisplay); return '<div class="small visitor-phone"><a class="tel-link" href="'+waHref+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(visitorPhoneDisplay)+'</a></div>'; })() : ''}</td>
       <td>${escapeHtml(r.hostUnit || '')}${hostContactHtml ? '<div class="small">'+hostContactHtml+'</div>' : ''}</td>
       <td>${unitCategoryHtml}</td>
       <td class="arrears-cell">${(function(){

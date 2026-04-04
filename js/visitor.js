@@ -1089,6 +1089,35 @@ function collectVehicleSetFromPayloadLike(src) {
   return out;
 }
 
+function collectVehicleDetailsFromPayloadLike(src) {
+  const seen = new Set();
+  const details = [];
+  const rows = Array.isArray(src && src.vehicleRowsDetailed) ? src.vehicleRowsDetailed : [];
+  rows.forEach((row) => {
+    const plate = normalizeVehicleInput(row && row.plate ? row.plate : '');
+    if (!plate || seen.has(plate)) return;
+    seen.add(plate);
+    details.push({
+      plate,
+      visitorName: (row && row.visitorName ? String(row.visitorName).trim() : '') || '',
+      visitorPhone: normalizePhoneInput(row && row.visitorPhone ? String(row.visitorPhone) : '') || ''
+    });
+  });
+
+  const fallbackVehicles = collectVehicleSetFromPayloadLike(src);
+  fallbackVehicles.forEach((plate) => {
+    if (seen.has(plate)) return;
+    seen.add(plate);
+    details.push({
+      plate,
+      visitorName: (src && src.visitorName ? String(src.visitorName).trim() : '') || '',
+      visitorPhone: normalizePhoneInput(src && src.visitorPhone ? String(src.visitorPhone) : '') || ''
+    });
+  });
+
+  return details;
+}
+
 function _toDateOnly(v) {
   if (!v) return null;
   const d = v instanceof Date ? v : new Date(v);
@@ -1117,7 +1146,8 @@ async function createResponseWithDedupe(payload){
   const dedupeRef = doc(window.__FIRESTORE, 'dedupeKeys', dedupeKey);
   const respRef = doc(window.__FIRESTORE, 'responses', responseId);
 
-  async function writeDirectFallback() {
+  async function writeDirectFallback(overridePayload = null) {
+    const sourcePayload = overridePayload || payload;
     let mappedId = '';
     try { mappedId = String(localStorage.getItem(fallbackAmendKey) || ''); } catch (e) { mappedId = ''; }
 
@@ -1130,7 +1160,7 @@ async function createResponseWithDedupe(payload){
     const targetId = responseId;
     const targetRef = doc(window.__FIRESTORE, 'responses', targetId);
     const isAmendFallback = !!mappedId;
-    const fallbackPayload = Object.assign({}, payload, {
+    const fallbackPayload = Object.assign({}, sourcePayload, {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -1156,6 +1186,18 @@ async function createResponseWithDedupe(payload){
     try {
       return await writeDirectFallback();
     } catch (fallbackErr) {
+      const fbCode = String(fallbackErr && fallbackErr.code ? fallbackErr.code : '').toLowerCase();
+      const fbMsg = String(fallbackErr && (fallbackErr.message || fallbackErr) ? (fallbackErr.message || fallbackErr) : '').toLowerCase();
+      if ((fbCode.includes('permission') || fbMsg.includes('insufficient permissions') || fbMsg.includes('permission-denied'))
+        && Array.isArray(payload.vehicleRowsDetailed) && payload.vehicleRowsDetailed.length) {
+        try {
+          const legacyPayload = Object.assign({}, payload);
+          delete legacyPayload.vehicleRowsDetailed;
+          return await writeDirectFallback(legacyPayload);
+        } catch (legacyErr) {
+          fallbackErr = legacyErr;
+        }
+      }
       const e = new Error('fallback_failed');
       e.code = String(fallbackErr && fallbackErr.code ? fallbackErr.code : 'FALLBACK_FAILED');
       e.message = fallbackErr && fallbackErr.message ? fallbackErr.message : 'Fallback write failed';
@@ -1254,17 +1296,41 @@ async function createResponseWithDedupe(payload){
         const existingResp = existingRespSnap.data() || {};
         const existingVehicles = collectVehicleSetFromPayloadLike(existingResp);
         const incomingVehicles = collectVehicleSetFromPayloadLike(docPayload);
+        const existingDetails = collectVehicleDetailsFromPayloadLike(existingResp);
+        const incomingDetails = collectVehicleDetailsFromPayloadLike(docPayload);
         const shouldMergeVehicles = String(docPayload.stayOver || 'No') === 'Yes';
         const mergedVehicles = shouldMergeVehicles
           ? Array.from(new Set([...existingVehicles, ...incomingVehicles]))
           : incomingVehicles;
+        let mergedVehicleDetails = incomingDetails;
+        if (shouldMergeVehicles) {
+          const detailMap = new Map();
+          existingDetails.forEach((item) => {
+            if (!item || !item.plate) return;
+            detailMap.set(item.plate, Object.assign({}, item));
+          });
+          incomingDetails.forEach((item) => {
+            if (!item || !item.plate) return;
+            detailMap.set(item.plate, Object.assign({}, item));
+          });
+          mergedVehicleDetails = mergedVehicles.map((plate) => {
+            const found = detailMap.get(plate);
+            if (found) return found;
+            return {
+              plate,
+              visitorName: (docPayload.visitorName || existingResp.visitorName || ''),
+              visitorPhone: normalizePhoneInput(docPayload.visitorPhone || existingResp.visitorPhone || '')
+            };
+          });
+        }
 
         const amendedPayload = Object.assign({}, existingResp, docPayload, {
           createdAt: existingResp.createdAt || docPayload.createdAt,
           updatedAt: serverTimestamp(),
           amendToken,
           vehicleNumbers: mergedVehicles,
-          vehicleNo: mergedVehicles.length ? mergedVehicles[0] : (docPayload.vehicleNo || '')
+          vehicleNo: mergedVehicles.length ? mergedVehicles[0] : (docPayload.vehicleNo || ''),
+          vehicleRowsDetailed: mergedVehicleDetails
         });
         tx.update(targetRespRef, amendedPayload);
       }
@@ -1287,6 +1353,15 @@ async function createResponseWithDedupe(payload){
     if (code.toLowerCase().includes('permission') || msg.includes('permission-denied')) {
       dedupeTransactionUnavailable = true;
       try { localStorage.setItem('visitor:dedupeTxUnavailable', '1'); } catch (e) { /* ignore */ }
+      if (Array.isArray(payload.vehicleRowsDetailed) && payload.vehicleRowsDetailed.length) {
+        try {
+          const legacyPayload = Object.assign({}, payload);
+          delete legacyPayload.vehicleRowsDetailed;
+          return await writeDirectFallback(legacyPayload);
+        } catch (legacyErr) {
+          err = legacyErr;
+        }
+      }
       try {
         return await writeDirectFallback();
       } catch (fallbackErr) {
@@ -2130,20 +2205,36 @@ function buildWhatsAppUrlForAdmin(payload){
   const vehicles = (payload.vehicleNumbers && payload.vehicleNumbers.length)
     ? payload.vehicleNumbers
     : (payload.vehicleNo ? [payload.vehicleNo] : []);
+  const detailRows = Array.isArray(payload.vehicleRowsDetailed) ? payload.vehicleRowsDetailed : [];
+  const detailMap = new Map();
+  detailRows.forEach((row) => {
+    const plate = normalizeVehicleInput(row && row.plate ? row.plate : '');
+    if (!plate || detailMap.has(plate)) return;
+    detailMap.set(plate, {
+      visitorName: (row && row.visitorName ? String(row.visitorName).trim() : '') || '',
+      visitorPhone: normalizePhoneInput(row && row.visitorPhone ? String(row.visitorPhone) : '') || ''
+    });
+  });
   const vehiclesForWa = vehicles.length ? vehicles : ['-'];
-  const blocks = vehiclesForWa.map((plate) => ([
+  const blocks = vehiclesForWa.map((plate) => {
+    const normalizedPlate = normalizeVehicleInput(plate || '');
+    const perVehicle = normalizedPlate ? detailMap.get(normalizedPlate) : null;
+    const waVisitorName = (perVehicle && perVehicle.visitorName) || payload.visitorName || '-';
+    const waVisitorPhone = (perVehicle && perVehicle.visitorPhone) || payload.visitorPhone || '-';
+    return ([
     'Pendaftaran Pelawat Baru',
     `Tarikh : ${messageDateText}`,
     `Unit: ${payload.hostUnit || '-'}`,
     `Nama penghuni: ${payload.hostName || '-'}`,
     `Nombor telefon penghuni: ${payload.hostPhone || '-'}`,
-    `Nama pelawat: ${payload.visitorName || '-'}`,
-    `Nombor telefon pelawat: ${payload.visitorPhone || '-'}`,
+    `Nama pelawat: ${waVisitorName}`,
+    `Nombor telefon pelawat: ${waVisitorPhone}`,
     `Tarikh masuk: ${etaText}`,
     `Tarikh keluar: ${etdText}`,
     `Kenderaan: ${plate || '-'}`,
     `Kategori: ${payload.category || '-'}`
-  ].join('\n')));
+    ].join('\n'));
+  });
   const blockSeparator = '\n------------------------------\n';
   const text = encodeURIComponent(blocks.join(blockSeparator));
   // Web URL (works in browsers)
@@ -2728,6 +2819,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!form) { console.error('visitorForm missing'); return; }
 
     function refreshVehicleVisitorMeta() {
+      const currentCategory = (categoryEl?.value || '').trim();
+      if (currentCategory === 'Pelawat Khas') return;
       const name = (visitorNameElMain?.value || '').trim() || '-';
       const phone = (visitorPhoneElMain?.value || '').trim() || '-';
       document.querySelectorAll('.vehicle-visitor-name-input').forEach((el) => {
@@ -3417,13 +3510,44 @@ document.addEventListener('DOMContentLoaded', () => {
       // vehicle handling
       let vehicleNo = '';
       let vehicleNumbers = [];
+      let vehicleRowsDetailed = [];
       const allowMultiVehicle = category === 'Pelawat Khas' || category === 'Pelawat';
       if (allowMultiVehicle) {
         const fromList = getVehicleNumbersFromList().map(v => String(v).trim().toUpperCase()).filter(Boolean);
+        const rowsDetailed = Array.from(document.querySelectorAll('#vehicleList .vehicle-row')).map((row) => ({
+          plate: normalizeVehicleInput(row.querySelector('.vehicle-input')?.value || ''),
+          visitorName: (row.querySelector('.vehicle-visitor-name-input')?.value || '').trim(),
+          visitorPhone: normalizePhoneInput(row.querySelector('.vehicle-visitor-phone-input')?.value || '')
+        })).filter((row) => row.plate);
         const fromSingle = (document.getElementById('vehicleNo')?.value || '').trim().toUpperCase();
         const mainVehicle = fromSingle || (fromList[0] || '');
         const additionalVehicles = fromList.filter(v => v && v !== mainVehicle);
         vehicleNumbers = Array.from(new Set([mainVehicle, ...additionalVehicles].filter(Boolean)));
+        const detailsMap = new Map();
+        if (mainVehicle) {
+          detailsMap.set(mainVehicle, {
+            plate: mainVehicle,
+            visitorName: visitorName || '',
+            visitorPhone: normalizePhoneInput(visitorPhone || '')
+          });
+        }
+        rowsDetailed.forEach((row) => {
+          if (!row.plate) return;
+          detailsMap.set(row.plate, {
+            plate: row.plate,
+            visitorName: row.visitorName || visitorName || '',
+            visitorPhone: row.visitorPhone || normalizePhoneInput(visitorPhone || '')
+          });
+        });
+        vehicleRowsDetailed = vehicleNumbers.map((plate) => {
+          const found = detailsMap.get(plate);
+          if (found) return found;
+          return {
+            plate,
+            visitorName: visitorName || '',
+            visitorPhone: normalizePhoneInput(visitorPhone || '')
+          };
+        });
         if (category === 'Pelawat' && vehicleNumbers.length > 3) {
           showStatus('Kategori Pelawat hanya dibenarkan maksimum 3 kenderaan (1 utama + 2 tambahan).', false);
           return;
@@ -3432,6 +3556,13 @@ document.addEventListener('DOMContentLoaded', () => {
         vehicleNo = mainVehicle || (vehicleNumbers.length ? vehicleNumbers[0] : '');
       } else {
         vehicleNo = (document.getElementById('vehicleNo')?.value || '').trim().toUpperCase();
+        if (vehicleNo) {
+          vehicleRowsDetailed = [{
+            plate: vehicleNo,
+            visitorName: visitorName || '',
+            visitorPhone: normalizePhoneInput(visitorPhone || '')
+          }];
+        }
       }
 
       const unitFound = units.includes(hostUnit);
@@ -3464,6 +3595,7 @@ document.addEventListener('DOMContentLoaded', () => {
         etd: etdDate ? Timestamp.fromDate(etdDate) : null,
         vehicleNo: vehicleNo || '',
         vehicleNumbers: vehicleNumbers.length ? vehicleNumbers : [],
+        vehicleRowsDetailed,
         vehicleType: vehicleType || '',
         subCategoryHelp: subCategoryHelpMap[subCategory] || '',
         status: 'Pending',
