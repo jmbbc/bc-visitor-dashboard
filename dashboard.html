@@ -231,7 +231,11 @@
         <section>
           <div class="top-info">
             <div>
-              <div class="small">Log masuk sebagai: <strong id="who"></strong></div>
+              <div class="small" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <span>Log masuk sebagai: <strong id="who"></strong></span>
+                <span id="adminClaimIndicator" class="small muted">Firebase admin claim: -</span>
+                <button id="refreshAdminClaimBtn" type="button" class="btn-ghost" style="padding:4px 8px; min-height:28px;">Refresh claim</button>
+              </div>
               <div id="kpiWrap" style="margin-top:8px" class="kpi"></div>
             </div>
 

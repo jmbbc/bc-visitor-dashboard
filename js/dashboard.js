@@ -202,6 +202,8 @@ const todayLabel = document.getElementById('todayLabel');
 const todayTime = document.getElementById('todayTime');
 const kpiWrap = document.getElementById('kpiWrap');
 const injectedControls = document.getElementById('injectedControls');
+const adminClaimIndicator = document.getElementById('adminClaimIndicator');
+const refreshAdminClaimBtn = document.getElementById('refreshAdminClaimBtn');
 const passdownInput = document.getElementById('passdownInput');
 const passdownList = document.getElementById('passdownList');
 const passdownSaveBtn = document.getElementById('passdownSaveBtn');
@@ -242,6 +244,45 @@ function setAdminLoggedIn(val){
   } catch(e) { /* ignore */ }
 }
 function isAdminLoggedIn(){ try { return sessionStorage.getItem('admin_logged_in') === '1'; } catch(e){ return false; } }
+
+function setAdminClaimIndicator(state){
+  if (!adminClaimIndicator) return;
+  if (state === true) {
+    adminClaimIndicator.textContent = 'Firebase admin claim: Ya';
+    adminClaimIndicator.style.color = '#166534';
+    return;
+  }
+  if (state === false) {
+    adminClaimIndicator.textContent = 'Firebase admin claim: Tidak';
+    adminClaimIndicator.style.color = 'var(--muted)';
+    return;
+  }
+  if (state === 'checking') {
+    adminClaimIndicator.textContent = 'Firebase admin claim: semakan...';
+    adminClaimIndicator.style.color = 'var(--muted)';
+    return;
+  }
+  adminClaimIndicator.textContent = 'Firebase admin claim: -';
+  adminClaimIndicator.style.color = 'var(--muted)';
+}
+
+async function readAdminClaim(user, forceRefresh){
+  if (!user || typeof user.getIdTokenResult !== 'function') {
+    setAdminClaimIndicator(null);
+    return false;
+  }
+  setAdminClaimIndicator('checking');
+  try {
+    const token = await user.getIdTokenResult(!!forceRefresh);
+    const isAdminClaim = !!(token && token.claims && token.claims.admin === true);
+    setAdminClaimIndicator(isAdminClaim);
+    return isAdminClaim;
+  } catch (err) {
+    console.warn('readAdminClaim err', err);
+    setAdminClaimIndicator(false);
+    return false;
+  }
+}
 
 function handlePermissionDenied(e, friendlyMsg){
   try {
@@ -750,16 +791,14 @@ onAuthStateChanged(window.__AUTH, user => {
 
     // Check for custom claim 'admin' and enable admin controls automatically
     try {
-      // getIdTokenResult is available on user; it contains claims
-      user.getIdTokenResult().then(token => {
-        const isAdminClaim = token && token.claims && token.claims.admin === true;
+      readAdminClaim(user, false).then(isAdminClaim => {
         if (isAdminClaim) {
           setAdminLoggedIn(true);
           try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e){}
           try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'none'; } catch(e){}
           try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Log masuk sebagai admin (claim).'; } catch(e){}
         }
-      }).catch(err => { /* ignore token errors */ });
+      }).catch(()=>{});
     } catch(e) { /* ignore */ }
 
 
@@ -816,8 +855,23 @@ onAuthStateChanged(window.__AUTH, user => {
     if (timeTicker) { clearInterval(timeTicker); timeTicker = null; }
     // unsubscribe any active onSnapshot listener to avoid continued reads after sign-out
     try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
+    setAdminClaimIndicator(null);
   }
 });
+
+if (refreshAdminClaimBtn) {
+  refreshAdminClaimBtn.addEventListener('click', async () => {
+    const user = window.__AUTH && window.__AUTH.currentUser;
+    if (!user) {
+      setAdminClaimIndicator(null);
+      toast('Tiada pengguna log masuk untuk semak claim.', false);
+      return;
+    }
+    const isAdminClaim = await readAdminClaim(user, true);
+    if (isAdminClaim) toast('Claim admin dikemas kini: Ya', true, { duration: 2500 });
+    else toast('Claim admin semasa: Tidak', false, { duration: 2500 });
+  });
+}
 
 /* ---------- paging & fetch ---------- */
 async function loadTodayList(){
@@ -2713,7 +2767,11 @@ document.getElementById('saveEditBtn').addEventListener('click', async (ev) => {
     }
   } catch (err) {
     console.error('saveEdit err', err);
-    toast('Gagal simpan. Semak konsol.');
+    if (err && err.code === 'permission-denied') {
+      toast('Gagal simpan: akaun tiada kebenaran admin atau token belum dikemas kini.');
+    } else {
+      toast('Gagal simpan. Semak konsol.');
+    }
   }
 });
 

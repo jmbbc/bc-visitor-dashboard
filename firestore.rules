@@ -41,7 +41,8 @@ service cloud.firestore {
     // Visitor form responses: allow public create with strict validation
     match /responses/{respId} {
       allow create: if isValidResponse(request.resource.data);
-      allow update: if canAmendResponse(resource.data, request.resource.data, respId);
+      allow update: if (isAdmin() && isValidResponse(request.resource.data))
+        || canAmendResponse(resource.data, request.resource.data, respId);
       allow read, delete: if request.auth != null;
     }
 
@@ -176,6 +177,10 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/overnightLocks/$(lockId))
         && get(/databases/$(database)/documents/overnightLocks/$(lockId)).data.responseId == respId
         && get(/databases/$(database)/documents/overnightLocks/$(lockId)).data.amendToken == oldData.amendToken;
+    }
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
     }
   }
 }
