@@ -3492,6 +3492,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (e) { /* ignore comparison failures */ }
       if (etdVal && !etdDate) { showStatus('Tarikh keluar tidak sah.', false); return; }
       if (etdDate) {
+        const isRenovasiFlow = category === 'Kontraktor' && subCategory === 'Renovasi';
         // disallow backdated etd even if eta allowed — ETD must not be before today
         try {
           const todayKey = clientIsoDateOnlyKey(new Date());
@@ -3501,8 +3502,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
         } catch(e) { /* ignore */ }
-        const max = new Date(etaDate); max.setDate(max.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2)
-        if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh keluar mesti antara Tarikh masuk hingga 2 hari selepas Tarikh masuk (maks. 3 hari termasuk tarikh masuk).', false); return; }
+        if (isRenovasiFlow) {
+          if (etdDate < etaDate) {
+            showStatus('Tarikh keluar mesti sama atau selepas Tarikh masuk.', false);
+            return;
+          }
+        } else {
+          const max = new Date(etaDate); max.setDate(max.getDate() + 2); // limit inclusive stay to max 3 days (ETA + 2)
+          if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh keluar mesti antara Tarikh masuk hingga 2 hari selepas Tarikh masuk (maks. 3 hari termasuk tarikh masuk).', false); return; }
+        }
       }
 
       // agreement checkbox
