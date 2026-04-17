@@ -2207,6 +2207,7 @@ button:focus, input:focus, select:focus, textarea:focus{
 .cat-pindah { background:#ef4444 !important; color:#fff !important; }         /* merah */
 .cat-pelawat-khas { background:#6d28d9 !important; color:#fff !important; }   /* ungu */
 .cat-penghantaran { background:#10b981 !important; color:#fff !important; }   /* hijau */
+.cat-dropoff { background:#0ea5e9 !important; color:#fff !important; }        /* biru muda */
 .cat-lain { background:#6b7280 !important; color:#fff !important; }           /* kelabu fallback */
 .td-category-small { color:var(--muted); font-size:13px; font-weight:600; }
 .cat-stack { display:flex; flex-direction:column; gap:4px; align-items:flex-start; }

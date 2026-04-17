@@ -169,14 +169,20 @@ function normalizePhoneForWhatsapp(raw){
 }
 
 /* ---------- Category Mapping (moved early to avoid TDZ) ---------- */
+const VISITOR_FORM_CATEGORIES = ['Pelawat', 'Kontraktor', 'Penghantaran Barang', 'Pindah Rumah', 'Pelawat Khas', 'Drop-off'];
+
 const categoryClassMap = {
   'Pelawat': 'cat-pelawat',
   'Kontraktor': 'cat-kontraktor',
-  'Pindah barang': 'cat-pindah',
-  'Pelawat Khas': 'cat-pelawat-khas',
   'Penghantaran Barang': 'cat-penghantaran',
+  'Pindah Rumah': 'cat-pindah',
+  'Pelawat Khas': 'cat-pelawat-khas',
+  'Drop-off': 'cat-dropoff',
+  // Legacy aliases / fallback
+  'Pindah barang': 'cat-pindah',
   'Kenderaan': 'cat-lain',
-  'Penghuni': 'cat-lain'
+  'Penghuni': 'cat-lain',
+  'Lain-lain': 'cat-lain'
 };
 
 /* ---------- DOM refs ---------- */
@@ -204,19 +210,6 @@ const kpiWrap = document.getElementById('kpiWrap');
 const injectedControls = document.getElementById('injectedControls');
 const adminClaimIndicator = document.getElementById('adminClaimIndicator');
 const refreshAdminClaimBtn = document.getElementById('refreshAdminClaimBtn');
-const passdownInput = document.getElementById('passdownInput');
-const passdownList = document.getElementById('passdownList');
-const passdownSaveBtn = document.getElementById('passdownSaveBtn');
-const passdownClearBtn = document.getElementById('passdownClearBtn');
-const passdownMeta = document.getElementById('passdownMeta');
-const PASSDOWN_KEY = 'bc_passdown_notes_v1';
-const PASSDOWN_LIMIT = 14;
-// Firestore-backed passdown sync
-const PASSDOWN_DOC_PATH = ['passdown','shared']; // collection/doc
-let passdownRemoteUnsub = null;
-let passdownRemoteLastTs = 0; // ms
-let passdownSyncPermissionDenied = false;
-let passdownPersistTimer = null;
 
 // Units cache (unitId -> doc data) used to display unit category fallback
 const unitsCache = Object.create(null);
@@ -378,187 +371,6 @@ async function deleteOldResponsesBeforeDate(){
   }
 }
 
-/* ---------- Passdown notes (sidebar mini notepad) ---------- */
-function getSavedPassdownNotes(){
-  try {
-    const raw = localStorage.getItem(PASSDOWN_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (Array.isArray(parsed)) return parsed.slice(0, PASSDOWN_LIMIT);
-  } catch(e) { /* ignore */ }
-  return [];
-}
-
-function persistPassdownNotes(notes){
-  try { localStorage.setItem(PASSDOWN_KEY, JSON.stringify(notes.slice(0, PASSDOWN_LIMIT))); } catch(e) { /* ignore */ }
-  // schedule a Firestore write (debounced) if Firestore is available and permission seems OK
-  try {
-    schedulePersistPassdownToFirestore(notes);
-  } catch(e) { /* ignore */ }
-}
-
-// Debounced write to Firestore
-function schedulePersistPassdownToFirestore(notes){
-  try {
-    if (!window.__FIRESTORE) return;
-    if (passdownSyncPermissionDenied) return;
-    if (passdownPersistTimer) clearTimeout(passdownPersistTimer);
-    passdownPersistTimer = setTimeout(async ()=>{
-      try {
-        const [col, id] = PASSDOWN_DOC_PATH;
-        const ref = doc(window.__FIRESTORE, col, id);
-        await setDoc(ref, {
-          notes: notes.slice(0, PASSDOWN_LIMIT),
-          lastUpdatedAt: serverTimestamp(),
-          lastUpdatedBy: (window.__AUTH && window.__AUTH.currentUser) ? (window.__AUTH.currentUser.uid || window.__AUTH.currentUser.email) : 'anonymous'
-        }, { merge: true });
-        // avoid immediately applying snapshot of our own write
-        passdownRemoteLastTs = Date.now();
-      } catch (e) {
-        console.warn('[passdown] persist to firestore failed', e);
-        try {
-          const code = e && e.code ? e.code : String(e).toLowerCase();
-          if (code === 'permission-denied' || String(e).includes('Missing or insufficient permissions') || String(e).includes('permission-denied')) {
-            passdownSyncPermissionDenied = true;
-            toast('Gagal sync passdown notes — kebenaran tidak mencukupi (Firestore)', false);
-          }
-        } catch(err){}
-      }
-    }, 800);
-  } catch(e) { /* ignore */ }
-}
-
-function renderPassdownNotes(){
-  if (!passdownList) return;
-  const notes = getSavedPassdownNotes();
-  if (!notes.length) {
-    passdownList.innerHTML = '<div class="muted-small">Belum ada nota.</div>';
-    if (passdownMeta) passdownMeta.textContent = passdownSyncPermissionDenied ? 'Belum ada nota • (Sync tidak dibenarkan)' : '';
-    return;
-  }
-  const items = notes.map(n => {
-    const ts = n.ts ? new Date(n.ts) : new Date();
-    const dateLabel = `${formatDateOnly(ts)} ${ts.toLocaleTimeString()}`;
-    const author = escapeHtml(n.author || '');
-    const text = escapeHtml(n.text || '');
-    const id = n.ts || Math.random();
-    return `<div class="passdown-item" data-passdown-ts="${id}">
-      <div class="passdown-body">
-        <div class="passdown-item-text">${text}</div>
-        <div class="passdown-meta">${author ? author + ' • ' : ''}${dateLabel}</div>
-      </div>
-      <button type="button" class="passdown-pencil" data-passdown-menu="${id}" aria-label="Edit atau padam nota">✏️</button>
-      <div class="passdown-actions-inline" data-passdown-actions="${id}">
-        <button type="button" class="btn-ghost" data-passdown-edit="${id}">Edit</button>
-        <button type="button" class="btn-ghost" data-passdown-delete="${id}">Padam</button>
-      </div>
-    </div>`;
-  }).join('');
-  passdownList.innerHTML = items;
-  if (passdownMeta) {
-    const ts = notes[0].ts ? new Date(notes[0].ts) : new Date();
-    passdownMeta.textContent = `Terakhir: ${ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` + (passdownRemoteLastTs ? ' • Diselaraskan' : (passdownSyncPermissionDenied ? ' • (Sync tidak dibenarkan)' : ''));
-  }
-}
-
-function addPassdownNote(){
-  if (!passdownInput) return;
-  const text = (passdownInput.value || '').trim();
-  if (!text) { toast('Nota kosong — sila isi.', false); return; }
-  const author = (who && who.textContent) ? who.textContent : 'Tanpa nama';
-  const now = Date.now();
-  const notes = getSavedPassdownNotes();
-  notes.unshift({ text, author, ts: now });
-  persistPassdownNotes(notes);
-  passdownInput.value = '';
-  renderPassdownNotes();
-  toast('Nota disimpan');
-}
-
-function clearPassdownNotes(){
-  persistPassdownNotes([]);
-  renderPassdownNotes();
-  toast('Nota dikosongkan');
-}
-
-function editPassdownNote(ts){
-  const notes = getSavedPassdownNotes();
-  const idx = notes.findIndex(n => String(n.ts) === String(ts));
-  if (idx < 0) return;
-  const current = notes[idx];
-  const next = prompt('Edit nota', current.text || '');
-  if (next === null) return;
-  const text = next.trim();
-  if (!text) { toast('Nota kosong — tidak disimpan.', false); return; }
-  notes[idx] = Object.assign({}, current, { text, ts: Date.now() });
-  persistPassdownNotes(notes);
-  renderPassdownNotes();
-  toast('Nota dikemas kini');
-}
-
-async function deleteSinglePassdown(ts){
-  try {
-    const ok = await showConfirm('Padam nota', 'Padam nota ini? Tindakan ini tidak boleh dibatalkan.');
-    if (!ok) return;
-  } catch(e) { return; }
-  const notes = getSavedPassdownNotes();
-  const filtered = notes.filter(n => String(n.ts) !== String(ts));
-  persistPassdownNotes(filtered);
-  renderPassdownNotes();
-  toast('Nota dibuang');
-}
-
-// keep selection hidden when navigating away
-document.addEventListener('keydown', (evt)=>{
-  if (evt.key === 'Escape') hidePassdownMenus();
-});
-
-// Initialize remote passdown sync (Firestore) — set up onSnapshot listener
-function initPassdownRemoteSync(){
-  try {
-    if (!window.__FIRESTORE) return;
-    if (passdownRemoteUnsub) { try { passdownRemoteUnsub(); } catch(e){}; passdownRemoteUnsub = null; }
-    const [col, id] = PASSDOWN_DOC_PATH;
-    const ref = doc(window.__FIRESTORE, col, id);
-    passdownRemoteUnsub = onSnapshot(ref, snap => {
-      try {
-        const data = snap.data() || {};
-        const remoteNotes = Array.isArray(data.notes) ? data.notes.slice(0, PASSDOWN_LIMIT) : [];
-        const remoteTs = data.lastUpdatedAt && data.lastUpdatedAt.toDate ? data.lastUpdatedAt.toDate().getTime() : 0;
-        if (!remoteTs) return; // ignore empty metadata
-        if (remoteTs <= passdownRemoteLastTs) return; // already applied or older
-        passdownRemoteLastTs = remoteTs;
-        // write to localStorage and update UI
-        try { localStorage.setItem(PASSDOWN_KEY, JSON.stringify(remoteNotes)); } catch(e){}
-        renderPassdownNotes();
-      } catch(e) { console.warn('[passdown] snapshot handler error', e); }
-    }, err => {
-      console.warn('[passdown] onSnapshot failed', err);
-      try {
-        if (err && (err.code === 'permission-denied' || String(err).toLowerCase().includes('permission-denied'))) {
-          passdownSyncPermissionDenied = true;
-        }
-      } catch(e){}
-    });
-  } catch(e) { /* ignore */ }
-}
-
-// teardown
-function teardownPassdownRemoteSync(){ try { if (passdownRemoteUnsub) { passdownRemoteUnsub(); passdownRemoteUnsub = null; } } catch(e){} }
-
-function hidePassdownMenus(){
-  if (!passdownList) return;
-  passdownList.querySelectorAll('.passdown-actions-inline').forEach(el => el.classList.remove('open'));
-}
-
-function togglePassdownMenu(ts){
-  if (!passdownList) return;
-  const target = passdownList.querySelector(`[data-passdown-actions="${ts}"]`);
-  if (!target) return;
-  const isOpen = target.classList.contains('open');
-  hidePassdownMenus();
-  if (!isOpen) target.classList.add('open');
-}
-
 async function loadAllUnitsToCache(){
   try{
     if (!window.__FIRESTORE) return;
@@ -588,6 +400,7 @@ async function loadAllUnitsToCache(){
 
 const navSummary = document.getElementById('navSummary');
 const navCheckedIn = document.getElementById('navCheckedIn');
+const navUnitSummary = document.getElementById('navUnitSummary');
 const navParking = document.getElementById('navParking');
 const navUnitAdmin = document.getElementById('navUnitAdmin');
 const navWater = document.getElementById('navWater');
@@ -596,6 +409,16 @@ const exportAllCSVBtn = document.getElementById('exportAllCSVBtn');
 const parkingSearchInput = document.getElementById('parkingSearch');
 const listAreaUnitContacts = document.getElementById('listAreaUnitContacts');
 const unitContactsSearch = document.getElementById('unitContactsSearch');
+const listAreaUnitSummary = document.getElementById('listAreaUnitSummary');
+const unitSummaryMeta = document.getElementById('unitSummaryMeta');
+const unitSummaryDetailArea = document.getElementById('unitSummaryDetailArea');
+const unitSummaryFromDate = document.getElementById('unitSummaryFromDate');
+const unitSummaryToDate = document.getElementById('unitSummaryToDate');
+const unitSummaryLoadRangeBtn = document.getElementById('unitSummaryLoadRangeBtn');
+const unitSummaryLoadAllBtn = document.getElementById('unitSummaryLoadAllBtn');
+const unitSummaryExportSummaryBtn = document.getElementById('unitSummaryExportSummaryBtn');
+const unitSummaryExportDetailsBtn = document.getElementById('unitSummaryExportDetailsBtn');
+const unitSummarySearch = document.getElementById('unitSummarySearch');
 
 // Water readings page elements
 const waterDateEl = document.getElementById('waterDate');
@@ -622,6 +445,15 @@ const responseCache = { date: null, rows: [] };
 const weekResponseCache = Object.create(null);
 // track whether we've already performed the ETD supplemental query per-date to avoid repeated getDocs on every snapshot
 const responsesEtSupplemented = Object.create(null);
+const unitSummaryState = {
+  loading: false,
+  mode: '',
+  docsRead: 0,
+  generatedAt: null,
+  rows: [],
+  summaries: [],
+  selectedUnit: ''
+};
 
 function filterRowsBySearch(rows, term){
   try {
@@ -701,7 +533,7 @@ function startAutoRefresh(intervalMs = 600_000){
 /* ---------- Nav selection helpers (visual selected state + keyboard activation) ---------- */
 function setSelectedNav(el){
   try{
-    document.querySelectorAll('.sidebar .nav-item').forEach(b=>b.classList.remove('selected'));
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('selected'));
     if (el && el.classList) el.classList.add('selected');
   } catch(e) { /* ignore */ }
 }
@@ -710,6 +542,7 @@ function getActivePageKey(){
   try{
     if (navSummary && navSummary.classList.contains('active')) return 'summary';
     if (navCheckedIn && navCheckedIn.classList.contains('active')) return 'checkedin';
+    if (navUnitSummary && navUnitSummary.classList.contains('active')) return 'unitsummary';
     if (navParking && navParking.classList.contains('active')) return 'parking';
     if (navUnitAdmin && navUnitAdmin.classList.contains('active')) return 'unitadmin';
 
@@ -726,7 +559,7 @@ function getParkingDate(){
 }
 
 // Ensure nav buttons support keyboard activation (Enter / Space) and toggle visual selection
-[navSummary, navCheckedIn, navParking].forEach(btn => {
+[navSummary, navCheckedIn, navUnitSummary, navParking].forEach(btn => {
   if (!btn) return;
   // toggle selection on click (keeps visual box outline)
   btn.addEventListener('click', (e) => {
@@ -778,9 +611,6 @@ logoutBtn.addEventListener('click', async ()=> {
 onAuthStateChanged(window.__AUTH, user => {
   console.info('dashboard: onAuthStateChanged ->', user ? (user.email || user.uid) : 'signed out');
   if (user) {
-    // initialize passdown remote sync for signed-in users
-    try { initPassdownRemoteSync(); } catch(e) {}
-
     loginBox.style.display = 'none';
     dashboardArea.style.display = 'block';
     who.textContent = user.email || user.uid;
@@ -846,8 +676,6 @@ onAuthStateChanged(window.__AUTH, user => {
     loadTodayList();
     if (ENABLE_AUTO_REFRESH) startAutoRefresh();
   } else {
-    // teardown passdown sync on sign-out
-    try { teardownPassdownRemoteSync(); } catch(e) {}
     loginBox.style.display = 'block';
     dashboardArea.style.display = 'none';
     logoutBtn.style.display = 'none';
@@ -1218,30 +1046,6 @@ async function setUnitsImportMeta({ fileName = '', totalRows = 0, source = 'csv'
 
 // wire admin UI when dashboard is initialized
 document.addEventListener('DOMContentLoaded', ()=>{
-  // Passdown notepad
-  renderPassdownNotes();
-  if (passdownSaveBtn) passdownSaveBtn.addEventListener('click', addPassdownNote);
-  if (passdownClearBtn) passdownClearBtn.addEventListener('click', async ()=>{ try { const ok = await showConfirm('Kosongkan semua nota?', 'Semua nota akan dibuang. Teruskan?'); if (ok) clearPassdownNotes(); } catch(e){} });
-  if (passdownInput) passdownInput.addEventListener('keydown', (e)=>{ if (e.ctrlKey && e.key === 'Enter') addPassdownNote(); });
-  if (passdownList) {
-    passdownList.addEventListener('click', (e)=>{
-      const menuBtn = e.target.closest('[data-passdown-menu]');
-      if (menuBtn) { e.stopPropagation(); togglePassdownMenu(menuBtn.getAttribute('data-passdown-menu')); return; }
-      const editBtn = e.target.closest('[data-passdown-edit]');
-      if (editBtn) { e.stopPropagation(); hidePassdownMenus(); editPassdownNote(editBtn.getAttribute('data-passdown-edit')); return; }
-      const delBtn = e.target.closest('[data-passdown-delete]');
-      if (delBtn) { e.stopPropagation(); hidePassdownMenus(); deleteSinglePassdown(delBtn.getAttribute('data-passdown-delete')); return; }
-    });
-    document.addEventListener('click', (evt)=>{
-      if (!passdownList.contains(evt.target)) hidePassdownMenus();
-    });
-  }
-
-  // sync passdown notes across tabs/windows (listens to localStorage changes)
-  window.addEventListener('storage', (e)=>{
-    if (e.key === PASSDOWN_KEY) renderPassdownNotes();
-  });
-
   const loginBtnAdmin = document.getElementById('adminLoginBtn');
   const logoutBtnAdmin = document.getElementById('adminLogoutBtn');
   const adminOpenLoginBtn = document.getElementById('adminOpenLoginBtn');
@@ -1670,8 +1474,37 @@ if (parkingSearchInput) {
 // parking date is managed by the parking module's week navigator -> no DOM date input change handler
 if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary'); });
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
+if (navUnitSummary) navUnitSummary.addEventListener('click', ()=> { try { setSelectedNav(navUnitSummary); } catch(e){}; showPage('unitsummary'); });
 if (navUnitAdmin) navUnitAdmin.addEventListener('click', ()=> { try { setSelectedNav(navUnitAdmin); } catch(e){}; showPage('unitadmin'); });
 if (navWater) navWater.addEventListener('click', ()=> { try { setSelectedNav(navWater); } catch(e){}; showPage('water'); });
+
+if (unitSummaryLoadRangeBtn) {
+  unitSummaryLoadRangeBtn.addEventListener('click', async ()=> {
+    await loadUnitSummaryByUnit({ mode: 'range' });
+  });
+}
+if (unitSummaryLoadAllBtn) {
+  unitSummaryLoadAllBtn.addEventListener('click', async ()=> {
+    const ok = await showConfirm('Sahkan muat semua rekod?', 'Ini akan membaca semua dokumen responses untuk bina summary unit. Teruskan?');
+    if (!ok) return;
+    await loadUnitSummaryByUnit({ mode: 'all' });
+  });
+}
+if (unitSummaryExportSummaryBtn) {
+  unitSummaryExportSummaryBtn.addEventListener('click', ()=> {
+    exportUnitSummaryCSV();
+  });
+}
+if (unitSummaryExportDetailsBtn) {
+  unitSummaryExportDetailsBtn.addEventListener('click', ()=> {
+    exportUnitSummaryDetailsCSV();
+  });
+}
+if (unitSummarySearch) {
+  unitSummarySearch.addEventListener('input', ()=> {
+    renderUnitSummaryTable();
+  });
+}
 
 if (waterDateEl) {
   waterDateEl.value = isoDateString(new Date());
@@ -1740,14 +1573,8 @@ async function loadListForDateStr(yyyymmdd){
     if (responseCache.date === yyyymmdd && Array.isArray(responseCache.rows) && responseCache.rows.length) {
       const rows = sortRowsBySubmitted(responseCache.rows);
       responseCache.rows = rows;
-      // KPIs
-      let pending = 0, checkedIn = 0, checkedOut = 0;
-      rows.forEach(r => {
-        if (!r.status || r.status === 'Pending') pending++;
-        else if (r.status === 'Checked In') checkedIn++;
-        else if (r.status === 'Checked Out') checkedOut++;
-      });
-      renderKPIs(pending, checkedIn, checkedOut);
+      // KPIs: category counters for the selected day
+      renderKPIs(rows);
 
       // render pages from cached rows
       renderSummaryWithSearch(rows);
@@ -1818,14 +1645,8 @@ async function loadListForDateStr(yyyymmdd){
               const sorted = sortRowsBySubmitted(filtered);
               responseCache.rows = sorted;
 
-              // recompute KPIs and render
-              let pending = 0, checkedIn = 0, checkedOut = 0;
-              filtered.forEach(r => {
-                if (!r.status || r.status === 'Pending') pending++;
-                else if (r.status === 'Checked In') checkedIn++;
-                else if (r.status === 'Checked Out') checkedOut++;
-              });
-              renderKPIs(pending, checkedIn, checkedOut);
+              // recompute KPIs and render (category counters)
+              renderKPIs(sorted);
               renderSummaryWithSearch(sorted);
               renderCheckedInList(sorted.filter(r => r.status === 'Checked In'));
             })();
@@ -1866,14 +1687,8 @@ async function loadListForDateStr(yyyymmdd){
       responseCache.date = yyyymmdd;
       responseCache.rows = rows;
 
-      // compute KPIs from rows (we don't run remote counts on Spark to avoid extra reads)
-      let pending = 0, checkedIn = 0, checkedOut = 0;
-      rows.forEach(r => {
-        if (!r.status || r.status === 'Pending') pending++;
-        else if (r.status === 'Checked In') checkedIn++;
-        else if (r.status === 'Checked Out') checkedOut++;
-      });
-      renderKPIs(pending, checkedIn, checkedOut);
+      // compute KPIs from rows (category counters only)
+      renderKPIs(rows);
     }
 
     // store in cache for reuse by other functions (export, parking summary)
@@ -1955,15 +1770,7 @@ async function loadListForDateStr(yyyymmdd){
     responseCache.rows = filteredRows;
 
     // recompute KPIs from filtered rows
-    try {
-      let pending = 0, checkedIn = 0, checkedOut = 0;
-      filteredRows.forEach(r => {
-        if (!r.status || r.status === 'Pending') pending++;
-        else if (r.status === 'Checked In') checkedIn++;
-        else if (r.status === 'Checked Out') checkedOut++;
-      });
-      renderKPIs(pending, checkedIn, checkedOut);
-    } catch(e){ console.warn('renderKPIs (filtered) failed', e); }
+    try { renderKPIs(filteredRows); } catch(e){ console.warn('renderKPIs (filtered) failed', e); }
 
     // render pages (snapshot listener will keep the UI fresh). Show the current filtered rows we have.
     renderSummaryWithSearch(filteredRows);
@@ -1979,43 +1786,81 @@ async function loadListForDateStr(yyyymmdd){
 }
 
 /* ---------- KPIs ---------- */
-function renderKPIs(pending, checkedIn, checkedOut){
+function renderKPIs(rowsInput){
+  if (!kpiWrap) return;
+  const rows = Array.isArray(rowsInput) ? rowsInput : (Array.isArray(responseCache.rows) ? responseCache.rows : []);
   kpiWrap.innerHTML = '';
-  const chip = (label, val, cls = '') => {
+
+  // Keep KPI category colors aligned with the registration-list category pills.
+  const categoryChipPalette = {
+    'cat-pelawat': { background: '#2563eb', color: '#fff' },
+    'cat-kontraktor': { background: '#f59e0b', color: '#000' },
+    'cat-pindah': { background: '#ef4444', color: '#fff' },
+    'cat-pelawat-khas': { background: '#6d28d9', color: '#fff' },
+    'cat-penghantaran': { background: '#10b981', color: '#fff' },
+    'cat-dropoff': { background: '#0ea5e9', color: '#fff' },
+    'cat-lain': { background: '#6b7280', color: '#fff' }
+  };
+
+  const chip = (label, val, cls = '', meta = '') => {
     const d = document.createElement('div');
     d.className = `chip ${cls}`.trim();
-    d.textContent = `${label}: ${val}`;
+    d.innerHTML = `<span class="chip-left"><span class="chip-label">${escapeHtml(label)}</span>${meta ? `<span class="chip-meta">${escapeHtml(meta)}</span>` : ''}</span><span class="chip-count">${val}</span>`;
     d.setAttribute('role','status');
     d.setAttribute('aria-live','polite');
     return d;
   };
-  kpiWrap.appendChild(chip('Pending', pending, 'chip-pending'));
-  kpiWrap.appendChild(chip('Dalam (Checked In)', checkedIn, 'chip-in'));
-  kpiWrap.appendChild(chip('Keluar (Checked Out)', checkedOut, 'chip-out'));
+
+  const counts = new Map();
+  const units = new Set();
+  (rows || []).forEach(r => {
+    const unitRaw = r && (r.hostUnit || r.unit || r.unitId || r.unitNo || r.unit_number || '');
+    const unitKey = String(unitRaw || '').trim().toUpperCase();
+    if (unitKey) units.add(unitKey);
+
+    const raw = determineCategory(r);
+    const label = (raw ? String(raw).trim() : '') || 'Lain-lain';
+    counts.set(label, (counts.get(label) || 0) + 1);
+  });
+
+  const entries = VISITOR_FORM_CATEGORIES.map(label => [label, counts.get(label) || 0]);
+
+  const totalChip = chip('Jumlah Unit Hari Ini', units.size, units.size ? 'kpi-total' : 'kpi-empty');
+  totalChip.classList.add('kpi-main');
+  kpiWrap.appendChild(totalChip);
+  entries.forEach(([label, value]) => {
+    const categoryClass = categoryClassMap[label] || 'cat-lain';
+    const node = chip(label, value, categoryClass);
+    const palette = categoryChipPalette[categoryClass] || categoryChipPalette['cat-lain'];
+    node.style.background = palette.background;
+    node.style.color = palette.color;
+    node.style.borderColor = 'rgba(0,0,0,0.06)';
+    kpiWrap.appendChild(node);
+  });
 }
 
 /* ---------- Category ---------- */
+function normalizeVisitorFormCategory(raw){
+  const key = String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[()\[\],.]/g, '')
+    .replace(/\s+/g, ' ');
+
+  if (!key) return '';
+  if (key === 'pelawat') return 'Pelawat';
+  if (key === 'kontraktor' || key === 'contractor' || key === 'contract') return 'Kontraktor';
+  if (key === 'penghantaran barang' || key === 'penghantaran' || key === 'delivery') return 'Penghantaran Barang';
+  if (key === 'pindah rumah' || key === 'pindah barang' || key === 'pindah') return 'Pindah Rumah';
+  if (key === 'pelawat khas' || key === 'vip' || key === 'v i p' || key === 'special') return 'Pelawat Khas';
+  if (key === 'drop-off' || key === 'drop off' || key === 'dropoff') return 'Drop-off';
+  return '';
+}
+
 function determineCategory(r){
-  if (r.category) {
-    // normalize whitespace and punctuation
-    const k = String(r.category).trim().toLowerCase().replace(/[()\[\],.]/g,'');
-    if (k.includes('contract') || k.includes('kontraktor') || k.includes('kontraktor')) return 'Kontraktor';
-    if (k.includes('move') || k.includes('pindah')) return 'Pindah barang';
-    if (k.includes('deliver') || k.includes('penghantaran') || k.includes('delivery') || k.includes('hantar')) return 'Penghantaran Barang';
-    if (k.includes('vip') || k.includes('pelawat khas') || k.includes('special') || k.includes('v i p')) return 'Pelawat Khas';
-    if (k.includes('resident') || k.includes('penghuni') || k.includes('owner') || k.includes('tenant') || k.includes('occupant')) return 'Penghuni';
-    return String(r.category);
-  }
-  const note = (r.note || '').toString().toLowerCase();
-  const role = (r.role || '').toString().toLowerCase();
-  const vehicle = (Array.isArray(r.vehicleNumbers) ? r.vehicleNumbers.join(' ') : (r.vehicleNo || '')).toString().toLowerCase();
-  if (/kontraktor|contractor|construction|kontraktor/i.test(note + ' ' + role)) return 'Kontraktor';
-  if (/pindah|move out|moving|moved|move in|pindah rumah|pindah barang/i.test(note + ' ' + role)) return 'Pindah barang';
-  if (/delivery|penghantaran|deliver|hantar|food|grab|foodpanda|lalamove/i.test(note + ' ' + role)) return 'Penghantaran Barang';
-  if (/pelawat khas|vip|v\.i\.p|special guest|v i p/i.test(note + ' ' + role)) return 'Pelawat Khas';
-  if (vehicle && vehicle.trim()) return 'Kenderaan';
-  if (r.isResident || /penghuni|resident|owner|tenant/i.test(role + ' ' + note)) return 'Penghuni';
-  return 'Pelawat';
+  const normalized = normalizeVisitorFormCategory(r && r.category ? r.category : '');
+  if (normalized) return normalized;
+  return 'Lain-lain';
 }
 
 /* ---------- Render summary ---------- */
@@ -2231,7 +2076,7 @@ function renderCheckedInList(rows){
   });
 
   // preferred order of categories
-  const order = ['Pelawat','Kontraktor','Pindah barang','Penghantaran Barang','Pelawat Khas','Kenderaan','Penghuni'];
+  const order = VISITOR_FORM_CATEGORIES;
   const keys = Object.keys(groups).sort((a,b) => {
     const ia = order.indexOf(a); const ib = order.indexOf(b);
     if (ia === -1 && ib === -1) return a.localeCompare(b);
@@ -2367,16 +2212,10 @@ async function doStatusUpdate(docId, newStatus){
       if (idx !== -1) {
         originalRow = Object.assign({}, responseCache.rows[idx]);
         responseCache.rows[idx] = Object.assign({}, responseCache.rows[idx], { status: newStatus, updatedAt: new Date() });
-        // KPIs: update counts quickly using the cache
+        // KPIs: update category counters quickly using the cache
         const rows = responseCache.rows;
-        let pending = 0, checkedIn = 0, checkedOut = 0;
-        rows.forEach(r => {
-          if (!r.status || r.status === 'Pending') pending++;
-          else if (r.status === 'Checked In') checkedIn++;
-          else if (r.status === 'Checked Out') checkedOut++;
-        });
         // re-render immediately
-        renderKPIs(pending, checkedIn, checkedOut);
+        renderKPIs(rows);
         renderSummaryWithSearch(rows);
         renderCheckedInList(rows.filter(r => r.status === 'Checked In'));
       }
@@ -2571,6 +2410,334 @@ async function exportCSVAll(){
     console.error('export csv all err', err);
     toast('Gagal eksport CSV. Semak konsol.', false);
   }
+}
+
+function toJsDateSafe(val){
+  try {
+    if (!val) return null;
+    const d = val.toDate ? val.toDate() : new Date(val);
+    if (!(d instanceof Date) || isNaN(d.getTime())) return null;
+    return d;
+  } catch(e) {
+    return null;
+  }
+}
+
+function toIsoSafe(val){
+  const d = toJsDateSafe(val);
+  return d ? d.toISOString() : '';
+}
+
+function quoteCsv(val){
+  return `"${String(val == null ? '' : val).replace(/"/g,'""')}"`;
+}
+
+function collectVehiclesFromResponse(r){
+  const out = [];
+  const seen = new Set();
+  const add = (raw) => {
+    const v = String(raw || '').trim();
+    if (!v) return;
+    const key = v.toUpperCase().replace(/\s+/g, '');
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(v);
+  };
+
+  if (r && r.vehicleNo) add(r.vehicleNo);
+  if (r && Array.isArray(r.vehicleNumbers)) r.vehicleNumbers.forEach(add);
+  else if (r && typeof r.vehicleNumbers === 'string') add(r.vehicleNumbers);
+  if (r && Array.isArray(r.vehicleRowsDetailed)) {
+    r.vehicleRowsDetailed.forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+      if (item.plate) add(item.plate);
+    });
+  }
+
+  return out;
+}
+
+function triggerCsvDownload(filename, csvLines){
+  const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildUnitSummary(rows){
+  const map = Object.create(null);
+  (rows || []).forEach((r) => {
+    const unit = String(r.hostUnit || '').trim();
+    if (!unit) return;
+
+    if (!map[unit]) {
+      map[unit] = {
+        unit,
+        totalApplications: 0,
+        firstEta: null,
+        lastEta: null,
+        lastEtd: null,
+        vehicleSet: new Set()
+      };
+    }
+
+    const bucket = map[unit];
+    const eta = toJsDateSafe(r.eta);
+    const etd = toJsDateSafe(r.etd);
+
+    bucket.totalApplications += 1;
+    if (eta && (!bucket.firstEta || eta.getTime() < bucket.firstEta.getTime())) bucket.firstEta = eta;
+    if (eta && (!bucket.lastEta || eta.getTime() > bucket.lastEta.getTime())) bucket.lastEta = eta;
+    if (etd && (!bucket.lastEtd || etd.getTime() > bucket.lastEtd.getTime())) bucket.lastEtd = etd;
+
+    collectVehiclesFromResponse(r).forEach((plate) => {
+      bucket.vehicleSet.add(plate);
+    });
+  });
+
+  return Object.values(map)
+    .map((item) => {
+      const vehicles = Array.from(item.vehicleSet.values()).sort((a,b) => a.localeCompare(b));
+      return {
+        unit: item.unit,
+        totalApplications: item.totalApplications,
+        firstEta: item.firstEta,
+        lastEta: item.lastEta,
+        lastEtd: item.lastEtd,
+        uniqueVehicles: vehicles
+      };
+    })
+    .sort((a, b) => {
+      if (b.totalApplications !== a.totalApplications) return b.totalApplications - a.totalApplications;
+      return a.unit.localeCompare(b.unit);
+    });
+}
+
+function getFilteredUnitSummaries(){
+  const search = (unitSummarySearch && unitSummarySearch.value) ? unitSummarySearch.value.trim().toLowerCase() : '';
+  if (!search) return unitSummaryState.summaries.slice();
+  return unitSummaryState.summaries.filter((item) => String(item.unit || '').toLowerCase().includes(search));
+}
+
+function renderUnitSummaryMeta(){
+  if (!unitSummaryMeta) return;
+  if (!unitSummaryState.generatedAt) {
+    unitSummaryMeta.textContent = 'Belum ada data. Pilih julat tarikh atau muat semua rekod untuk jana summary.';
+    return;
+  }
+
+  const genTime = unitSummaryState.generatedAt.toLocaleString();
+  unitSummaryMeta.textContent = `${unitSummaryState.mode} • ${unitSummaryState.rows.length} rekod diproses (${unitSummaryState.docsRead} bacaan dokumen) • ${unitSummaryState.summaries.length} unit • Dijana: ${genTime}`;
+}
+
+function renderUnitSummaryDetail(unitId){
+  if (!unitSummaryDetailArea) return;
+  const unit = String(unitId || '').trim();
+  if (!unit) {
+    unitSummaryDetailArea.innerHTML = '<div class="small muted">Pilih unit dari jadual summary untuk lihat butiran.</div>';
+    return;
+  }
+
+  const rows = (unitSummaryState.rows || [])
+    .filter((r) => String(r.hostUnit || '').trim().toLowerCase() === unit.toLowerCase())
+    .sort((a, b) => {
+      const ta = toJsDateSafe(a.eta)?.getTime() || Number.MAX_SAFE_INTEGER;
+      const tb = toJsDateSafe(b.eta)?.getTime() || Number.MAX_SAFE_INTEGER;
+      if (ta !== tb) return ta - tb;
+      const ca = toJsDateSafe(a.createdAt)?.getTime() || Number.MAX_SAFE_INTEGER;
+      const cb = toJsDateSafe(b.createdAt)?.getTime() || Number.MAX_SAFE_INTEGER;
+      return ca - cb;
+    });
+
+  if (!rows.length) {
+    unitSummaryDetailArea.innerHTML = `<div class="small muted">Tiada butiran untuk unit ${escapeHtml(unit)}.</div>`;
+    return;
+  }
+
+  let html = `<div class="small" style="margin-bottom:8px">Unit <strong>${escapeHtml(unit)}</strong> • ${rows.length} rekod</div>`;
+  html += '<div class="table-wrap"><table class="table"><thead><tr><th>No.</th><th>ETA</th><th>ETD</th><th>Nombor Kenderaan</th><th>Kategori</th><th>Status</th><th>Tarikh Isi</th><th>ID</th></tr></thead><tbody>';
+  rows.forEach((r, idx) => {
+    const vehicles = collectVehiclesFromResponse(r);
+    html += `<tr><td>${idx+1}</td><td>${escapeHtml(formatDateOnly(r.eta))}</td><td>${escapeHtml(formatDateOnly(r.etd))}</td><td>${escapeHtml(vehicles.length ? vehicles.join(', ') : '-')}</td><td>${escapeHtml(String(r.category || '-'))}</td><td>${escapeHtml(String(r.status || 'Pending'))}</td><td>${escapeHtml(formatDateTime(r.createdAt))}</td><td>${escapeHtml(String(r.id || ''))}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  unitSummaryDetailArea.innerHTML = html;
+}
+
+function renderUnitSummaryTable(){
+  if (!listAreaUnitSummary) return;
+  if (!unitSummaryState.generatedAt) {
+    listAreaUnitSummary.innerHTML = '<div class="small muted">Belum ada data untuk dipaparkan.</div>';
+    return;
+  }
+
+  const summaries = getFilteredUnitSummaries();
+  if (!summaries.length) {
+    listAreaUnitSummary.innerHTML = '<div class="small muted">Tiada unit sepadan dengan carian semasa.</div>';
+    return;
+  }
+
+  let html = '<div class="table-wrap"><table class="table"><thead><tr><th>No.</th><th>Unit</th><th>Kekerapan Permohonan</th><th>ETA Pertama</th><th>ETA Terakhir</th><th>ETD Terakhir</th><th>Kenderaan Unik</th><th>Aksi</th></tr></thead><tbody>';
+  summaries.forEach((item, idx) => {
+    const isSelected = unitSummaryState.selectedUnit && item.unit.toLowerCase() === unitSummaryState.selectedUnit.toLowerCase();
+    const selectedStyle = isSelected ? ' style="background:rgba(16,185,129,0.08);"' : '';
+    html += `<tr${selectedStyle}><td>${idx+1}</td><td>${escapeHtml(item.unit)}</td><td>${item.totalApplications}</td><td>${escapeHtml(formatDateOnly(item.firstEta))}</td><td>${escapeHtml(formatDateOnly(item.lastEta))}</td><td>${escapeHtml(formatDateOnly(item.lastEtd))}</td><td>${item.uniqueVehicles.length}</td><td><button type="button" class="btn-ghost small" data-unit-summary-view="${escapeHtml(item.unit)}">Lihat Butiran</button></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  listAreaUnitSummary.innerHTML = html;
+
+  listAreaUnitSummary.querySelectorAll('button[data-unit-summary-view]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const unit = btn.getAttribute('data-unit-summary-view') || '';
+      unitSummaryState.selectedUnit = unit;
+      renderUnitSummaryTable();
+      renderUnitSummaryDetail(unit);
+    });
+  });
+}
+
+async function loadUnitSummaryByUnit({ mode = 'all' } = {}){
+  if (unitSummaryState.loading) return;
+  if (!window.__FIRESTORE) {
+    toast('Firestore belum tersedia', false);
+    return;
+  }
+
+  let queryRef = null;
+  let modeLabel = '';
+  if (mode === 'range') {
+    if (!unitSummaryFromDate || !unitSummaryToDate || !unitSummaryFromDate.value || !unitSummaryToDate.value) {
+      toast('Sila pilih tarikh mula dan tarikh akhir dahulu.', false);
+      return;
+    }
+    const from = new Date(`${unitSummaryFromDate.value}T00:00:00`);
+    const toEnd = new Date(`${unitSummaryToDate.value}T00:00:00`);
+    if (isNaN(from.getTime()) || isNaN(toEnd.getTime()) || toEnd.getTime() < from.getTime()) {
+      toast('Julat tarikh tidak sah.', false);
+      return;
+    }
+    const toExclusive = new Date(toEnd.getTime());
+    toExclusive.setDate(toExclusive.getDate() + 1);
+    queryRef = query(
+      collection(window.__FIRESTORE, 'responses'),
+      where('eta', '>=', Timestamp.fromDate(from)),
+      where('eta', '<', Timestamp.fromDate(toExclusive)),
+      orderBy('eta', 'asc')
+    );
+    modeLabel = `Julat ETA ${unitSummaryFromDate.value} hingga ${unitSummaryToDate.value}`;
+  } else {
+    queryRef = query(collection(window.__FIRESTORE, 'responses'), orderBy('eta', 'asc'));
+    modeLabel = 'Semua data (sejak mula)';
+  }
+
+  unitSummaryState.loading = true;
+  const spinner = document.getElementById('spinner');
+  if (spinner) spinner.style.display = 'flex';
+  if (listAreaUnitSummary) listAreaUnitSummary.innerHTML = '<div class="small">Memuat summary unit...</div>';
+
+  try {
+    const snap = await getDocs(queryRef);
+    const rows = [];
+    snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
+
+    const validRows = rows.filter((r) => String(r.hostUnit || '').trim().length > 0);
+    const summaries = buildUnitSummary(validRows);
+
+    unitSummaryState.mode = modeLabel;
+    unitSummaryState.docsRead = snap.size;
+    unitSummaryState.generatedAt = new Date();
+    unitSummaryState.rows = validRows;
+    unitSummaryState.summaries = summaries;
+
+    if (!unitSummaryState.selectedUnit || !summaries.some((s) => s.unit.toLowerCase() === unitSummaryState.selectedUnit.toLowerCase())) {
+      unitSummaryState.selectedUnit = summaries.length ? summaries[0].unit : '';
+    }
+
+    renderUnitSummaryMeta();
+    renderUnitSummaryTable();
+    renderUnitSummaryDetail(unitSummaryState.selectedUnit);
+
+    toast(`Summary unit berjaya dijana: ${summaries.length} unit, ${validRows.length} rekod.`);
+  } catch (err) {
+    console.error('loadUnitSummaryByUnit err', err);
+    if (listAreaUnitSummary) listAreaUnitSummary.innerHTML = '<div class="small err">Gagal memuat summary unit.</div>';
+    toast('Gagal memuat summary unit. Semak konsol.', false);
+  } finally {
+    unitSummaryState.loading = false;
+    if (spinner) spinner.style.display = 'none';
+  }
+}
+
+function exportUnitSummaryCSV(){
+  if (!unitSummaryState.summaries.length) {
+    toast('Tiada summary untuk dieksport.', false);
+    return;
+  }
+
+  const summaries = getFilteredUnitSummaries();
+  if (!summaries.length) {
+    toast('Tiada baris sepadan untuk dieksport.', false);
+    return;
+  }
+
+  const lines = [];
+  lines.push('unit,totalPermohonan,etaPertama,etaTerakhir,etdTerakhir,bilKenderaanUnik,senaraiKenderaanUnik');
+  summaries.forEach((item) => {
+    lines.push([
+      quoteCsv(item.unit),
+      quoteCsv(item.totalApplications),
+      quoteCsv(toIsoSafe(item.firstEta)),
+      quoteCsv(toIsoSafe(item.lastEta)),
+      quoteCsv(toIsoSafe(item.lastEtd)),
+      quoteCsv(item.uniqueVehicles.length),
+      quoteCsv(item.uniqueVehicles.join(';'))
+    ].join(','));
+  });
+
+  triggerCsvDownload(`unit_summary_${isoDateString(new Date())}.csv`, lines);
+}
+
+function exportUnitSummaryDetailsCSV(){
+  if (!unitSummaryState.rows.length) {
+    toast('Tiada butiran untuk dieksport.', false);
+    return;
+  }
+
+  const selected = String(unitSummaryState.selectedUnit || '').trim();
+  const rows = selected
+    ? unitSummaryState.rows.filter((r) => String(r.hostUnit || '').trim().toLowerCase() === selected.toLowerCase())
+    : unitSummaryState.rows.slice();
+
+  if (!rows.length) {
+    toast('Tiada butiran sepadan untuk dieksport.', false);
+    return;
+  }
+
+  const lines = [];
+  lines.push('id,hostUnit,eta,etd,nomborKenderaan,status,kategori,namaPelawat,namaTuanRumah,createdAt');
+  rows.forEach((r) => {
+    const vehicles = collectVehiclesFromResponse(r);
+    lines.push([
+      quoteCsv(r.id || ''),
+      quoteCsv(r.hostUnit || ''),
+      quoteCsv(toIsoSafe(r.eta)),
+      quoteCsv(toIsoSafe(r.etd)),
+      quoteCsv(vehicles.join(';')),
+      quoteCsv(r.status || 'Pending'),
+      quoteCsv(r.category || ''),
+      quoteCsv(r.visitorName || ''),
+      quoteCsv(r.hostName || ''),
+      quoteCsv(toIsoSafe(r.createdAt))
+    ].join(','));
+  });
+
+  const suffix = selected ? `_unit_${selected.replace(/[^a-zA-Z0-9_-]/g,'_')}` : '_all_units';
+  triggerCsvDownload(`unit_summary_details${suffix}_${isoDateString(new Date())}.csv`, lines);
 }
 
 /* ---------- Water readings (daily) ---------- */
@@ -2780,10 +2947,14 @@ function showPage(key){
   if (key === 'summary') {
     document.getElementById('pageSummary').style.display = '';
     document.getElementById('pageCheckedIn').style.display = 'none';
+    try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
     document.getElementById('pageParking').style.display = 'none';
     navSummary.classList.add('active');
     navCheckedIn.classList.remove('active');
+    if (navUnitSummary) navUnitSummary.classList.remove('active');
     if (navParking) navParking.classList.remove('active');
+    if (navUnitAdmin) navUnitAdmin.classList.remove('active');
+    if (navWater) navWater.classList.remove('active');
     // keep visual selection in sync with the active page
     try { setSelectedNav(navSummary); } catch(e) {}
     // show the per-page date control for summary
@@ -2791,16 +2962,46 @@ function showPage(key){
   } else if (key === 'checkedin') {
     document.getElementById('pageSummary').style.display = 'none';
     document.getElementById('pageCheckedIn').style.display = '';
+    try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
     document.getElementById('pageParking').style.display = 'none';
     navSummary.classList.remove('active');
     navCheckedIn.classList.add('active');
+    if (navUnitSummary) navUnitSummary.classList.remove('active');
+    if (navUnitAdmin) navUnitAdmin.classList.remove('active');
+    if (navWater) navWater.classList.remove('active');
     try { setSelectedNav(navCheckedIn); } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = ''; } catch(e) {}
     if (navParking) navParking.classList.remove('active');
   }
+  else if (key === 'unitsummary') {
+    document.getElementById('pageSummary').style.display = 'none';
+    document.getElementById('pageCheckedIn').style.display = 'none';
+    document.getElementById('pageParking').style.display = 'none';
+    const page = document.getElementById('pageUnitSummary');
+    if (page) {
+      page.style.display = '';
+      try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) {}
+    }
+    try {
+      navSummary.classList.remove('active');
+      navCheckedIn.classList.remove('active');
+      if (navParking) navParking.classList.remove('active');
+      if (navUnitAdmin) navUnitAdmin.classList.remove('active');
+      if (navWater) navWater.classList.remove('active');
+      if (navUnitSummary) navUnitSummary.classList.add('active');
+    } catch(e) {}
+    try { setSelectedNav(navUnitSummary); } catch(e) {}
+    try { kpiWrap.style.display = 'none'; } catch(e) {}
+    try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
+    try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
+    renderUnitSummaryMeta();
+    renderUnitSummaryTable();
+    renderUnitSummaryDetail(unitSummaryState.selectedUnit);
+  }
   else if (key === 'unitadmin') {
     document.getElementById('pageSummary').style.display = 'none';
     document.getElementById('pageCheckedIn').style.display = 'none';
+    try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
     document.getElementById('pageParking').style.display = 'none';
     // show the main Unit Admin page
     const page = document.getElementById('pageUnitAdmin'); if (page) {
@@ -2809,7 +3010,7 @@ function showPage(key){
       try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { window.scrollTo({ top: 0, behavior: 'smooth' }); }
     }
     // update nav active states
-    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.add('active'); } catch(e){}
+    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navUnitSummary) navUnitSummary.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.add('active'); if (navWater) navWater.classList.remove('active'); } catch(e){}
     // hide KPIs
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
@@ -2819,12 +3020,13 @@ function showPage(key){
   else if (key === 'unitcontacts') {
     document.getElementById('pageSummary').style.display = 'none';
     document.getElementById('pageCheckedIn').style.display = 'none';
+    try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
     document.getElementById('pageParking').style.display = 'none';
     const page = document.getElementById('pageUnitContacts'); if (page) {
       page.style.display = '';
       try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { /* ignore */ }
     }
-    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); } catch(e){}
+    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navUnitSummary) navUnitSummary.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navWater) navWater.classList.remove('active'); } catch(e){}
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
     try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
@@ -2832,12 +3034,13 @@ function showPage(key){
   else if (key === 'water') {
     document.getElementById('pageSummary').style.display = 'none';
     document.getElementById('pageCheckedIn').style.display = 'none';
+    try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
     document.getElementById('pageParking').style.display = 'none';
     const page = document.getElementById('pageWater'); if (page) {
       page.style.display = '';
       try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) {}
     }
-    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navWater) navWater.classList.add('active'); } catch(e){}
+    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navUnitSummary) navUnitSummary.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navWater) navWater.classList.add('active'); } catch(e){}
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
     try { if (waterDateEl) loadWaterForDate(waterDateEl.value || isoDateString(new Date())); } catch(e) {}
@@ -2862,6 +3065,8 @@ function showPage(key){
   try { kpiWrap.style.display = (key === 'summary') ? '' : 'none'; } catch(e) { /* ignore if missing */ }
   // hide Unit Admin page for other pages
   try { const page = document.getElementById('pageUnitAdmin'); if (page && key !== 'unitadmin') page.style.display = 'none'; } catch(e) {}
+  // hide Unit Summary page for other pages
+  try { const page4 = document.getElementById('pageUnitSummary'); if (page4 && key !== 'unitsummary') page4.style.display = 'none'; } catch(e) {}
   // hide Unit Contacts page for other pages
   try { const page2 = document.getElementById('pageUnitContacts'); if (page2 && key !== 'unitcontacts') page2.style.display = 'none'; } catch(e) {}
   // hide Water page for other pages
@@ -2872,7 +3077,7 @@ function showPage(key){
 /* per-page date inputs are initialised when auth state becomes active */
 document.addEventListener('DOMContentLoaded', ()=>{
   // ensure the initial nav 'active' has the visual selected state
-  try { const initial = document.querySelector('.sidebar .nav-item.active'); if (initial) setSelectedNav(initial); } catch(e) { /* ignore */ }
+  try { const initial = document.querySelector('.nav-item.active'); if (initial) setSelectedNav(initial); } catch(e) { /* ignore */ }
 });
 
 /* ---------- Parking report module (patched) ---------- */
@@ -3197,12 +3402,16 @@ document.addEventListener('DOMContentLoaded', ()=>{
       console.info('[navParking] clicked');
       document.getElementById('pageSummary').style.display = 'none';
       document.getElementById('pageCheckedIn').style.display = 'none';
+      try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
       // ensure Unit Admin page is hidden when switching to Parking view
       try { const p = document.getElementById('pageUnitAdmin'); if (p) p.style.display = 'none'; } catch(e) {}
       pageParking.style.display = '';
 
       navSummary.classList.remove('active');
       navCheckedIn.classList.remove('active');
+      if (navUnitSummary) navUnitSummary.classList.remove('active');
+      if (navUnitAdmin) navUnitAdmin.classList.remove('active');
+      if (navWater) navWater.classList.remove('active');
       navParking.classList.add('active');
 
       // KPIs are only shown on 'Senarai pendaftaran'

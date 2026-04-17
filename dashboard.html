@@ -10,14 +10,17 @@
     /* Local dashboard tweaks */
     .dashboard-wrap { display:flex; flex-direction:column; gap:12px; }
 
-    .head-shell { padding:12px; border-radius:10px; background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,0.06); border:1px solid var(--input-border); }
-    .head-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .head-shell { padding:14px; border-radius:12px; background:linear-gradient(180deg, #ffffff 0%, #f7fbff 100%); box-shadow:0 2px 8px rgba(0,0,0,0.06); border:1px solid var(--input-border); }
+    .head-row { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; border-bottom:1px solid var(--input-border); padding-bottom:10px; }
     .today-pill { display:flex; flex-direction:column; gap:4px; }
-    .head-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; align-items:stretch; margin-top:10px; }
-    @media (max-width: 900px) { .head-grid { grid-template-columns: 1fr; } }
-    .top-nav { display:flex; flex-direction:column; gap:10px; height:320px; max-height:320px; overflow:hidden; }
-    .top-nav nav { display:flex; flex-direction:column; gap:10px; }
-    .top-nav .nav-group { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:8px; padding:8px; border-radius:10px; background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent); align-items:stretch; }
+    .head-nav { margin-top:12px; }
+    .head-nav .nav-group { display:grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap:8px; padding:8px; border-radius:10px; background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent); align-items:stretch; }
+    @media (max-width: 1100px) {
+      .head-nav .nav-group { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 700px) {
+      .head-nav .nav-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     /* Make all nav shortcut boxes uniform size */
     .nav-item { text-align:left; padding:8px 10px; border-radius:8px; border:1px solid var(--input-border); background:var(--surface); cursor:pointer; color:var(--text-900); font-weight:600; transition: background .12s, color .12s; font-size:14px; display:flex; align-items:center; gap:10px; min-height:56px; box-sizing:border-box; }
     .nav-item .nav-icon { font-size:18px; line-height:1; display:inline-flex; width:20px; justify-content:center; }
@@ -58,6 +61,11 @@
     #navWater.active { background: linear-gradient(180deg, rgba(59,130,246,0.18), rgba(59,130,246,0.14)); color: #0f172a; border-color: transparent; box-shadow: 0 2px 6px rgba(59,130,246,0.12); }
     #navWater:hover { background: linear-gradient(180deg, rgba(59,130,246,0.14), rgba(59,130,246,0.10)); }
 
+    /* Unit summary (emerald) */
+    .nav-group button#navUnitSummary.nav-item { background: linear-gradient(180deg, rgba(16,185,129,0.12), rgba(16,185,129,0.10)) !important; border-color: rgba(16,185,129,0.18) !important; color: #064e3b !important; }
+    #navUnitSummary.active { background: linear-gradient(180deg, rgba(16,185,129,0.18), rgba(16,185,129,0.14)); color: #064e3b; border-color: transparent; box-shadow: 0 2px 6px rgba(16,185,129,0.12); }
+    #navUnitSummary:hover { background: linear-gradient(180deg, rgba(16,185,129,0.14), rgba(16,185,129,0.10)); }
+
     /* Export CSV (green) */
     .nav-group button#exportAllCSVBtn.nav-item { background: linear-gradient(180deg, rgba(34,197,94,0.12), rgba(34,197,94,0.10)) !important; border-color: rgba(34,197,94,0.18) !important; color: #065f46 !important; }
     #exportAllCSVBtn.active { background: linear-gradient(180deg, rgba(34,197,94,0.18), rgba(34,197,94,0.14)); color: #065f46; border-color: transparent; box-shadow: 0 2px 6px rgba(34,197,94,0.12); }
@@ -73,24 +81,35 @@
     .actions button[data-action="out"]:hover { background: linear-gradient(180deg, rgba(250,190,50,0.12), rgba(250,190,50,0.08)); }
 
     /* Primary action buttons (consistent green theme) */
-    #passdownSaveBtn, #parkingSaveAll, #waterSaveBtn, #csvImportBtn, #csvForceWriteBtn, #migrateApplyBtn, #saveUnitBtn, #adminModalLoginBtn, #confirmModalConfirm, #adminOpenLoginBtn, #unitAddBtn {
+    #parkingSaveAll, #waterSaveBtn, #csvImportBtn, #csvForceWriteBtn, #migrateApplyBtn, #saveUnitBtn, #adminModalLoginBtn, #confirmModalConfirm, #adminOpenLoginBtn, #unitAddBtn {
       background: linear-gradient(180deg, rgba(34,197,94,0.12), rgba(34,197,94,0.10)) !important; border-color: rgba(34,197,94,0.18) !important; color: #065f46 !important;
     }
-    #passdownSaveBtn:hover, #parkingSaveAll:hover, #waterSaveBtn:hover, #csvImportBtn:hover, #csvForceWriteBtn:hover, #migrateApplyBtn:hover, #saveUnitBtn:hover, #adminModalLoginBtn:hover, #confirmModalConfirm:hover, #adminOpenLoginBtn:hover, #unitAddBtn:hover {
+    #parkingSaveAll:hover, #waterSaveBtn:hover, #csvImportBtn:hover, #csvForceWriteBtn:hover, #migrateApplyBtn:hover, #saveUnitBtn:hover, #adminModalLoginBtn:hover, #confirmModalConfirm:hover, #adminOpenLoginBtn:hover, #unitAddBtn:hover {
       background: linear-gradient(180deg, rgba(34,197,94,0.14), rgba(34,197,94,0.12));
     }
 
     /* Secondary / ghost-like actions (subtle teal tint) */
-    #passdownClearBtn, #cancelUnitBtn, #csvPreviewBtn, #migratePreviewBtn, #adminLogoutBtn, #adminModalCancelBtn, #confirmModalCancel, #csvFileLabel {
+    #cancelUnitBtn, #csvPreviewBtn, #migratePreviewBtn, #adminLogoutBtn, #adminModalCancelBtn, #confirmModalCancel, #csvFileLabel {
       background: linear-gradient(180deg, rgba(6,182,212,0.06), rgba(6,182,212,0.03)) !important; border-color: rgba(6,182,212,0.10) !important; color: #042f2a !important;
     }
-    #passdownClearBtn:hover, #cancelUnitBtn:hover, #csvPreviewBtn:hover, #migratePreviewBtn:hover, #adminLogoutBtn:hover, #adminModalCancelBtn:hover, #confirmModalCancel:hover, #csvFileLabel:hover {
+    #cancelUnitBtn:hover, #csvPreviewBtn:hover, #migratePreviewBtn:hover, #adminLogoutBtn:hover, #adminModalCancelBtn:hover, #confirmModalCancel:hover, #csvFileLabel:hover {
       background: linear-gradient(180deg, rgba(6,182,212,0.08), rgba(6,182,212,0.04));
     }
 
-    .top-info { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
-    .kpi { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .kpi .chip { background:var(--card); border:1px solid var(--input-border); padding:8px 10px; border-radius:8px; font-weight:700; }
+    .top-info { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; flex-wrap:wrap; padding:10px; border:1px solid var(--input-border); border-radius:10px; background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(248,251,255,0.95)); }
+    .top-info-main { flex:1; min-width:320px; display:flex; flex-direction:column; gap:6px; }
+    .kpi-title { font-weight:700; color:var(--muted); font-size:12px; letter-spacing:0.02em; }
+    .kpi { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px; width:100%; }
+    .kpi .chip { border:1px solid transparent; padding:8px 10px; border-radius:10px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+    .kpi .chip .chip-left { display:flex; flex-direction:column; gap:2px; min-width:0; }
+    .kpi .chip .chip-label { font-size:12px; line-height:1.2; opacity:0.95; }
+    .kpi .chip .chip-meta { font-size:11px; line-height:1.1; opacity:0.75; font-weight:600; }
+    .kpi .chip .chip-count { font-size:18px; line-height:1; font-weight:800; }
+    .kpi .chip.kpi-main { grid-row: span 2; align-self: stretch; flex-direction:column; align-items:flex-start; justify-content:center; gap:6px; }
+    .kpi .chip.kpi-main .chip-left { width:100%; }
+    .kpi .chip.kpi-main .chip-count { font-size:28px; line-height:1; }
+    .kpi .chip.kpi-total { background: linear-gradient(180deg, rgba(15,23,42,0.06), rgba(15,23,42,0.04)); border-color: rgba(15,23,42,0.14); color:#0f172a; }
+    .kpi .chip.kpi-empty { background: linear-gradient(180deg, rgba(148,163,184,0.18), rgba(148,163,184,0.12)); border-color: rgba(148,163,184,0.24); color:#334155; }
 
     .table { width:100%; border-collapse:collapse; font-size:14px; }
     .table th, .table td { padding:8px; border-bottom:1px solid var(--input-border); text-align:left; vertical-align:middle; }
@@ -115,6 +134,10 @@
       .login-box { margin:8px 0; }
       .actions button { min-width:72px; padding:8px 6px; }
       .admin-controls-row { gap:6px; }
+      .top-info { padding:8px; }
+      .top-info-main { min-width:0; width:100%; }
+      #dateFiltersWrap { width:100%; justify-content:flex-start; flex-wrap:wrap; }
+      .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
 
     /* Modal base (kept minimal; additional styles in css/style.css) */
@@ -139,6 +162,7 @@
     }
     #pageSummary > h3.page-heading-box { background: linear-gradient(180deg, rgba(6,182,212,0.12), rgba(6,182,212,0.08)); border: 1px solid rgba(6,182,212,0.14); color: #042f2a; }
     #pageCheckedIn > h3.page-heading-box { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.08)); border: 1px solid rgba(79,70,229,0.14); color: #07102a; }
+    #pageUnitSummary > h3.page-heading-box { background: linear-gradient(180deg, rgba(16,185,129,0.12), rgba(16,185,129,0.08)); border: 1px solid rgba(16,185,129,0.14); color: #064e3b; }
     #pageParking > h3.page-heading-box { background: linear-gradient(180deg, rgba(250,190,50,0.12), rgba(250,190,50,0.08)); border: 1px solid rgba(250,190,50,0.14); color: #2b1808; }
     /* Unit Admin page heading — match other page heading styles (indigo/violet) */
     #pageUnitAdmin > h3.page-heading-box { background: linear-gradient(180deg, rgba(99,102,241,0.12), rgba(99,102,241,0.08)); border: 1px solid rgba(99,102,241,0.14); color: #0f172a; }
@@ -147,21 +171,6 @@
       .page-heading-box { height: auto; padding:10px 12px; text-align:center; justify-content:center; align-items:center; }
     }
 
-    /* Passdown / mini note pad (now under head) */
-    .passdown-card { margin-top:0; padding:12px; border-radius:10px; background:var(--surface); border:1px solid var(--input-border); box-shadow:0 1px 3px rgba(0,0,0,0.05); }
-    .passdown-card textarea { width:100%; min-height:88px; resize:vertical; border-radius:10px; border:1px solid var(--input-border); padding:10px 12px; background:var(--card); }
-    .passdown-actions { display:flex; gap:6px; margin-top:6px; }
-    .passdown-actions button { flex:1; min-height:38px; padding:8px 10px; }
-    .passdown-list-box { display:flex; flex-direction:column; gap:8px; height:320px; max-height:320px; overflow:hidden; }
-    .passdown-list { flex:1; min-height:0; display:flex; flex-direction:column; gap:6px; overflow-y:auto; overflow-x:hidden; border:1px solid var(--input-border); border-radius:10px; padding:8px; background:var(--card); }
-    .passdown-item { position:relative; display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:8px; background:linear-gradient(180deg, rgba(6,182,212,0.06), rgba(6,182,212,0.04)); border:1px solid var(--input-border); }
-    .passdown-body { flex:1; min-width:0; }
-    .passdown-item-text { font-size:13px; font-weight:600; color:var(--text-900); word-break:break-word; }
-    .passdown-meta { margin-top:4px; font-size:11px; color:var(--muted); display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-    .passdown-pencil { position:absolute; top:6px; right:8px; border:1px solid var(--input-border); border-radius:6px; padding:4px 6px; background:var(--surface); cursor:pointer; font-size:12px; line-height:1; color:var(--text-900); }
-    .passdown-actions-inline { position:absolute; top:32px; right:8px; display:none; gap:6px; background:var(--card); border:1px solid var(--input-border); border-radius:8px; padding:6px; box-shadow:0 4px 12px rgba(0,0,0,0.08); }
-    .passdown-actions-inline.open { display:flex; }
-    .passdown-actions-inline button { padding:6px 10px; min-height:32px; font-size:12px; }
   </style>
 </head>
 <body>
@@ -193,36 +202,14 @@
             </div>
           </div>
 
-          <div class="head-grid">
-            <div class="top-nav">
-              <nav>
-                <div class="nav-group primary">
-                  <button id="navSummary" class="nav-item active"><span class="nav-icon">📋</span><span class="nav-label">Senarai pendaftaran</span></button>
-                  <button id="navCheckedIn" class="nav-item"><span class="nav-icon">✅</span><span class="nav-label">Pelawat Checked In (Hari Ini)</span></button>
-                  <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
-                  <button id="navUnitAdmin" class="nav-item"><span class="nav-icon">🧾</span><span class="nav-label">Kemas Kini Unit (CSV)</span></button> 
-                  <button id="navWater" class="nav-item"><span class="nav-icon">💧</span><span class="nav-label">Bacaan Air</span></button>
-                  <button id="exportAllCSVBtn" class="nav-item"><span class="nav-icon">⬇️</span><span class="nav-label">Eksport CSV (Semua)</span></button>
-                </div>
-              </nav>
-
-              <div class="passdown-card" aria-label="Nota bertugas">
-                <div class="small muted">Nota Bertugas (shif seterusnya)</div>
-                <textarea id="passdownInput" placeholder="Catat nota pantas untuk passdown..." aria-label="Nota bertugas"></textarea>
-                <div class="passdown-actions">
-                  <button id="passdownSaveBtn" type="button">Simpan</button>
-                  <button id="passdownClearBtn" type="button" class="btn-ghost">Kosongkan</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="passdown-card passdown-list-box" aria-label="Senarai nota bertugas">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                <div class="small muted">Senarai nota</div>
-                <div id="passdownMeta" class="muted-small"></div>
-              </div>
-              <div class="muted-small" style="margin-top:4px;">Nota terbaru di atas. Klik pensel untuk edit atau padam.</div>
-              <div id="passdownList" class="passdown-list small" aria-live="polite"></div>
+          <div class="head-nav">
+            <div class="nav-group primary">
+              <button id="navSummary" class="nav-item active"><span class="nav-icon">📋</span><span class="nav-label">Senarai pendaftaran</span></button>
+              <button id="navCheckedIn" class="nav-item"><span class="nav-icon">✅</span><span class="nav-label">Pelawat Checked In (Hari Ini)</span></button>
+              <button id="navUnitSummary" class="nav-item"><span class="nav-icon">📈</span><span class="nav-label">Pengurusan Data</span></button>
+              <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
+              <button id="navWater" class="nav-item"><span class="nav-icon">💧</span><span class="nav-label">Bacaan Air</span></button>
+              <button id="navUnitAdmin" class="nav-item"><span class="nav-icon">🧾</span><span class="nav-label">Kemas Kini Unit (CSV)</span></button>
             </div>
           </div>
         </div>
@@ -230,13 +217,14 @@
         <!-- Main -->
         <section>
           <div class="top-info">
-            <div>
+            <div class="top-info-main">
               <div class="small" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                 <span>Log masuk sebagai: <strong id="who"></strong></span>
                 <span id="adminClaimIndicator" class="small muted">Firebase admin claim: -</span>
                 <button id="refreshAdminClaimBtn" type="button" class="btn-ghost" style="padding:4px 8px; min-height:28px;">Refresh claim</button>
               </div>
-              <div id="kpiWrap" style="margin-top:8px" class="kpi"></div>
+              <div class="kpi-title">Counter Kategori (Tarikh Dipilih)</div>
+              <div id="kpiWrap" class="kpi"></div>
             </div>
 
             <!-- Per-page date filters: summary, checked-in and parking each have their own date input -->
@@ -259,11 +247,6 @@
           <!-- Pages -->
           <div id="pageSummary">
             <div id="summarySearchWrap" style="margin-top:6px; margin-bottom:6px; display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;">
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <label for="purgeBeforeDate" class="small muted">Padam data sebelum tarikh:</label>
-                <input id="purgeBeforeDate" type="date" style="padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Tarikh cutoff padam data lama" />
-                <button id="purgeOldBtn" type="button" class="btn-ghost" style="padding:8px 10px; border-radius:10px;">Padam Data Lama</button>
-              </div>
               <input id="summarySearch" type="search" placeholder="Cari nama / unit / telefon / kenderaan / kategori" style="min-width:260px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari senarai pendaftaran" />
             </div>
             <h3 class="page-heading-box" style="margin-top:6px">Senarai pendaftaran</h3>
@@ -273,6 +256,55 @@
           <div id="pageCheckedIn" style="display:none">
             <h3 class="page-heading-box" style="margin-top:6px">Pelawat Checked In — Hari Ini</h3>
             <div id="listAreaCheckedIn" style="margin-top:8px"></div>
+          </div>
+
+          <div id="pageUnitSummary" style="display:none; margin-top:12px;">
+            <h3 class="page-heading-box" style="margin-top:6px">Pengurusan Data</h3>
+            <div class="card card-tight">
+              <div class="small muted" style="margin-bottom:8px;">Eksport, pembersihan data lama, dan summary unit dikumpulkan di halaman ini.</div>
+
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--input-border);">
+                <div class="small" style="font-weight:700;">Eksport CSV:</div>
+                <button id="exportAllCSVBtn" class="btn" type="button">Eksport CSV (Semua Rekod)</button>
+              </div>
+
+              <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--input-border);">
+                <div>
+                  <label for="purgeBeforeDate" class="small muted">Padam data sebelum tarikh</label>
+                  <input id="purgeBeforeDate" type="date" style="padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Tarikh cutoff padam data lama" />
+                </div>
+                <button id="purgeOldBtn" type="button" class="btn-ghost" style="padding:8px 10px; border-radius:10px;">Padam Data Lama</button>
+              </div>
+
+              <div class="small muted" style="margin-bottom:6px;">Summary Unit:</div>
+              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                <div>
+                  <label for="unitSummaryFromDate" class="small muted">Dari ETA</label>
+                  <input id="unitSummaryFromDate" type="date" />
+                </div>
+                <div>
+                  <label for="unitSummaryToDate" class="small muted">Hingga ETA</label>
+                  <input id="unitSummaryToDate" type="date" />
+                </div>
+                <button id="unitSummaryLoadRangeBtn" class="btn" type="button">Muat Ikut Julat</button>
+                <button id="unitSummaryLoadAllBtn" class="btn-ghost" type="button">Muat Semua (Sejak Mula)</button>
+                <button id="unitSummaryExportSummaryBtn" class="btn-ghost" type="button">Eksport CSV Summary</button>
+                <button id="unitSummaryExportDetailsBtn" class="btn-ghost" type="button">Eksport CSV Butiran</button>
+              </div>
+
+              <div id="unitSummaryMeta" class="small muted" style="margin-top:10px;"></div>
+
+              <div style="margin-top:8px;display:flex;justify-content:flex-end;">
+                <input id="unitSummarySearch" type="search" placeholder="Cari unit (contoh: A-1-1)" style="min-width:240px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari unit dalam summary" />
+              </div>
+
+              <div id="listAreaUnitSummary" style="margin-top:10px"></div>
+            </div>
+
+            <div class="card card-tight" style="margin-top:10px;">
+              <h4 style="margin-top:0">Butiran Unit Dipilih</h4>
+              <div id="unitSummaryDetailArea" class="small muted">Pilih unit dari jadual summary untuk lihat senarai ETA, ETD dan nombor kenderaan.</div>
+            </div>
           </div>
 
           <!-- Halaman Parkir: dua kolum, kad selari -->
@@ -312,8 +344,8 @@
           <!-- Main Unit Admin page (CSV / Manual) -->
           <div id="pageUnitAdmin" style="display:none; margin-top:12px;">
             <h3 class="page-heading-box" style="margin-top:6px">Kemas Kini Unit — (CSV / Manual)</h3>
-            <div class="card card-tight" style="max-width:920px;">
-              <div style="max-width:920px;margin:6px auto;padding:6px;text-align:left;display:flex;align-items:center;gap:12px;">
+            <div class="card card-tight" style="width:100%; max-width:none;">
+              <div style="width:100%; margin:6px 0; padding:6px; text-align:left; display:flex; align-items:center; gap:12px; box-sizing:border-box;">
                 <div style="flex:1">
                   <div style="font-weight:700">Kemas Kini Unit</div>
                   <div class="small muted">Gunakan halaman ini untuk import CSV atau mengemaskini unit secara manual. Klik butang Log Masuk untuk akses pentadbir.</div>
@@ -390,7 +422,7 @@
 
           <div id="pageWater" style="display:none; margin-top:12px;">
             <h3 class="page-heading-box" style="margin-top:6px">Rekod Harian — Bacaan Air</h3>
-            <div class="card card-tight" style="max-width:920px;">
+            <div class="card card-tight" style="width:100%; max-width:none;">
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
                 <label for="waterDate" class="small muted">Tarikh</label>
                 <input id="waterDate" type="date" />
