@@ -207,6 +207,7 @@ let parkingCurrentDate = null;
 const todayLabel = document.getElementById('todayLabel');
 const todayTime = document.getElementById('todayTime');
 const kpiWrap = document.getElementById('kpiWrap');
+const kpiFilterHint = document.getElementById('kpiFilterHint');
 const injectedControls = document.getElementById('injectedControls');
 const adminClaimIndicator = document.getElementById('adminClaimIndicator');
 const refreshAdminClaimBtn = document.getElementById('refreshAdminClaimBtn');
@@ -438,6 +439,7 @@ let timeTicker = null;
 let filterDateUserChangedSummary = false;
 let filterDateUserChangedCheckedIn = false;
 let filterDateUserChangedParking = false;
+let activeCategoryFilter = '';
 // lightweight in-memory cache to reduce duplicate reads
 // responseCache caches per-day query results (dateStr -> rows)
 const responseCache = { date: null, rows: [] };
@@ -506,14 +508,43 @@ function sortRowsBySubmitted(rows){
   });
 }
 
+function filterRowsByCategory(rows, category){
+  const selected = String(category || '').trim();
+  if (!selected) return rows || [];
+  return (rows || []).filter(r => determineCategory(r) === selected);
+}
+
+function updateKpiFilterHint(){
+  if (!kpiFilterHint) return;
+  if (activeCategoryFilter) {
+    kpiFilterHint.classList.add('active');
+    kpiFilterHint.textContent = `Filter ON: ${activeCategoryFilter}. Klik kotak yang sama untuk OFF.`;
+  } else {
+    kpiFilterHint.classList.remove('active');
+    kpiFilterHint.textContent = 'Klik kotak kategori untuk tapis senarai pendaftaran.';
+  }
+}
+
+function toggleCategoryFilter(category){
+  const selected = String(category || '').trim();
+  if (!selected) return;
+  activeCategoryFilter = (activeCategoryFilter === selected) ? '' : selected;
+  updateKpiFilterHint();
+  renderSummaryWithSearch(responseCache.rows || []);
+  renderKPIs(responseCache.rows || []);
+}
+
 function renderSummaryWithSearch(rows){
   try {
     responseCache.rows = rows || [];
     const term = summarySearch ? summarySearch.value : '';
-    const filtered = filterRowsBySearch(responseCache.rows, term);
+    const searched = filterRowsBySearch(responseCache.rows, term);
+    const filtered = filterRowsByCategory(searched, activeCategoryFilter);
+    updateKpiFilterHint();
     renderList(filtered, listAreaSummary, false);
   } catch (e) {
     console.warn('[renderSummaryWithSearch] error; showing unfiltered rows', e);
+    updateKpiFilterHint();
     try { renderList(rows || [], listAreaSummary, false); } catch(err){ console.warn('[renderSummaryWithSearch] fallback failed', err); }
   }
 }
@@ -1802,12 +1833,20 @@ function renderKPIs(rowsInput){
     'cat-lain': { background: '#6b7280', color: '#fff' }
   };
 
-  const chip = (label, val, cls = '', meta = '') => {
+  const chip = (label, val, cls = '', meta = '', options = {}) => {
+    const interactive = !!options.interactive;
+    const pressed = !!options.pressed;
     const d = document.createElement('div');
     d.className = `chip ${cls}`.trim();
     d.innerHTML = `<span class="chip-left"><span class="chip-label">${escapeHtml(label)}</span>${meta ? `<span class="chip-meta">${escapeHtml(meta)}</span>` : ''}</span><span class="chip-count">${val}</span>`;
-    d.setAttribute('role','status');
-    d.setAttribute('aria-live','polite');
+    if (interactive) {
+      d.setAttribute('role', 'button');
+      d.setAttribute('tabindex', '0');
+      d.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    } else {
+      d.setAttribute('role','status');
+      d.setAttribute('aria-live','polite');
+    }
     return d;
   };
 
@@ -1830,7 +1869,17 @@ function renderKPIs(rowsInput){
   kpiWrap.appendChild(totalChip);
   entries.forEach(([label, value]) => {
     const categoryClass = categoryClassMap[label] || 'cat-lain';
-    const node = chip(label, value, categoryClass);
+    const isActive = activeCategoryFilter === label;
+    const node = chip(label, value, categoryClass, '', { interactive: true, pressed: isActive });
+    node.classList.add('kpi-category-filter');
+    if (isActive) node.classList.add('filter-active');
+    node.addEventListener('click', () => toggleCategoryFilter(label));
+    node.addEventListener('keydown', (evt) => {
+      if (evt.key === 'Enter' || evt.key === ' ') {
+        evt.preventDefault();
+        toggleCategoryFilter(label);
+      }
+    });
     const palette = categoryChipPalette[categoryClass] || categoryChipPalette['cat-lain'];
     node.style.background = palette.background;
     node.style.color = palette.color;
@@ -3062,7 +3111,11 @@ function showPage(key){
     } catch(e) { /* ignore */ }
   }
   // KPIs are only relevant for the registration summary view
-  try { kpiWrap.style.display = (key === 'summary') ? '' : 'none'; } catch(e) { /* ignore if missing */ }
+  try {
+    const showKpi = (key === 'summary');
+    kpiWrap.style.display = showKpi ? '' : 'none';
+    if (kpiFilterHint) kpiFilterHint.style.display = showKpi ? '' : 'none';
+  } catch(e) { /* ignore if missing */ }
   // hide Unit Admin page for other pages
   try { const page = document.getElementById('pageUnitAdmin'); if (page && key !== 'unitadmin') page.style.display = 'none'; } catch(e) {}
   // hide Unit Summary page for other pages

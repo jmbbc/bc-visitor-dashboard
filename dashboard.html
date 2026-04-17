@@ -99,6 +99,8 @@
     .top-info { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; flex-wrap:wrap; padding:10px; border:1px solid var(--input-border); border-radius:10px; background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(248,251,255,0.95)); }
     .top-info-main { flex:1; min-width:320px; display:flex; flex-direction:column; gap:6px; }
     .kpi-title { font-weight:700; color:var(--muted); font-size:12px; letter-spacing:0.02em; }
+    .kpi-filter-hint { font-size:11px; color:var(--muted); }
+    .kpi-filter-hint.active { color:#0f172a; font-weight:700; }
     .kpi { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px; width:100%; }
     .kpi .chip { border:1px solid transparent; padding:8px 10px; border-radius:10px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
     .kpi .chip .chip-left { display:flex; flex-direction:column; gap:2px; min-width:0; }
@@ -108,6 +110,11 @@
     .kpi .chip.kpi-main { grid-row: span 2; align-self: stretch; flex-direction:column; align-items:flex-start; justify-content:center; gap:6px; }
     .kpi .chip.kpi-main .chip-left { width:100%; }
     .kpi .chip.kpi-main .chip-count { font-size:28px; line-height:1; }
+    .kpi .chip.kpi-category-filter { cursor:pointer; user-select:none; transition: transform .12s ease, box-shadow .12s ease, filter .12s ease; }
+    .kpi .chip.kpi-category-filter:hover { transform: translateY(-1px); filter: saturate(1.06); }
+    .kpi .chip.kpi-category-filter:focus-visible { outline:2px solid #000; outline-offset:2px; }
+    .kpi .chip.kpi-category-filter.filter-active { box-shadow: 0 0 0 2px #000000, 0 3px 8px rgba(0,0,0,0.14); border-color:#000000 !important; }
+    .kpi .chip.kpi-category-filter.filter-active .chip-label::after { content:' ON'; font-size:10px; font-weight:800; margin-left:4px; }
     .kpi .chip.kpi-total { background: linear-gradient(180deg, rgba(15,23,42,0.06), rgba(15,23,42,0.04)); border-color: rgba(15,23,42,0.14); color:#0f172a; }
     .kpi .chip.kpi-empty { background: linear-gradient(180deg, rgba(148,163,184,0.18), rgba(148,163,184,0.12)); border-color: rgba(148,163,184,0.24); color:#334155; }
 
@@ -224,6 +231,7 @@
                 <button id="refreshAdminClaimBtn" type="button" class="btn-ghost" style="padding:4px 8px; min-height:28px;">Refresh claim</button>
               </div>
               <div class="kpi-title">Counter Kategori (Tarikh Dipilih)</div>
+              <div id="kpiFilterHint" class="kpi-filter-hint">Klik kotak kategori untuk tapis senarai pendaftaran.</div>
               <div id="kpiWrap" class="kpi"></div>
             </div>
 
