@@ -14,7 +14,7 @@
     .head-row { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; border-bottom:1px solid var(--input-border); padding-bottom:10px; }
     .today-pill { display:flex; flex-direction:column; gap:4px; }
     .head-nav { margin-top:12px; }
-    .head-nav .nav-group { display:grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap:8px; padding:8px; border-radius:10px; background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent); align-items:stretch; }
+    .head-nav .nav-group { display:grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap:8px; padding:8px; border-radius:10px; background: linear-gradient(180deg, rgba(0,0,0,0.01), transparent); align-items:stretch; }
     @media (max-width: 1100px) {
       .head-nav .nav-group { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
@@ -40,6 +40,11 @@
     .nav-group button#navSummary.nav-item { background: linear-gradient(180deg, rgba(6,182,212,0.14), rgba(6,182,212,0.12)) !important; border-color: rgba(6,182,212,0.18) !important; color: #042f2a !important; }
     #navSummary.active { background: linear-gradient(180deg, rgba(6,182,212,0.22), rgba(6,182,212,0.18)); color: #042f2a; border-color: transparent; box-shadow: 0 2px 6px rgba(6,182,212,0.12); }
     #navSummary:hover { background: linear-gradient(180deg, rgba(6,182,212,0.18), rgba(6,182,212,0.14)); }
+
+    /* Unit + arrears (rose/red) */
+    .nav-group button#navUnitArrears.nav-item { background: linear-gradient(180deg, rgba(244,63,94,0.12), rgba(244,63,94,0.10)) !important; border-color: rgba(244,63,94,0.18) !important; color: #4c0519 !important; }
+    #navUnitArrears.active { background: linear-gradient(180deg, rgba(244,63,94,0.20), rgba(244,63,94,0.14)); color: #4c0519; border-color: transparent; box-shadow: 0 2px 6px rgba(244,63,94,0.12); }
+    #navUnitArrears:hover { background: linear-gradient(180deg, rgba(244,63,94,0.16), rgba(244,63,94,0.12)); }
 
     /* Checked-in (indigo/violet) — stronger indigo background */
     .nav-group button#navCheckedIn.nav-item { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.10)) !important; border-color: rgba(79,70,229,0.18) !important; color: #111827 !important; }
@@ -168,6 +173,7 @@
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
     }
     #pageSummary > h3.page-heading-box { background: linear-gradient(180deg, rgba(6,182,212,0.12), rgba(6,182,212,0.08)); border: 1px solid rgba(6,182,212,0.14); color: #042f2a; }
+    #pageUnitArrears > h3.page-heading-box { background: linear-gradient(180deg, rgba(244,63,94,0.12), rgba(244,63,94,0.08)); border: 1px solid rgba(244,63,94,0.14); color: #4c0519; }
     #pageCheckedIn > h3.page-heading-box { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.08)); border: 1px solid rgba(79,70,229,0.14); color: #07102a; }
     #pageUnitSummary > h3.page-heading-box { background: linear-gradient(180deg, rgba(16,185,129,0.12), rgba(16,185,129,0.08)); border: 1px solid rgba(16,185,129,0.14); color: #064e3b; }
     #pageParking > h3.page-heading-box { background: linear-gradient(180deg, rgba(250,190,50,0.12), rgba(250,190,50,0.08)); border: 1px solid rgba(250,190,50,0.14); color: #2b1808; }
@@ -212,6 +218,7 @@
           <div class="head-nav">
             <div class="nav-group primary">
               <button id="navSummary" class="nav-item active"><span class="nav-icon">📋</span><span class="nav-label">Senarai pendaftaran</span></button>
+              <button id="navUnitArrears" class="nav-item"><span class="nav-icon">🏠</span><span class="nav-label">Senarai Unit &amp; Tunggakan</span></button>
               <button id="navCheckedIn" class="nav-item"><span class="nav-icon">✅</span><span class="nav-label">Pelawat Checked In (Hari Ini)</span></button>
               <button id="navUnitSummary" class="nav-item"><span class="nav-icon">📈</span><span class="nav-label">Pengurusan Data</span></button>
               <button id="navParking" class="nav-item"><span class="nav-icon">🚗</span><span class="nav-label">Laporan Parkir Pelawat</span></button>
@@ -259,6 +266,17 @@
             </div>
             <h3 class="page-heading-box" style="margin-top:6px">Senarai pendaftaran</h3>
             <div id="listAreaSummary" style="margin-top:8px"></div>
+          </div>
+
+          <div id="pageUnitArrears" style="display:none">
+            <h3 class="page-heading-box" style="margin-top:6px">Senarai Unit &amp; Tunggakan</h3>
+            <div class="card card-tight">
+              <div id="unitArrearsMeta" class="small muted" style="margin-bottom:8px;">Memuatkan data unit...</div>
+              <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+                <input id="unitArrearsSearch" type="search" placeholder="Cari unit / kategori / tunggakan" style="min-width:260px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari senarai unit dan tunggakan" />
+              </div>
+              <div id="unitArrearsListArea"></div>
+            </div>
           </div>
 
           <div id="pageCheckedIn" style="display:none">

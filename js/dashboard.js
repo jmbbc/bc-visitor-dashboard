@@ -216,6 +216,60 @@ const refreshAdminClaimBtn = document.getElementById('refreshAdminClaimBtn');
 const unitsCache = Object.create(null);
 // Flag set when reading units collection fails due to insufficient permissions
 let unitsLoadPermissionDenied = false;
+// Units cache policy: fetch at most once per day per browser unless force refresh.
+const UNITS_CACHE_STORAGE_KEY = 'dashboard:unitsCache:v1';
+const UNITS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+let unitsCacheLastSyncAt = 0;
+let unitsCacheInFlight = null;
+
+function clearUnitsCacheObject(){
+  Object.keys(unitsCache).forEach((k) => { delete unitsCache[k]; });
+}
+
+function getUnitsCacheCount(){
+  return Object.keys(unitsCache).length;
+}
+
+function persistUnitsCacheToStorage(source = 'local'){
+  try {
+    const payload = {
+      syncedAt: Date.now(),
+      source,
+      data: unitsCache
+    };
+    localStorage.setItem(UNITS_CACHE_STORAGE_KEY, JSON.stringify(payload));
+    unitsCacheLastSyncAt = payload.syncedAt;
+  } catch (e) {
+    console.warn('[units] persist cache failed', e);
+  }
+}
+
+function hydrateUnitsCacheFromStorage({ allowStale = false } = {}){
+  try {
+    const raw = localStorage.getItem(UNITS_CACHE_STORAGE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    const syncedAt = Number(parsed && parsed.syncedAt ? parsed.syncedAt : 0);
+    const data = parsed && typeof parsed.data === 'object' ? parsed.data : null;
+    if (!data) return false;
+    const ageMs = Date.now() - syncedAt;
+    if (!allowStale && (!syncedAt || ageMs > UNITS_CACHE_TTL_MS)) return false;
+
+    clearUnitsCacheObject();
+    Object.keys(data).forEach((k) => { unitsCache[k] = data[k]; });
+    unitsCacheLastSyncAt = syncedAt || Date.now();
+    return true;
+  } catch (e) {
+    console.warn('[units] hydrate cache failed', e);
+    return false;
+  }
+}
+
+function isUnitsCacheFreshInMemory(){
+  if (!getUnitsCacheCount()) return false;
+  if (!unitsCacheLastSyncAt) return false;
+  return (Date.now() - unitsCacheLastSyncAt) <= UNITS_CACHE_TTL_MS;
+}
 
 function setAdminLoggedIn(val){
   try { sessionStorage.setItem('admin_logged_in', val ? '1' : '0'); } catch(e) {}
@@ -372,34 +426,73 @@ async function deleteOldResponsesBeforeDate(){
   }
 }
 
-async function loadAllUnitsToCache(){
-  try{
-    if (!window.__FIRESTORE) return;
-    const col = collection(window.__FIRESTORE, 'units');
-    const snap = await getDocs(col);
-    snap.forEach(d => { unitsCache[d.id] = d.data(); });
-    console.info('[units] loaded', Object.keys(unitsCache).length);
-  } catch(e) {
-    console.warn('[units] cache load failed', e);
-    // detect permission-denied and show a friendly hint in the UI
-    try {
-      const code = e && e.code ? e.code : '';
-      if (code === 'permission-denied' || String(e).includes('Missing or insufficient permissions')) {
-        unitsLoadPermissionDenied = true;
-        toast('Tidak dapat baca units collection — semak Firestore rules (permission-denied)', false);
-        try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Amaran: Tiada kebenaran baca units collection.'; } catch(e){}
-        // disable write controls when permissions are insufficient
-        try { const csvImportBtn = document.getElementById('csvImportBtn'); if (csvImportBtn) csvImportBtn.disabled = true; } catch(e){}
-        try { const csvForceWriteBtn = document.getElementById('csvForceWriteBtn'); if (csvForceWriteBtn) csvForceWriteBtn.disabled = true; } catch(e){}
-        try { const migrateApplyBtn = document.getElementById('migrateApplyBtn'); if (migrateApplyBtn) migrateApplyBtn.disabled = true; } catch(e){}
-        try { const saveUnitBtn = document.getElementById('saveUnitBtn'); if (saveUnitBtn) saveUnitBtn.disabled = true; } catch(e){}
-        try { const unitAddBtn = document.getElementById('unitAddBtn'); if (unitAddBtn) unitAddBtn.disabled = true; } catch(e){}
-      }
-    } catch(e) {}
+async function loadAllUnitsToCache(opts = {}){
+  const force = !!(opts && opts.force);
+
+  if (!force && isUnitsCacheFreshInMemory()) {
+    try { renderUnitArrearsList(); } catch (err) { /* ignore */ }
+    return { source: 'memory', count: getUnitsCacheCount() };
   }
+
+  if (!force) {
+    const hydrated = hydrateUnitsCacheFromStorage({ allowStale: false });
+    if (hydrated) {
+      console.info('[units] loaded from local cache', getUnitsCacheCount());
+      try { renderUnitArrearsList(); } catch (err) { /* ignore */ }
+      return { source: 'storage', count: getUnitsCacheCount() };
+    }
+  }
+
+  if (unitsCacheInFlight) return unitsCacheInFlight;
+  if (!window.__FIRESTORE) return { source: 'none', count: getUnitsCacheCount() };
+
+  const request = (async () => {
+    try{
+      const col = collection(window.__FIRESTORE, 'units');
+      const snap = await getDocs(col);
+      clearUnitsCacheObject();
+      snap.forEach(d => { unitsCache[d.id] = d.data(); });
+      unitsLoadPermissionDenied = false;
+      persistUnitsCacheToStorage(force ? 'firestore-force' : 'firestore');
+      console.info('[units] loaded', getUnitsCacheCount(), force ? '(force)' : '');
+      try { renderUnitArrearsList(); } catch (err) { /* ignore */ }
+      return { source: 'firestore', count: getUnitsCacheCount() };
+    } catch(e) {
+      console.warn('[units] cache load failed', e);
+      // detect permission-denied and show a friendly hint in the UI
+      try {
+        const code = e && e.code ? e.code : '';
+        if (code === 'permission-denied' || String(e).includes('Missing or insufficient permissions')) {
+          unitsLoadPermissionDenied = true;
+          toast('Tidak dapat baca units collection — semak Firestore rules (permission-denied)', false);
+          try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Amaran: Tiada kebenaran baca units collection.'; } catch(e){}
+          // disable write controls when permissions are insufficient
+          try { const csvImportBtn = document.getElementById('csvImportBtn'); if (csvImportBtn) csvImportBtn.disabled = true; } catch(e){}
+          try { const csvForceWriteBtn = document.getElementById('csvForceWriteBtn'); if (csvForceWriteBtn) csvForceWriteBtn.disabled = true; } catch(e){}
+          try { const migrateApplyBtn = document.getElementById('migrateApplyBtn'); if (migrateApplyBtn) migrateApplyBtn.disabled = true; } catch(e){}
+          try { const saveUnitBtn = document.getElementById('saveUnitBtn'); if (saveUnitBtn) saveUnitBtn.disabled = true; } catch(e){}
+          try { const unitAddBtn = document.getElementById('unitAddBtn'); if (unitAddBtn) unitAddBtn.disabled = true; } catch(e){}
+        }
+      } catch(e) {}
+
+      // Fallback to stale local cache so page still works without extra reads.
+      const hydratedStale = hydrateUnitsCacheFromStorage({ allowStale: true });
+      if (hydratedStale) {
+        console.info('[units] fallback to stale local cache', getUnitsCacheCount());
+        try { renderUnitArrearsList(); } catch (err) { /* ignore */ }
+        return { source: 'storage-stale', count: getUnitsCacheCount(), error: e };
+      }
+
+      return { source: 'error', count: getUnitsCacheCount(), error: e };
+    }
+  })();
+
+  unitsCacheInFlight = request.finally(() => { unitsCacheInFlight = null; });
+  return unitsCacheInFlight;
 }
 
 const navSummary = document.getElementById('navSummary');
+const navUnitArrears = document.getElementById('navUnitArrears');
 const navCheckedIn = document.getElementById('navCheckedIn');
 const navUnitSummary = document.getElementById('navUnitSummary');
 const navParking = document.getElementById('navParking');
@@ -410,6 +503,9 @@ const exportAllCSVBtn = document.getElementById('exportAllCSVBtn');
 const parkingSearchInput = document.getElementById('parkingSearch');
 const listAreaUnitContacts = document.getElementById('listAreaUnitContacts');
 const unitContactsSearch = document.getElementById('unitContactsSearch');
+const unitArrearsSearch = document.getElementById('unitArrearsSearch');
+const unitArrearsMeta = document.getElementById('unitArrearsMeta');
+const listAreaUnitArrears = document.getElementById('unitArrearsListArea');
 const listAreaUnitSummary = document.getElementById('listAreaUnitSummary');
 const unitSummaryMeta = document.getElementById('unitSummaryMeta');
 const unitSummaryDetailArea = document.getElementById('unitSummaryDetailArea');
@@ -572,6 +668,7 @@ function setSelectedNav(el){
 function getActivePageKey(){
   try{
     if (navSummary && navSummary.classList.contains('active')) return 'summary';
+    if (navUnitArrears && navUnitArrears.classList.contains('active')) return 'unitarrears';
     if (navCheckedIn && navCheckedIn.classList.contains('active')) return 'checkedin';
     if (navUnitSummary && navUnitSummary.classList.contains('active')) return 'unitsummary';
     if (navParking && navParking.classList.contains('active')) return 'parking';
@@ -590,7 +687,7 @@ function getParkingDate(){
 }
 
 // Ensure nav buttons support keyboard activation (Enter / Space) and toggle visual selection
-[navSummary, navCheckedIn, navUnitSummary, navParking].forEach(btn => {
+[navSummary, navUnitArrears, navCheckedIn, navUnitSummary, navParking, navUnitAdmin, navWater].forEach(btn => {
   if (!btn) return;
   // toggle selection on click (keeps visual box outline)
   btn.addEventListener('click', (e) => {
@@ -756,21 +853,87 @@ function adminPasswordIsCorrect(val){
   } catch(e) { return false; }
 }
 
-function renderUnitsList(){
-  const el = document.getElementById('unitsListArea');
-  if (!el) return;
-  // Merge Firestore-backed units cache with the static canonical list (window.UNITS_STATIC)
+function getCombinedUnitsOrdered(){
   const staticList = Array.isArray(window.UNITS_STATIC) ? window.UNITS_STATIC.slice() : [];
-  // build canonical ordered list: preserve static order first, then append any keys missing from static list
-  const cacheKeys = Object.keys(unitsCache);
-  const combined = staticList.concat(cacheKeys.filter(k => !staticList.includes(k))).sort((a,b) => {
-    // Keep the static ordering if both indices exist there, otherwise alphabetical fallback
-    const ia = staticList.indexOf(a), ib = staticList.indexOf(b);
+  const cacheKeys = Object.keys(unitsCache || {});
+  return staticList.concat(cacheKeys.filter(k => !staticList.includes(k))).sort((a, b) => {
+    const ia = staticList.indexOf(a);
+    const ib = staticList.indexOf(b);
     if (ia >= 0 && ib >= 0) return ia - ib;
     if (ia >= 0) return -1;
     if (ib >= 0) return 1;
-    return a.localeCompare(b);
+    return String(a).localeCompare(String(b));
   });
+}
+
+function renderUnitArrearsList(){
+  const el = listAreaUnitArrears;
+  if (!el) return;
+
+  const combined = getCombinedUnitsOrdered();
+  const allRows = combined.map((unitId) => {
+    const u = unitsCache[unitId] || {};
+    const amount = (typeof u.arrearsAmount === 'number' && Number.isFinite(u.arrearsAmount)) ? Number(u.arrearsAmount) : null;
+    const hasArrears = (u.arrears === true) || (typeof amount === 'number' && amount > 0);
+    return {
+      unitId,
+      category: u.category || '—',
+      amount,
+      hasArrears
+    };
+  });
+
+  const arrearsCount = allRows.filter(r => r.hasArrears).length;
+  const totalAmount = allRows.reduce((sum, r) => sum + ((typeof r.amount === 'number' && r.amount > 0) ? r.amount : 0), 0);
+  if (unitArrearsMeta) {
+    const permissionNote = unitsLoadPermissionDenied ? ' (paparan mungkin tidak lengkap: semakan kebenaran diperlukan)' : '';
+    unitArrearsMeta.textContent = `Jumlah unit: ${allRows.length} | Ada tunggakan: ${arrearsCount} | Jumlah amaun: RM ${formatAmount(totalAmount)}${permissionNote}`;
+  }
+
+  let rows = allRows.slice();
+  const search = (unitArrearsSearch && unitArrearsSearch.value) ? unitArrearsSearch.value.trim().toLowerCase() : '';
+  if (search) {
+    rows = rows.filter((r) => {
+      const parts = [
+        r.unitId,
+        r.category,
+        r.hasArrears ? 'ada tunggakan' : 'tiada tunggakan',
+        (typeof r.amount === 'number') ? String(r.amount) : ''
+      ].map(v => String(v || '').toLowerCase());
+      return parts.some(v => v.includes(search));
+    });
+  }
+
+  rows.sort((a, b) => {
+    if (a.hasArrears !== b.hasArrears) return a.hasArrears ? -1 : 1;
+    const aAmt = (typeof a.amount === 'number') ? a.amount : -1;
+    const bAmt = (typeof b.amount === 'number') ? b.amount : -1;
+    if (aAmt !== bAmt) return bAmt - aAmt;
+    return String(a.unitId).localeCompare(String(b.unitId));
+  });
+
+  if (!rows.length) {
+    el.innerHTML = '<div class="small muted">Tiada rekod unit untuk dipaparkan.</div>';
+    return;
+  }
+
+  let html = '<div class="table-wrap"><table class="table"><thead><tr><th style="width:56px">No.</th><th>Unit</th><th style="width:120px">Status</th><th style="width:170px">Amaun Tunggakan</th><th>Kategori Unit</th></tr></thead><tbody>';
+  rows.forEach((r, idx) => {
+    const status = r.hasArrears
+      ? '<span class="small" style="font-weight:700;color:#9f1239;">Ada</span>'
+      : '<span class="small" style="font-weight:700;color:#166534;">Tiada</span>';
+    const amountText = (typeof r.amount === 'number') ? `RM ${formatAmount(r.amount)}` : '—';
+    const rowStyle = r.hasArrears ? ' style="background: rgba(254,226,226,0.35);"' : '';
+    html += `<tr${rowStyle}><td>${idx + 1}</td><td>${escapeHtml(r.unitId)}</td><td>${status}</td><td>${escapeHtml(amountText)}</td><td>${escapeHtml(r.category)}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+function renderUnitsList(){
+  const el = document.getElementById('unitsListArea');
+  if (!el) return;
+  const combined = getCombinedUnitsOrdered();
   if (!combined.length) { el.innerHTML = '<div class="small">Tiada unit dalam rekod.</div>'; return; }
 
   function fmtAmount(v){ if (typeof v !== 'number') return null; return 'RM'+Number(v).toFixed(2); }
@@ -810,6 +973,8 @@ function renderUnitsList(){
       try { rawEl.scrollIntoView({behavior:'smooth', block:'nearest'}); } catch(e){}
     });
   });
+
+  try { renderUnitArrearsList(); } catch (err) { /* ignore */ }
 }
 
 // Unit Contacts page: renders a simple searchable list of Unit — Nama Penghuni — Nombor Telefon
@@ -869,6 +1034,7 @@ function renderUnitContacts(){
 }
 
 if (unitContactsSearch) unitContactsSearch.addEventListener('input', ()=>{ renderUnitContacts(); });
+if (unitArrearsSearch) unitArrearsSearch.addEventListener('input', ()=>{ renderUnitArrearsList(); });
 
 async function adminLogin(password){
   if (!adminPasswordIsCorrect(password)) return false;
@@ -1012,6 +1178,7 @@ async function saveUnitToFirestore(unitId, data){
   }
   // update cache
   unitsCache[unitId] = Object.assign({}, unitsCache[unitId] || {}, data, { lastUpdatedAt: new Date() });
+  persistUnitsCacheToStorage('manual-save');
   renderUnitsList();
 }
 
@@ -1043,18 +1210,17 @@ async function importUnitsFromArray(rows){
       } catch(err){}
     }
   }
-  // try reload cache — if reads are forbidden, update local cache from the imported rows so UI reflects changes
-  try {
-    await loadAllUnitsToCache();
-  } catch(e) {
-    console.warn('reload cache failed after import — applying local cache updates', e);
-    // copy imported rows into unitsCache so the list shows intended updates
+  // try reload cache — if reads are forbidden, update local cache from imported rows so UI still reflects changes
+  const reloadRes = await loadAllUnitsToCache({ force: true });
+  if (!reloadRes || reloadRes.source === 'error') {
+    console.warn('reload cache failed after import — applying local cache updates');
     rows.forEach(r => {
       const id = (r.unitId || r.unit || r.Unit || '').trim();
       if (!id) return;
       const udata = { category: (r.category || '').trim(), arrears: String(r.arrears || '').toLowerCase() === 'true', arrearsAmount: (r.arrearsAmount !== undefined && r.arrearsAmount !== null && r.arrearsAmount !== '') ? Number(r.arrearsAmount) : null, lastUpdatedAt: new Date() };
       unitsCache[id] = Object.assign({}, unitsCache[id] || {}, udata);
     });
+    persistUnitsCacheToStorage('import-fallback');
   }
   renderUnitsList();
   return { batches: batches.length, committed: success };
@@ -1424,11 +1590,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
         }
       }
       // reload cache and render; if reload fails due to permissions, update in-memory cache from applied rows
-      try {
-        await loadAllUnitsToCache();
-      } catch(e) {
-        console.warn('reload cache failed after migration — applying local cache updates', e);
-        // update unitsCache from the applied rows (rows array contains id/proposed)
+      const reloadRes = await loadAllUnitsToCache({ force: true });
+      if (!reloadRes || reloadRes.source === 'error') {
+        console.warn('reload cache failed after migration — applying local cache updates');
         rows.forEach(r => {
           try {
             const id = r.id;
@@ -1436,6 +1600,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
             unitsCache[id] = udata;
           } catch(e) {}
         });
+        persistUnitsCacheToStorage('migration-fallback');
       }
       renderUnitsList();
       migrationPreviewArea.innerHTML = `<div class="small">Migrasi selesai — ${applied} dokumen dikemaskini.</div>`;
@@ -1504,6 +1669,7 @@ if (parkingSearchInput) {
 
 // parking date is managed by the parking module's week navigator -> no DOM date input change handler
 if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary'); });
+if (navUnitArrears) navUnitArrears.addEventListener('click', ()=> { try { setSelectedNav(navUnitArrears); } catch(e){}; showPage('unitarrears'); });
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
 if (navUnitSummary) navUnitSummary.addEventListener('click', ()=> { try { setSelectedNav(navUnitSummary); } catch(e){}; showPage('unitsummary'); });
 if (navUnitAdmin) navUnitAdmin.addEventListener('click', ()=> { try { setSelectedNav(navUnitAdmin); } catch(e){}; showPage('unitadmin'); });
@@ -2999,6 +3165,7 @@ function showPage(key){
     try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
     document.getElementById('pageParking').style.display = 'none';
     navSummary.classList.add('active');
+    if (navUnitArrears) navUnitArrears.classList.remove('active');
     navCheckedIn.classList.remove('active');
     if (navUnitSummary) navUnitSummary.classList.remove('active');
     if (navParking) navParking.classList.remove('active');
@@ -3008,12 +3175,40 @@ function showPage(key){
     try { setSelectedNav(navSummary); } catch(e) {}
     // show the per-page date control for summary
     try { if (summaryDateWrap) summaryDateWrap.style.display = ''; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
+  } else if (key === 'unitarrears') {
+    document.getElementById('pageSummary').style.display = 'none';
+    document.getElementById('pageCheckedIn').style.display = 'none';
+    try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
+    document.getElementById('pageParking').style.display = 'none';
+    const page = document.getElementById('pageUnitArrears');
+    if (page) {
+      page.style.display = '';
+      try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) {}
+    }
+    try {
+      navSummary.classList.remove('active');
+      if (navUnitArrears) navUnitArrears.classList.add('active');
+      navCheckedIn.classList.remove('active');
+      if (navUnitSummary) navUnitSummary.classList.remove('active');
+      if (navParking) navParking.classList.remove('active');
+      if (navUnitAdmin) navUnitAdmin.classList.remove('active');
+      if (navWater) navWater.classList.remove('active');
+    } catch(e) {}
+    try { setSelectedNav(navUnitArrears); } catch(e) {}
+    try { kpiWrap.style.display = 'none'; } catch(e) {}
+    try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
+    try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
+    if (!Object.keys(unitsCache || {}).length) {
+      try { loadAllUnitsToCache().catch(()=>{}); } catch(e) { /* ignore */ }
+    }
+    renderUnitArrearsList();
   } else if (key === 'checkedin') {
     document.getElementById('pageSummary').style.display = 'none';
     document.getElementById('pageCheckedIn').style.display = '';
     try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
     document.getElementById('pageParking').style.display = 'none';
     navSummary.classList.remove('active');
+    if (navUnitArrears) navUnitArrears.classList.remove('active');
     navCheckedIn.classList.add('active');
     if (navUnitSummary) navUnitSummary.classList.remove('active');
     if (navUnitAdmin) navUnitAdmin.classList.remove('active');
@@ -3033,6 +3228,7 @@ function showPage(key){
     }
     try {
       navSummary.classList.remove('active');
+      if (navUnitArrears) navUnitArrears.classList.remove('active');
       navCheckedIn.classList.remove('active');
       if (navParking) navParking.classList.remove('active');
       if (navUnitAdmin) navUnitAdmin.classList.remove('active');
@@ -3059,7 +3255,7 @@ function showPage(key){
       try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { window.scrollTo({ top: 0, behavior: 'smooth' }); }
     }
     // update nav active states
-    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navUnitSummary) navUnitSummary.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.add('active'); if (navWater) navWater.classList.remove('active'); } catch(e){}
+    try { navSummary.classList.remove('active'); if (navUnitArrears) navUnitArrears.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navUnitSummary) navUnitSummary.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.add('active'); if (navWater) navWater.classList.remove('active'); } catch(e){}
     // hide KPIs
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
@@ -3075,7 +3271,7 @@ function showPage(key){
       page.style.display = '';
       try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { /* ignore */ }
     }
-    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navUnitSummary) navUnitSummary.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navWater) navWater.classList.remove('active'); } catch(e){}
+    try { navSummary.classList.remove('active'); if (navUnitArrears) navUnitArrears.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navUnitSummary) navUnitSummary.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navWater) navWater.classList.remove('active'); } catch(e){}
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
     try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
@@ -3089,7 +3285,7 @@ function showPage(key){
       page.style.display = '';
       try { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) {}
     }
-    try { navSummary.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navUnitSummary) navUnitSummary.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navWater) navWater.classList.add('active'); } catch(e){}
+    try { navSummary.classList.remove('active'); if (navUnitArrears) navUnitArrears.classList.remove('active'); navCheckedIn.classList.remove('active'); if (navUnitSummary) navUnitSummary.classList.remove('active'); if (navParking) navParking.classList.remove('active'); if (navUnitAdmin) navUnitAdmin.classList.remove('active'); if (navWater) navWater.classList.add('active'); } catch(e){}
     try { kpiWrap.style.display = 'none'; } catch(e) {}
     try { if (summaryDateWrap) summaryDateWrap.style.display = 'none'; if (checkedInDateWrap) checkedInDateWrap.style.display = 'none'; } catch(e) {}
     try { if (waterDateEl) loadWaterForDate(waterDateEl.value || isoDateString(new Date())); } catch(e) {}
@@ -3120,6 +3316,8 @@ function showPage(key){
   try { const page = document.getElementById('pageUnitAdmin'); if (page && key !== 'unitadmin') page.style.display = 'none'; } catch(e) {}
   // hide Unit Summary page for other pages
   try { const page4 = document.getElementById('pageUnitSummary'); if (page4 && key !== 'unitsummary') page4.style.display = 'none'; } catch(e) {}
+  // hide Unit Arrears page for other pages
+  try { const page5 = document.getElementById('pageUnitArrears'); if (page5 && key !== 'unitarrears') page5.style.display = 'none'; } catch(e) {}
   // hide Unit Contacts page for other pages
   try { const page2 = document.getElementById('pageUnitContacts'); if (page2 && key !== 'unitcontacts') page2.style.display = 'none'; } catch(e) {}
   // hide Water page for other pages
@@ -3456,11 +3654,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
       document.getElementById('pageSummary').style.display = 'none';
       document.getElementById('pageCheckedIn').style.display = 'none';
       try { const unitSummaryPage = document.getElementById('pageUnitSummary'); if (unitSummaryPage) unitSummaryPage.style.display = 'none'; } catch(e) {}
+      try { const unitArrearsPage = document.getElementById('pageUnitArrears'); if (unitArrearsPage) unitArrearsPage.style.display = 'none'; } catch(e) {}
       // ensure Unit Admin page is hidden when switching to Parking view
       try { const p = document.getElementById('pageUnitAdmin'); if (p) p.style.display = 'none'; } catch(e) {}
       pageParking.style.display = '';
 
       navSummary.classList.remove('active');
+      if (navUnitArrears) navUnitArrears.classList.remove('active');
       navCheckedIn.classList.remove('active');
       if (navUnitSummary) navUnitSummary.classList.remove('active');
       if (navUnitAdmin) navUnitAdmin.classList.remove('active');
