@@ -38,6 +38,13 @@ service cloud.firestore {
       allow create, update, delete: if request.auth != null && request.auth.token.admin == true;
     }
 
+    // Daily outstanding snapshots used for monthly arrears chart
+    match /outstandingSnapshots/{snapshotId} {
+      allow read: if request.auth != null;
+      allow create, update: if isAdmin() && isValidOutstandingSnapshot(request.resource.data, snapshotId);
+      allow delete: if isAdmin();
+    }
+
     // Visitor form responses: allow public create with strict validation
     match /responses/{respId} {
       allow create: if isValidResponse(request.resource.data);
@@ -142,6 +149,26 @@ service cloud.firestore {
         && (data.etaDate is string)
         && (data.createdAt is timestamp)
         && (data.amendToken is string || !('amendToken' in data));
+    }
+
+    function isValidOutstandingSnapshot(data, snapshotId) {
+      return data is map
+        && data.keys().hasOnly(['dateKey','monthKey','day','totalOutstanding','unitsWithArrears','totalUnits','source','capturedBy','capturedAt','updatedAt'])
+        && (data.dateKey is string)
+        && (snapshotId == data.dateKey)
+        && (data.monthKey is string)
+        && (data.day is int)
+        && (data.day >= 1 && data.day <= 31)
+        && (data.totalOutstanding is number)
+        && (data.totalOutstanding >= 0)
+        && (data.unitsWithArrears is int)
+        && (data.unitsWithArrears >= 0)
+        && (data.totalUnits is int)
+        && (data.totalUnits >= 0)
+        && (data.source is string)
+        && (data.capturedBy is string)
+        && (data.capturedAt is timestamp || !('capturedAt' in data))
+        && (data.updatedAt is timestamp || !('updatedAt' in data));
     }
 
     function isValidOvernightLock(data, lockId) {

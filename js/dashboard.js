@@ -506,6 +506,11 @@ const unitContactsSearch = document.getElementById('unitContactsSearch');
 const unitArrearsSearch = document.getElementById('unitArrearsSearch');
 const unitArrearsMeta = document.getElementById('unitArrearsMeta');
 const listAreaUnitArrears = document.getElementById('unitArrearsListArea');
+const arrearsTrendMonth = document.getElementById('arrearsTrendMonth');
+const arrearsTrendLoadBtn = document.getElementById('arrearsTrendLoadBtn');
+const arrearsSnapshotSaveBtn = document.getElementById('arrearsSnapshotSaveBtn');
+const arrearsTrendMeta = document.getElementById('arrearsTrendMeta');
+const arrearsTrendChart = document.getElementById('arrearsTrendChart');
 const listAreaUnitSummary = document.getElementById('listAreaUnitSummary');
 const unitSummaryMeta = document.getElementById('unitSummaryMeta');
 const unitSummaryDetailArea = document.getElementById('unitSummaryDetailArea');
@@ -541,6 +546,17 @@ let activeCategoryFilter = '';
 const responseCache = { date: null, rows: [] };
 // weekCache keyed by week start date (yyyy-mm-dd) -> rows for that week
 const weekResponseCache = Object.create(null);
+const ARREARS_SNAPSHOT_TZ = 'Asia/Kuala_Lumpur';
+const ARREARS_SNAPSHOT_LOCAL_KEY = 'dashboard:outstandingSnapshots:v1';
+const arrearsTrendState = {
+  monthKey: '',
+  rowsByDay: Object.create(null),
+  loaded: false,
+  loading: false,
+  source: 'remote',
+  metaSuffix: ''
+};
+let arrearsTrendPermissionNoticeShown = false;
 // track whether we've already performed the ETD supplemental query per-date to avoid repeated getDocs on every snapshot
 const responsesEtSupplemented = Object.create(null);
 const unitSummaryState = {
@@ -686,6 +702,382 @@ function getParkingDate(){
   return isoDateString(new Date());
 }
 
+function getDatePartsForTimezone(date = new Date(), timeZone = ARREARS_SNAPSHOT_TZ){
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(date);
+    const pick = (type) => {
+      const item = parts.find((p) => p.type === type);
+      return item ? item.value : '';
+    };
+    const year = pick('year');
+    const month = pick('month');
+    const day = pick('day');
+    if (!year || !month || !day) throw new Error('Invalid timezone date parts');
+    return {
+      year,
+      month,
+      day,
+      dateKey: `${year}-${month}-${day}`,
+      monthKey: `${year}-${month}`
+    };
+  } catch (err) {
+    const fallback = date instanceof Date ? date : new Date(date);
+    const year = String(fallback.getFullYear());
+    const month = String(fallback.getMonth() + 1).padStart(2, '0');
+    const day = String(fallback.getDate()).padStart(2, '0');
+    return {
+      year,
+      month,
+      day,
+      dateKey: `${year}-${month}-${day}`,
+      monthKey: `${year}-${month}`
+    };
+  }
+}
+
+function parseTrendMonthInput(value){
+  const str = String(value || '').trim();
+  const matched = /^(\d{4})-(\d{2})$/.exec(str);
+  if (matched) {
+    const year = Number(matched[1]);
+    const month = Number(matched[2]);
+    if (Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12) {
+      return {
+        year,
+        month,
+        monthKey: `${matched[1]}-${matched[2]}`
+      };
+    }
+  }
+  const now = getDatePartsForTimezone(new Date(), ARREARS_SNAPSHOT_TZ);
+  return {
+    year: Number(now.year),
+    month: Number(now.month),
+    monthKey: now.monthKey
+  };
+}
+
+function getDaysInMonth(year, month){
+  return new Date(year, month, 0).getDate();
+}
+
+function isPermissionDeniedError(err){
+  const code = String(err && err.code ? err.code : '').toLowerCase();
+  const msg = String(err && (err.message || err) ? (err.message || err) : '').toLowerCase();
+  return code.includes('permission-denied') || msg.includes('insufficient permissions') || msg.includes('permission denied');
+}
+
+function readLocalArrearsSnapshotsStore(){
+  try {
+    const raw = localStorage.getItem(ARREARS_SNAPSHOT_LOCAL_KEY);
+    if (!raw) return Object.create(null);
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return Object.create(null);
+    return parsed;
+  } catch (err) {
+    return Object.create(null);
+  }
+}
+
+function writeLocalArrearsSnapshotsStore(store){
+  try {
+    localStorage.setItem(ARREARS_SNAPSHOT_LOCAL_KEY, JSON.stringify(store || {}));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+function saveArrearsSnapshotToLocal(payload){
+  if (!payload || !payload.dateKey) return false;
+  const store = readLocalArrearsSnapshotsStore();
+  store[payload.dateKey] = Object.assign({}, store[payload.dateKey] || {}, payload);
+  return writeLocalArrearsSnapshotsStore(store);
+}
+
+function getLocalArrearsRowsByMonth(monthKey){
+  const out = Object.create(null);
+  if (!monthKey) return out;
+  const store = readLocalArrearsSnapshotsStore();
+  Object.keys(store).forEach((dateKey) => {
+    const item = store[dateKey] || {};
+    if (String(item.monthKey || '') !== String(monthKey)) return;
+    const day = Number(item.day || String(dateKey).slice(-2));
+    if (!Number.isFinite(day) || day < 1 || day > 31) return;
+    const amount = Number(item.totalOutstanding);
+    out[day] = {
+      day,
+      totalOutstanding: Number.isFinite(amount) ? Math.max(0, amount) : 0,
+      unitsWithArrears: Number(item.unitsWithArrears || 0),
+      totalUnits: Number(item.totalUnits || 0),
+      source: item.source || 'manual-local'
+    };
+  });
+  return out;
+}
+
+function ensureArrearsTrendMonthValue(){
+  if (!arrearsTrendMonth) return parseTrendMonthInput('');
+  if (!arrearsTrendMonth.value) {
+    arrearsTrendMonth.value = getDatePartsForTimezone(new Date(), ARREARS_SNAPSHOT_TZ).monthKey;
+  }
+  return parseTrendMonthInput(arrearsTrendMonth.value);
+}
+
+function computeCurrentOutstandingSummary(){
+  const combined = getCombinedUnitsOrdered();
+  const rows = combined.map((unitId) => {
+    const u = unitsCache[unitId] || {};
+    const amount = (typeof u.arrearsAmount === 'number' && Number.isFinite(u.arrearsAmount)) ? Number(u.arrearsAmount) : null;
+    const hasArrears = (u.arrears === true) || (typeof amount === 'number' && amount > 0);
+    return {
+      unitId,
+      category: u.category || '—',
+      amount,
+      hasArrears
+    };
+  });
+
+  const arrearsCount = rows.filter((r) => r.hasArrears).length;
+  const totalAmount = rows.reduce((sum, r) => sum + ((typeof r.amount === 'number' && r.amount > 0) ? r.amount : 0), 0);
+  return {
+    rows,
+    totalUnits: rows.length,
+    arrearsCount,
+    totalAmount
+  };
+}
+
+function renderArrearsTrendChart(){
+  if (!arrearsTrendChart) return;
+  const monthInfo = ensureArrearsTrendMonthValue();
+  const daysInMonth = getDaysInMonth(monthInfo.year, monthInfo.month);
+  const rowsByDay = arrearsTrendState.rowsByDay || Object.create(null);
+
+  let maxValue = 0;
+  let filledDays = 0;
+  let maxDay = null;
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const row = rowsByDay[day];
+    if (!row || typeof row.totalOutstanding !== 'number') continue;
+    filledDays += 1;
+    if (row.totalOutstanding > maxValue) {
+      maxValue = row.totalOutstanding;
+      maxDay = day;
+    }
+  }
+
+  let html = '<div class="arrears-trend-plot">';
+  const monthLabel = String(monthInfo.month).padStart(2, '0');
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const row = rowsByDay[day];
+    const hasData = !!row && typeof row.totalOutstanding === 'number';
+    const totalOutstanding = hasData ? Math.max(0, Number(row.totalOutstanding) || 0) : null;
+    const heightPercent = (hasData && maxValue > 0)
+      ? Math.max(4, (totalOutstanding / maxValue) * 100)
+      : 0;
+    const dateLabel = `${String(day).padStart(2, '0')}/${monthLabel}/${monthInfo.year}`;
+    const amountLabel = hasData ? `RM ${formatAmount(totalOutstanding)}` : 'Tiada snapshot';
+    const title = escapeHtml(`${dateLabel}: ${amountLabel}`);
+    html += `<div class="arrears-trend-col ${hasData ? 'has-data' : 'no-data'}" title="${title}"><div class="arrears-trend-bar-shell"><div class="arrears-trend-bar-fill" style="height:${heightPercent.toFixed(2)}%"></div></div><div class="arrears-trend-day">${day}</div></div>`;
+  }
+  html += '</div>';
+  arrearsTrendChart.innerHTML = html;
+
+  if (arrearsTrendMeta) {
+    let meta = `${monthInfo.monthKey}: ${filledDays}/${daysInMonth} hari ada snapshot.`;
+    if (maxValue > 0 && maxDay !== null) {
+      meta += ` Tertinggi RM ${formatAmount(maxValue)} (hari ${maxDay}).`;
+    }
+    const today = getDatePartsForTimezone(new Date(), ARREARS_SNAPSHOT_TZ);
+    if (today.monthKey === monthInfo.monthKey) {
+      const todayDay = Number(today.day);
+      const todayRow = rowsByDay[todayDay];
+      if (todayRow && typeof todayRow.totalOutstanding === 'number') {
+        meta += ` Hari ini RM ${formatAmount(todayRow.totalOutstanding)}.`;
+      }
+    }
+    if (arrearsTrendState.metaSuffix) {
+      meta += ` ${arrearsTrendState.metaSuffix}`;
+    }
+    arrearsTrendMeta.textContent = meta;
+  }
+}
+
+async function loadArrearsTrendMonth(force = false){
+  if (!arrearsTrendChart) return;
+  const monthInfo = ensureArrearsTrendMonthValue();
+  const localRowsByDay = getLocalArrearsRowsByMonth(monthInfo.monthKey);
+
+  if (!window.__FIRESTORE) {
+    arrearsTrendState.monthKey = monthInfo.monthKey;
+    arrearsTrendState.rowsByDay = localRowsByDay;
+    arrearsTrendState.loaded = true;
+    arrearsTrendState.loading = false;
+    arrearsTrendState.source = 'local';
+    arrearsTrendState.metaSuffix = 'Sumber data: simpanan browser ini.';
+    renderArrearsTrendChart();
+    return;
+  }
+
+  if (!force && arrearsTrendState.loaded && arrearsTrendState.monthKey === monthInfo.monthKey) {
+    renderArrearsTrendChart();
+    return;
+  }
+
+  arrearsTrendState.loading = true;
+  if (arrearsTrendMeta) arrearsTrendMeta.textContent = `Memuat snapshot bulan ${monthInfo.monthKey}...`;
+  try {
+    const colRef = collection(window.__FIRESTORE, 'outstandingSnapshots');
+    const qRef = query(colRef, where('monthKey', '==', monthInfo.monthKey));
+    const snap = await getDocs(qRef);
+
+    const rowsByDay = Object.create(null);
+    snap.forEach((d) => {
+      const data = d.data() || {};
+      const rawDay = (typeof data.day === 'number' && Number.isFinite(data.day))
+        ? data.day
+        : Number(String(d.id).slice(-2));
+      if (!Number.isFinite(rawDay) || rawDay < 1 || rawDay > 31) return;
+      const amountRaw = (typeof data.totalOutstanding === 'number') ? data.totalOutstanding : Number(data.totalOutstanding);
+      const totalOutstanding = Number.isFinite(amountRaw) ? amountRaw : 0;
+      rowsByDay[rawDay] = {
+        day: rawDay,
+        totalOutstanding,
+        unitsWithArrears: Number(data.unitsWithArrears || 0),
+        totalUnits: Number(data.totalUnits || 0),
+        source: data.source || ''
+      };
+    });
+
+    const localDays = Object.keys(localRowsByDay);
+    localDays.forEach((d) => {
+      const dayNum = Number(d);
+      if (!rowsByDay[dayNum]) rowsByDay[dayNum] = localRowsByDay[dayNum];
+    });
+
+    arrearsTrendState.monthKey = monthInfo.monthKey;
+    arrearsTrendState.rowsByDay = rowsByDay;
+    arrearsTrendState.loaded = true;
+    arrearsTrendState.loading = false;
+    arrearsTrendState.source = localDays.length ? 'mixed' : 'remote';
+    arrearsTrendState.metaSuffix = localDays.length ? 'Sebahagian data diambil dari simpanan browser.' : '';
+    renderArrearsTrendChart();
+  } catch (err) {
+    if (isPermissionDeniedError(err)) {
+      console.warn('loadArrearsTrendMonth: permission denied, fallback to local snapshots');
+      if (!arrearsTrendPermissionNoticeShown) {
+        toast('Tiada akses Firestore untuk graf ini. Paparan menggunakan snapshot di browser ini.', false, { duration: 3500 });
+        arrearsTrendPermissionNoticeShown = true;
+      }
+      arrearsTrendState.monthKey = monthInfo.monthKey;
+      arrearsTrendState.rowsByDay = localRowsByDay;
+      arrearsTrendState.loaded = true;
+      arrearsTrendState.loading = false;
+      arrearsTrendState.source = 'local';
+      arrearsTrendState.metaSuffix = 'Sumber data: simpanan browser ini (akses Firestore ditolak).';
+      renderArrearsTrendChart();
+      return;
+    }
+
+    console.error('loadArrearsTrendMonth err', err);
+    arrearsTrendState.monthKey = monthInfo.monthKey;
+    arrearsTrendState.rowsByDay = localRowsByDay;
+    arrearsTrendState.loaded = true;
+    arrearsTrendState.loading = false;
+    arrearsTrendState.source = 'local';
+    arrearsTrendState.metaSuffix = 'Sumber data: simpanan browser ini.';
+    renderArrearsTrendChart();
+    if (arrearsTrendMeta) arrearsTrendMeta.textContent = `Gagal baca Firestore untuk bulan ${monthInfo.monthKey}. Paparan guna snapshot browser.`;
+  }
+}
+
+async function saveTodayOutstandingSnapshot(){
+  if (arrearsSnapshotSaveBtn) arrearsSnapshotSaveBtn.disabled = true;
+  try {
+    // Use cached units when available to avoid unnecessary read spikes on Spark plan.
+    await loadAllUnitsToCache();
+    const summary = computeCurrentOutstandingSummary();
+    const parts = getDatePartsForTimezone(new Date(), ARREARS_SNAPSHOT_TZ);
+    const capturedBy = (window.__AUTH && window.__AUTH.currentUser)
+      ? (window.__AUTH.currentUser.email || window.__AUTH.currentUser.uid || 'unknown')
+      : 'local-user';
+
+    const localPayload = {
+      dateKey: parts.dateKey,
+      monthKey: parts.monthKey,
+      day: Number(parts.day),
+      totalOutstanding: Number(summary.totalAmount.toFixed(2)),
+      unitsWithArrears: summary.arrearsCount,
+      totalUnits: summary.totalUnits,
+      source: 'manual-local',
+      capturedBy,
+      capturedAtMs: Date.now(),
+      updatedAtMs: Date.now()
+    };
+
+    // Always persist to browser-local storage first so manual mode keeps working even without Firestore permissions.
+    saveArrearsSnapshotToLocal(localPayload);
+
+    let savedToFirestore = false;
+    if (window.__FIRESTORE && window.__AUTH && window.__AUTH.currentUser) {
+      try {
+        const remotePayload = {
+          dateKey: localPayload.dateKey,
+          monthKey: localPayload.monthKey,
+          day: localPayload.day,
+          totalOutstanding: localPayload.totalOutstanding,
+          unitsWithArrears: localPayload.unitsWithArrears,
+          totalUnits: localPayload.totalUnits,
+          source: 'manual-dashboard',
+          capturedBy,
+          capturedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+        await setDoc(doc(window.__FIRESTORE, 'outstandingSnapshots', parts.dateKey), remotePayload, { merge: true });
+        savedToFirestore = true;
+      } catch (remoteErr) {
+        if (isPermissionDeniedError(remoteErr)) {
+          console.warn('saveTodayOutstandingSnapshot: Firestore permission denied, kept local snapshot');
+        } else {
+          console.warn('saveTodayOutstandingSnapshot: Firestore sync failed, kept local snapshot', remoteErr);
+        }
+      }
+    }
+
+    if (arrearsTrendMonth) arrearsTrendMonth.value = parts.monthKey;
+    arrearsTrendState.monthKey = parts.monthKey;
+    arrearsTrendState.loaded = true;
+    arrearsTrendState.rowsByDay = arrearsTrendState.rowsByDay || Object.create(null);
+    arrearsTrendState.rowsByDay[Number(parts.day)] = {
+      day: Number(parts.day),
+      totalOutstanding: localPayload.totalOutstanding,
+      unitsWithArrears: localPayload.unitsWithArrears,
+      totalUnits: localPayload.totalUnits,
+      source: savedToFirestore ? 'manual-dashboard' : 'manual-local'
+    };
+    arrearsTrendState.source = savedToFirestore ? 'remote' : 'local';
+    arrearsTrendState.metaSuffix = savedToFirestore ? '' : 'Sumber data: simpanan browser ini.';
+    renderArrearsTrendChart();
+    if (savedToFirestore) {
+      toast(`Snapshot ${parts.dateKey} disimpan. Jumlah outstanding: RM ${formatAmount(localPayload.totalOutstanding)}.`, true);
+    } else {
+      toast(`Snapshot ${parts.dateKey} disimpan di browser ini. Jumlah outstanding: RM ${formatAmount(localPayload.totalOutstanding)}.`, true);
+    }
+  } catch (err) {
+    console.error('saveTodayOutstandingSnapshot err', err);
+    toast('Gagal simpan snapshot harian outstanding.', false);
+  } finally {
+    if (arrearsSnapshotSaveBtn) arrearsSnapshotSaveBtn.disabled = false;
+  }
+}
+
 // Ensure nav buttons support keyboard activation (Enter / Space) and toggle visual selection
 [navSummary, navUnitArrears, navCheckedIn, navUnitSummary, navParking, navUnitAdmin, navWater].forEach(btn => {
   if (!btn) return;
@@ -801,6 +1193,7 @@ onAuthStateChanged(window.__AUTH, user => {
     if (filterDateCheckedIn && !filterDateCheckedIn.value) filterDateCheckedIn.value = todayKey;
     if (purgeBeforeDate && !purgeBeforeDate.value) purgeBeforeDate.value = todayKey;
     if (!parkingCurrentDate) parkingCurrentDate = todayKey;
+    try { ensureArrearsTrendMonthValue(); } catch(e) { /* ignore */ }
     loadTodayList();
     if (ENABLE_AUTO_REFRESH) startAutoRefresh();
   } else {
@@ -811,6 +1204,10 @@ onAuthStateChanged(window.__AUTH, user => {
     if (timeTicker) { clearInterval(timeTicker); timeTicker = null; }
     // unsubscribe any active onSnapshot listener to avoid continued reads after sign-out
     try { if (typeof window.__RESPONSES_UNSUB === 'function') { window.__RESPONSES_UNSUB(); window.__RESPONSES_UNSUB = null; window.__RESPONSES_DATE = null; } } catch(e) { /* ignore */ }
+    arrearsTrendState.monthKey = '';
+    arrearsTrendState.rowsByDay = Object.create(null);
+    arrearsTrendState.loaded = false;
+    arrearsTrendState.loading = false;
     setAdminClaimIndicator(null);
   }
 });
@@ -870,21 +1267,10 @@ function renderUnitArrearsList(){
   const el = listAreaUnitArrears;
   if (!el) return;
 
-  const combined = getCombinedUnitsOrdered();
-  const allRows = combined.map((unitId) => {
-    const u = unitsCache[unitId] || {};
-    const amount = (typeof u.arrearsAmount === 'number' && Number.isFinite(u.arrearsAmount)) ? Number(u.arrearsAmount) : null;
-    const hasArrears = (u.arrears === true) || (typeof amount === 'number' && amount > 0);
-    return {
-      unitId,
-      category: u.category || '—',
-      amount,
-      hasArrears
-    };
-  });
-
-  const arrearsCount = allRows.filter(r => r.hasArrears).length;
-  const totalAmount = allRows.reduce((sum, r) => sum + ((typeof r.amount === 'number' && r.amount > 0) ? r.amount : 0), 0);
+  const summary = computeCurrentOutstandingSummary();
+  const allRows = summary.rows;
+  const arrearsCount = summary.arrearsCount;
+  const totalAmount = summary.totalAmount;
   if (unitArrearsMeta) {
     const permissionNote = unitsLoadPermissionDenied ? ' (paparan mungkin tidak lengkap: semakan kebenaran diperlukan)' : '';
     unitArrearsMeta.textContent = `Jumlah unit: ${allRows.length} | Ada tunggakan: ${arrearsCount} | Jumlah amaun: RM ${formatAmount(totalAmount)}${permissionNote}`;
@@ -1035,6 +1421,9 @@ function renderUnitContacts(){
 
 if (unitContactsSearch) unitContactsSearch.addEventListener('input', ()=>{ renderUnitContacts(); });
 if (unitArrearsSearch) unitArrearsSearch.addEventListener('input', ()=>{ renderUnitArrearsList(); });
+if (arrearsTrendMonth) arrearsTrendMonth.addEventListener('change', ()=>{ loadArrearsTrendMonth(true); });
+if (arrearsTrendLoadBtn) arrearsTrendLoadBtn.addEventListener('click', ()=>{ loadArrearsTrendMonth(true); });
+if (arrearsSnapshotSaveBtn) arrearsSnapshotSaveBtn.addEventListener('click', async ()=>{ await saveTodayOutstandingSnapshot(); });
 
 async function adminLogin(password){
   if (!adminPasswordIsCorrect(password)) return false;
@@ -3202,6 +3591,8 @@ function showPage(key){
       try { loadAllUnitsToCache().catch(()=>{}); } catch(e) { /* ignore */ }
     }
     renderUnitArrearsList();
+    try { ensureArrearsTrendMonthValue(); } catch(e) { /* ignore */ }
+    try { loadArrearsTrendMonth(false); } catch(e) { /* ignore */ }
   } else if (key === 'checkedin') {
     document.getElementById('pageSummary').style.display = 'none';
     document.getElementById('pageCheckedIn').style.display = '';
