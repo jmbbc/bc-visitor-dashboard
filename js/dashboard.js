@@ -971,9 +971,8 @@ async function loadArrearsTrendMonth(force = false){
     renderArrearsTrendChart();
   } catch (err) {
     if (isPermissionDeniedError(err)) {
-      console.warn('loadArrearsTrendMonth: permission denied, fallback to local snapshots');
       if (!arrearsTrendPermissionNoticeShown) {
-        toast('Tiada akses Firestore untuk graf ini. Paparan menggunakan snapshot di browser ini.', false, { duration: 3500 });
+        toast('Graf tunggakan menggunakan snapshot browser untuk akaun ini.', true, { duration: 3000 });
         arrearsTrendPermissionNoticeShown = true;
       }
       arrearsTrendState.monthKey = monthInfo.monthKey;
@@ -1043,10 +1042,9 @@ async function saveTodayOutstandingSnapshot(){
         await setDoc(doc(window.__FIRESTORE, 'outstandingSnapshots', parts.dateKey), remotePayload, { merge: true });
         savedToFirestore = true;
       } catch (remoteErr) {
-        if (isPermissionDeniedError(remoteErr)) {
-          console.warn('saveTodayOutstandingSnapshot: Firestore permission denied, kept local snapshot');
-        } else {
-          console.warn('saveTodayOutstandingSnapshot: Firestore sync failed, kept local snapshot', remoteErr);
+        // Keep local snapshot even when remote sync is not available.
+        if (!isPermissionDeniedError(remoteErr)) {
+          console.info('saveTodayOutstandingSnapshot: remote sync unavailable, using local snapshot only');
         }
       }
     }
