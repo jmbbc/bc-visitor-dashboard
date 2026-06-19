@@ -219,8 +219,11 @@ let unitsLoadPermissionDenied = false;
 // Units cache policy: fetch at most once per day per browser unless force refresh.
 const UNITS_CACHE_STORAGE_KEY = 'dashboard:unitsCache:v1';
 const UNITS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const UNITS_META_CHECK_COOLDOWN_MS = 2 * 60 * 1000;
 let unitsCacheLastSyncAt = 0;
 let unitsCacheInFlight = null;
+let unitsMetaLastCheckAt = 0;
+let unitsMetaCheckInFlight = null;
 
 function clearUnitsCacheObject(){
   Object.keys(unitsCache).forEach((k) => { delete unitsCache[k]; });
@@ -269,6 +272,66 @@ function isUnitsCacheFreshInMemory(){
   if (!getUnitsCacheCount()) return false;
   if (!unitsCacheLastSyncAt) return false;
   return (Date.now() - unitsCacheLastSyncAt) <= UNITS_CACHE_TTL_MS;
+}
+
+function toEpochMs(value){
+  if (!value) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+  try {
+    if (value && typeof value.toDate === 'function') {
+      const dt = value.toDate();
+      const ms = dt instanceof Date ? dt.getTime() : NaN;
+      return Number.isFinite(ms) ? ms : 0;
+    }
+  } catch (e) {
+    return 0;
+  }
+
+  const dt = new Date(value);
+  const ms = dt.getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+async function maybeRefreshUnitsCacheFromRemoteMeta(){
+  if (!window.__FIRESTORE) return { checked: false, reason: 'firestore-unavailable' };
+  if (!unitsCacheLastSyncAt || !getUnitsCacheCount()) return { checked: false, reason: 'no-local-cache' };
+
+  if (unitsMetaCheckInFlight) return unitsMetaCheckInFlight;
+
+  const now = Date.now();
+  if ((now - unitsMetaLastCheckAt) < UNITS_META_CHECK_COOLDOWN_MS) {
+    return { checked: false, reason: 'cooldown' };
+  }
+  unitsMetaLastCheckAt = now;
+
+  const request = (async () => {
+    try {
+      const metaRef = doc(window.__FIRESTORE, 'unitMeta', 'import');
+      const metaSnap = await getDoc(metaRef);
+      if (!metaSnap.exists()) return { checked: true, refreshed: false, reason: 'no-meta' };
+
+      const data = metaSnap.data() || {};
+      const remoteUpdatedMs = toEpochMs(data.importedAt || data.updatedAt || data.lastUpdatedAt);
+      if (!remoteUpdatedMs) return { checked: true, refreshed: false, reason: 'meta-no-timestamp' };
+
+      if (remoteUpdatedMs <= unitsCacheLastSyncAt) {
+        return { checked: true, refreshed: false, reason: 'cache-current', remoteUpdatedMs };
+      }
+
+      console.info('[units] remote import newer than local cache; refreshing');
+      await loadAllUnitsToCache({ force: true });
+      return { checked: true, refreshed: true, remoteUpdatedMs };
+    } catch (e) {
+      console.warn('[units] remote meta check failed', e);
+      return { checked: false, refreshed: false, error: e };
+    } finally {
+      unitsMetaCheckInFlight = null;
+    }
+  })();
+
+  unitsMetaCheckInFlight = request;
+  return request;
 }
 
 function setAdminLoggedIn(val){
@@ -430,6 +493,7 @@ async function loadAllUnitsToCache(opts = {}){
   const force = !!(opts && opts.force);
 
   if (!force && isUnitsCacheFreshInMemory()) {
+    try { maybeRefreshUnitsCacheFromRemoteMeta().catch(() => {}); } catch (err) { /* ignore */ }
     try { renderUnitArrearsList(); } catch (err) { /* ignore */ }
     return { source: 'memory', count: getUnitsCacheCount() };
   }
@@ -437,6 +501,7 @@ async function loadAllUnitsToCache(opts = {}){
   if (!force) {
     const hydrated = hydrateUnitsCacheFromStorage({ allowStale: false });
     if (hydrated) {
+      try { maybeRefreshUnitsCacheFromRemoteMeta().catch(() => {}); } catch (err) { /* ignore */ }
       console.info('[units] loaded from local cache', getUnitsCacheCount());
       try { renderUnitArrearsList(); } catch (err) { /* ignore */ }
       return { source: 'storage', count: getUnitsCacheCount() };

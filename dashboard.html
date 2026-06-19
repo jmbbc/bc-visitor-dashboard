@@ -682,7 +682,21 @@
   <script type="module" src="js/firebase-init.js"></script>
   <!-- Load defaults first, then override with a local config if present -->
   <script src="config.example.js"></script>
-  <script src="config.local.js"></script>
+  <script>
+    (async function(){
+      try {
+        // Check existence of config.local.js without forcing a full download
+        const res = await fetch('config.local.js', { method: 'HEAD' });
+        if (res.ok) {
+          const s = document.createElement('script');
+          s.src = 'config.local.js';
+          document.head.appendChild(s);
+        }
+      } catch (e) {
+        // ignore -- file not present or fetch not allowed
+      }
+    })();
+  </script>
   <!-- Static units list used by admin views -->
   <script src="js/units-list.js"></script>
   <script type="module" src="js/dashboard.js"></script>

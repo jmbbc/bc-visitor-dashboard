@@ -74,6 +74,57 @@
       font-size: 12px !important;
       white-space: nowrap;
     }
+
+    .secondary-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .secondary-action-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      max-width: 100%;
+    }
+
+    .action-info-btn {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid var(--input-border, #e5e7eb);
+      background: #fff;
+      color: var(--muted, #6b7280);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .action-info-btn:focus-visible {
+      outline: 3px solid rgba(37,99,235,0.22);
+      outline-offset: 2px;
+    }
+
+    .secondary-action-hint {
+      display: block;
+      margin-top: 4px;
+      padding: 10px 12px;
+      border: 1px solid var(--input-border, #d1d5db);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.95);
+      box-shadow: 0 8px 20px rgba(15,23,42,0.06);
+      color: var(--text-900, #111827);
+      font-size: 13px;
+      line-height: 1.4;
+      max-width: 320px;
+    }
     .form-row.confirm-row .confirm-left,
     .form-row.confirm-row .field-note,
     .form-row.confirm-row label,
@@ -385,8 +436,16 @@
             </div>
 
             <div class="secondary-actions">
-              <button type="button" id="amendLastBtn" class="btn-ghost" disabled>Pinda Hantaran Terakhir</button>
-              <button type="button" id="clearBtn" class="btn-ghost">Kosongkan</button>
+              <div class="secondary-action-item">
+                <button type="button" id="amendLastBtn" class="btn-ghost" disabled>Pinda Hantaran Terakhir</button>
+                <button type="button" id="amendLastInfoBtn" class="action-info-btn" aria-expanded="false" aria-controls="amendLastInfo" aria-label="Maklumat Pinda Hantaran Terakhir">i</button>
+                <div id="amendLastInfo" class="secondary-action-hint hidden">Muat semula data hantaran terakhir yang disimpan dalam penyemak imbas. Gunakan apabila anda mahu mengubah atau menghantar semula hantaran terakhir.</div>
+              </div>
+              <div class="secondary-action-item">
+                <button type="button" id="clearBtn" class="btn-ghost">Kosongkan</button>
+                <button type="button" id="clearInfoBtn" class="action-info-btn" aria-expanded="false" aria-controls="clearInfo" aria-label="Maklumat Kosongkan Borang">i</button>
+                <div id="clearInfo" class="secondary-action-hint hidden">Kosongkan semua medan borang dan pulihkan keadaan asal tanpa menghantar data.</div>
+              </div>
             </div>
             <div id="statusMsg" role="status" aria-live="polite" class="small status-message"></div>
           </div>

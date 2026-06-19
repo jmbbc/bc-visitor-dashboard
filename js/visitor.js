@@ -2748,6 +2748,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('visitorForm');
     const clearBtn = document.getElementById('clearBtn');
     const amendLastBtn = document.getElementById('amendLastBtn');
+    const amendLastInfoBtn = document.getElementById('amendLastInfoBtn');
+    const clearInfoBtn = document.getElementById('clearInfoBtn');
     const categoryEl = document.getElementById('category');
     const subCategoryEl = document.getElementById('subCategory');
     const stayOverEl = document.getElementById('stayOver');
@@ -3051,6 +3053,22 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       showStatus('Data hantaran terakhir dimuat. Sila kemas kini butiran dan tekan Hantar ke sistem.', true);
       try { document.getElementById('vehicleNo')?.focus(); } catch (e) { /* ignore */ }
+    });
+
+    function toggleInfoHint(buttonEl, hintId) {
+      if (!buttonEl) return;
+      const hintEl = document.getElementById(hintId);
+      if (!hintEl) return;
+      const expanded = !hintEl.classList.toggle('hidden');
+      buttonEl.setAttribute('aria-expanded', String(expanded));
+    }
+
+    amendLastInfoBtn?.addEventListener('click', () => {
+      toggleInfoHint(amendLastInfoBtn, 'amendLastInfo');
+    });
+
+    clearInfoBtn?.addEventListener('click', () => {
+      toggleInfoHint(clearInfoBtn, 'clearInfo');
     });
 
     // Prevent backdated ETA on the client: set min to today so datepicker blocks past dates
