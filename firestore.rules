@@ -191,8 +191,13 @@ service cloud.firestore {
 
     function canAmendResponse(oldData, newData, respId) {
       let lockId = 'unit-' + oldData.hostUnit;
+      let lockMatches = oldData.category != 'Pelawat'
+        || (
+          exists(/databases/$(database)/documents/overnightLocks/$(lockId))
+          && get(/databases/$(database)/documents/overnightLocks/$(lockId)).data.responseId == respId
+          && get(/databases/$(database)/documents/overnightLocks/$(lockId)).data.amendToken == oldData.amendToken
+        );
       return isValidResponse(newData)
-        && oldData.category == 'Pelawat'
         && oldData.status == 'Pending'
         && newData.status == oldData.status
         && oldData.hostUnit == newData.hostUnit
@@ -202,9 +207,7 @@ service cloud.firestore {
         && oldData.amendToken is string
         && newData.amendToken == oldData.amendToken
         && request.time < oldData.createdAt + duration.value(24, 'h')
-        && exists(/databases/$(database)/documents/overnightLocks/$(lockId))
-        && get(/databases/$(database)/documents/overnightLocks/$(lockId)).data.responseId == respId
-        && get(/databases/$(database)/documents/overnightLocks/$(lockId)).data.amendToken == oldData.amendToken;
+        && lockMatches;
     }
 
     function isAdmin() {
