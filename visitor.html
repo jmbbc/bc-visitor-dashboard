@@ -6,7 +6,9 @@
   <title>Borang Daftar Pelawat Banjaria Court</title>
 
   <!-- Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Optional utilities -->
   <script src="https://v1.tailwindcss.com"></script>
@@ -137,6 +139,7 @@
     }
     /* keep desktop layout default for confirm-row: no forced margin-left (we use section grouping) */
   </style>
+  <link rel="stylesheet" href="css/visitor-redesign.css?v=20260902-5">
 </head>
 
   <script>
@@ -152,24 +155,40 @@
 </script>
 
   
-<body>
+<body class="visitor-page">
+  <a class="skip-link sr-only" href="#visitorForm">Terus ke borang pendaftaran</a>
   <main class="container">
-    <section class="card">
+    <section class="card visitor-shell">
       <header class="visitor-header">
         <div class="visitor-header-main">
-          <a href="index.html" class="small">← Kembali ke Banjaria Court</a>
+          <a href="index.html" class="visitor-back-link">← Kembali ke halaman utama</a>
+          <div class="visitor-eyebrow">Sistem Kemasukan Banjaria Court</div>
           <h1 class="page-title">Borang Daftar Pelawat Banjaria Court</h1>
-          <p class="small page-subtitle">Sila lengkapkan maklumat. Medan bertanda <span style="color:#ef4444;font-weight:700">*</span> wajib diisi.</p>
+          <p class="page-subtitle">Daftar maklumat pelawat dengan mudah sebelum tiba di pondok keselamatan.</p>
+          <div class="visitor-trust-row" aria-label="Ciri borang">
+            <span>✓ Anggaran 2 minit</span>
+            <span>✓ Draf disimpan automatik</span>
+            <span>✓ Mesra telefon</span>
+          </div>
         </div>
 
         <div class="visitor-header-actions">
-          <!-- Theme toggle removed: default light theme -->
           <div id="visitorClockWrap" class="clock-card" aria-label="Tarikh dan masa semasa">
+            <span class="clock-label">Waktu semasa</span>
             <div id="visitorDate" class="clock-date">--/--/----</div>
             <div id="visitorTime" class="clock-time">--:--:--</div>
           </div>
         </div>
       </header>
+
+      <section class="visitor-policy-banner" aria-labelledby="parkingGuideTitle">
+        <div class="policy-banner-icon" aria-hidden="true">P</div>
+        <div class="policy-banner-copy">
+          <strong id="parkingGuideTitle">Semak panduan parkir sebelum mendaftar</strong>
+          <span>Kadar parkir bergantung pada kategori unit dan tempoh lawatan.</span>
+        </div>
+        <button type="button" id="openParkingGuideBtn" class="policy-banner-button">Lihat panduan &amp; kadar</button>
+      </section>
 
       <form id="visitorForm" autocomplete="off" novalidate>
         <div id="formProgressWrap" class="form-progress" aria-live="polite">
@@ -219,11 +238,11 @@
         <div class="form-section section-2">
           <div class="form-section-header">
             <div class="icon" aria-hidden="true">📋</div>
-            <h3 class="section-title">Bahagian 2 — Butiran Kemasukkan</h3>
+            <h3 class="section-title">Bahagian 2 — Tujuan Kemasukan</h3>
           </div>
         <details id="sectionCategoryInfo" class="section-note-collapse">
-          <summary>Tujuan Kategori</summary>
-          <div id="sectionCategoryNote" class="section-note section-note-panel" aria-live="polite" aria-label="Penjelasan kategori kemasukkan"></div>
+          <summary id="categoryGuideSummary">Tidak pasti kategori?</summary>
+          <div id="sectionCategoryNote" class="section-note section-note-panel" aria-live="polite" aria-label="Penjelasan kategori kemasukan"></div>
         </details>
 
         <div class="form-row">
@@ -252,7 +271,7 @@
         </div>
 
         <div class="form-row span-2">
-          <label for="entryDetails">Butiran kemasukkan</label>
+          <label for="entryDetails">Butiran kemasukan</label>
           <input id="entryDetails" name="entryDetails" placeholder="Contoh: Servis penghawa dingin / Hantar barang" />
         </div>
 
@@ -276,7 +295,7 @@
         <div class="form-section section-3">
           <div class="form-section-header">
             <div class="icon" aria-hidden="true">🚗</div>
-            <h3 class="section-title">Bahagian 3 — Butiran Kenderaan</h3>
+            <h3 class="section-title">Bahagian 3 — Pelawat &amp; Kenderaan</h3>
           </div>
 
           <div class="vehicle-primary-group">
@@ -347,12 +366,12 @@
         <div class="form-section section-4 section-spacing-top">
           <div class="form-section-header">
             <div class="icon" aria-hidden="true">✅</div>
-            <h3 class="section-title">Pengesahan</h3>
+            <h3 class="section-title">Semak &amp; Sahkan</h3>
           </div>
           <fieldset style="border:0;padding:0;margin:0">
             <legend class="required sr-only">Pengesahan</legend>
             <div class="confirm-copy">
-              <p>Dengan ini saya mengesahkan bahawa:</p>
+              <p>Pastikan maklumat di atas betul sebelum meneruskan.</p>
               <details class="confirm-details">
                 <summary>Lihat syarat pengesahan</summary>
                 <ol>
@@ -373,89 +392,125 @@
           </fieldset>
         </div>
 
-        <!-- Langkah penghantaran (separate section) -->
-        <div class="form-section section-steps section-spacing-top">
+        <!-- Selesaikan pendaftaran -->
+        <div class="form-section section-steps final-registration-card section-spacing-top">
           <div class="form-section-header">
-            <div class="icon" aria-hidden="true">ℹ️</div>
-            <h3 class="section-title">Panduan Penghantaran</h3>
+            <div class="icon" aria-hidden="true">📨</div>
+            <h3 class="section-title">Selesaikan Pendaftaran</h3>
           </div>
-          <div class="registration-steps">
-            <p>Untuk melengkapkan pendaftaran, sila tekan kedua-dua butang berikut:</p>
-            <ol class="steps-list">
-              <li><strong>(Langkah 1) Hantar ke sistem</strong><span>untuk simpanan sistem.</span></li>
-              <li><strong>(Langkah 2) Hantar melalui WhatsApp</strong><span>untuk simpanan pihak Keselamatan.</span></li>
+          <p class="final-registration-intro">Lengkapkan pendaftaran dalam dua sentuhan: daftar maklumat ke sistem, kemudian hantar makluman kepada pihak keselamatan melalui WhatsApp.</p>
+
+          <div id="finalStepState" class="final-step-state" aria-live="polite">
+            <ol class="final-mini-stepper" aria-label="Status proses penghantaran">
+              <li id="finalSystemStep" class="is-active" aria-current="step">
+                <span id="finalSystemMarker" class="final-step-marker" aria-hidden="true">1</span>
+                <span>Sistem</span>
+              </li>
+              <li id="finalWhatsappStep">
+                <span id="finalWhatsappMarker" class="final-step-marker" aria-hidden="true">2</span>
+                <span>WhatsApp</span>
+              </li>
             </ol>
-          </div>
-        </div>
-
-        <!-- aksi -->
-        <div class="form-actions section-spacing-top">
-          <div class="action-meta">
-            <div id="unitUpdateInfo" class="muted-small unit-update-info" aria-live="polite">
-              Tarikh kemas kini senarai unit: <span id="unitUpdateValue">Memuat...</span>
+            <div class="final-step-copy">
+              <span id="finalStepKicker" class="final-step-kicker">Langkah 1 daripada 2</span>
+              <strong id="finalStepTitle">Daftar maklumat ke sistem</strong>
             </div>
-            <div class="repeat-mode-wrap">
-              <div class="repeat-mode-control">
-                <label for="repeatMode" class="repeat-mode-main">
-                  <input id="repeatMode" type="checkbox" checked />
-                  <span class="repeat-mode-switch" aria-hidden="true"></span>
-                  <span class="repeat-mode-text">
-                    <strong>Mode Pendaftaran Berulang</strong>
+          </div>
+
+          <div class="form-actions final-registration-actions">
+            <div class="actions action-buttons">
+              <div id="submitActionBlock" class="action-block action-block-primary progressive-action-step">
+                <button type="submit" id="submitBtn" class="btn loader-btn">
+                  <span class="loader-label">Daftar Maklumat ke Sistem</span>
+                  <span class="loader-complete" aria-hidden="true">Disimpan</span>
+                  <span class="loader-check" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                      <path d="M7.5 12.5 4.8 9.8c-.39-.39-1.02-.39-1.4 0-.39.39-.39 1.02 0 1.4l3.9 3.9c.39.39 1.02.39 1.4 0l8-8c.39-.39.39-1.02 0-1.4-.39-.39-1.02-.39-1.4 0L7.5 12.5Z" fill="currentColor"></path>
+                    </svg>
                   </span>
-                </label>
-                <button type="button" id="repeatModeInfoBtn" class="repeat-mode-info-btn" aria-expanded="false" aria-controls="repeatModeHint" aria-label="Lihat penerangan Mode Pendaftaran Berulang">i</button>
-                <div id="repeatModeHint" class="repeat-mode-hint muted-small" hidden>Kekalkan Unit, Kategori dan Nama Penghuni selepas hantar.</div>
+                </button>
+                <div class="muted-small">Simpan maklumat lawatan dalam sistem.</div>
               </div>
-            </div>
-          </div>
-          <div class="actions action-buttons">
-            <div class="action-block">
-              <button type="submit" id="submitBtn" class="btn loader-btn">
-                <span class="loader-label">(Langkah 1) Hantar ke sistem</span>
-                <span class="loader-complete" aria-hidden="true">Selesai</span>
-                <span class="loader-check" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                    <path d="M7.5 12.5 4.8 9.8c-.39-.39-1.02-.39-1.4 0-.39.39-.39 1.02 0 1.4l3.9 3.9c.39.39 1.02.39 1.4 0l8-8c.39-.39.39-1.02 0-1.4-.39-.39-1.02-.39-1.4 0L7.5 12.5Z" fill="currentColor"></path>
-                  </svg>
-                </span>
-              </button>
-              <div class="muted-small">Simpan dalam sistem.</div>
-            </div>
 
-            <div class="action-block">
-              <button type="button" id="waBtn" class="btn loader-btn" disabled>
-                <span class="loader-label">(Langkah 2) Hantar melalui WhatsApp</span>
-                <span class="loader-complete" aria-hidden="true">Selesai</span>
-                <span class="loader-check" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                    <path d="M7.5 12.5 4.8 9.8c-.39-.39-1.02-.39-1.4 0-.39.39-.39 1.02 0 1.4l3.9 3.9c.39.39 1.02.39 1.4 0l8-8c.39-.39.39-1.02 0-1.4-.39-.39-1.02-.39-1.4 0L7.5 12.5Z" fill="currentColor"></path>
-                  </svg>
-                </span>
-              </button>
-              <div id="waHint" class="muted-small">Aktif selepas borang dihantar.</div>
-            </div>
+              <div id="waActionBlock" class="action-block action-block-whatsapp progressive-action-step" hidden>
+                <button type="button" id="waBtn" class="btn loader-btn" disabled>
+                  <span class="loader-label">Hantar Maklumat melalui WhatsApp</span>
+                  <span class="loader-complete" aria-hidden="true">Dibuka</span>
+                  <span class="loader-check" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                      <path d="M7.5 12.5 4.8 9.8c-.39-.39-1.02-.39-1.4 0-.39.39-.39 1.02 0 1.4l3.9 3.9c.39.39 1.02.39 1.4 0l8-8c.39-.39.39-1.02 0-1.4-.39-.39-1.02-.39-1.4 0L7.5 12.5Z" fill="currentColor"></path>
+                    </svg>
+                  </span>
+                </button>
+                <div id="waHint" class="muted-small">Aktif selepas pendaftaran disimpan.</div>
+              </div>
 
-            <div class="secondary-actions">
-              <div class="secondary-action-item">
-                <button type="button" id="amendLastBtn" class="btn-ghost" disabled>Pinda Hantaran Terakhir</button>
-                <button type="button" id="amendLastInfoBtn" class="action-info-btn" aria-expanded="false" aria-controls="amendLastInfo" aria-label="Maklumat Pinda Hantaran Terakhir">i</button>
-                <div id="amendLastInfo" class="secondary-action-hint hidden">Muat semula data hantaran terakhir yang disimpan dalam penyemak imbas. Gunakan apabila anda mahu mengubah atau menghantar semula hantaran terakhir.</div>
-              </div>
-              <div class="secondary-action-item">
-                <button type="button" id="clearBtn" class="btn-ghost">Kosongkan</button>
-                <button type="button" id="clearInfoBtn" class="action-info-btn" aria-expanded="false" aria-controls="clearInfo" aria-label="Maklumat Kosongkan Borang">i</button>
-                <div id="clearInfo" class="secondary-action-hint hidden">Kosongkan semua medan borang dan pulihkan keadaan asal tanpa menghantar data.</div>
-              </div>
+              <div id="statusMsg" role="status" aria-live="polite" class="small status-message"></div>
+
             </div>
-            <div id="statusMsg" role="status" aria-live="polite" class="small status-message"></div>
           </div>
         </div>
+
+        <!-- Pilihan tambahan -->
+        <section class="form-section section-options section-spacing-top" aria-labelledby="optionsSectionTitle">
+          <div class="form-section-header">
+            <div class="icon" aria-hidden="true">⚙️</div>
+            <h3 id="optionsSectionTitle" class="section-title">Pilihan Tambahan</h3>
+          </div>
+          <p class="section-options-intro">Gunakan pilihan ini hanya jika diperlukan.</p>
+
+          <div class="section-options-content">
+            <div class="option-tile option-tile-repeat repeat-mode-wrap">
+              <div class="option-tile-head">
+                <strong class="option-tile-title">Mode Pendaftaran Berulang</strong>
+                <input id="repeatMode" type="checkbox" hidden aria-hidden="true" tabindex="-1" />
+                <button type="button" id="repeatModeActionBtn" class="option-action-btn option-action-toggle" aria-pressed="false">
+                  <span class="option-action-dot" aria-hidden="true"></span>
+                  <span class="option-action-label">Aktifkan</span>
+                </button>
+              </div>
+              <button type="button" id="repeatModeInfoBtn" class="option-helper-toggle" aria-expanded="false" aria-controls="repeatModeHint">
+                <span>Lihat penerangan</span>
+                <span class="option-helper-chevron" aria-hidden="true">⌄</span>
+              </button>
+              <div id="repeatModeHint" class="option-helper-text" hidden>Kekalkan Unit, Kategori dan Nama Penghuni selepas pendaftaran dihantar.</div>
+            </div>
+
+            <div class="option-tile option-tile-action option-tile-recall">
+              <div class="option-tile-head">
+                <strong class="option-tile-title">Panggil Data Terakhir</strong>
+                <button type="button" id="amendLastBtn" class="option-action-btn" disabled>Panggil</button>
+              </div>
+              <button type="button" id="amendLastInfoBtn" class="option-helper-toggle" aria-expanded="false" aria-controls="amendLastInfo">
+                <span>Lihat penerangan</span>
+                <span class="option-helper-chevron" aria-hidden="true">⌄</span>
+              </button>
+              <div id="amendLastInfo" class="option-helper-text hidden">Masukkan Unit rumah dahulu. Data pendaftaran terakhir untuk unit tersebut yang disimpan pada peranti ini akan dimuatkan.</div>
+            </div>
+
+            <div class="option-tile option-tile-action option-tile-clear">
+              <div class="option-tile-head">
+                <strong class="option-tile-title">Kosongkan Borang</strong>
+                <button type="button" id="clearBtn" class="option-action-btn option-action-clear">Kosongkan</button>
+              </div>
+              <button type="button" id="clearInfoBtn" class="option-helper-toggle" aria-expanded="false" aria-controls="clearInfo">
+                <span>Lihat penerangan</span>
+                <span class="option-helper-chevron" aria-hidden="true">⌄</span>
+              </button>
+              <div id="clearInfo" class="option-helper-text hidden">Kosongkan semua medan borang dan pulihkan keadaan asal tanpa menghantar data.</div>
+            </div>
+          </div>
+
+          <div id="unitUpdateInfo" class="muted-small unit-update-info" aria-live="polite">
+            Tarikh kemas kini senarai unit: <span id="unitUpdateValue">Memuat...</span>
+          </div>
+        </section>
       </form>
     </section>
   </main>
 
   <!-- Firebase init then visitor.js -->
   <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/visitor.js"></script>
+  <script type="module" src="js/visitor.js?v=20260902-5"></script>
 </body>
 </html>

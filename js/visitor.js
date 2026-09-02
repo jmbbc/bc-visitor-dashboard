@@ -177,6 +177,7 @@ function showFloatMemo(message, opts = {}){
   const storageKey = (opts && 'storageKey' in opts) ? opts.storageKey : 'visitorMemoDismissed';
   // Only skip showing if a storageKey is provided and previously dismissed
   try { if (storageKey && localStorage.getItem(storageKey) === '1') return; } catch(e) {}
+  const previouslyFocused = document.activeElement;
   const overlay = document.createElement('div');
   overlay.id = 'visitorMemoOverlay';
   overlay.style.position = 'fixed'; overlay.style.inset = '0'; overlay.style.background = 'rgba(0,0,0,0.35)';
@@ -261,8 +262,21 @@ function showFloatMemo(message, opts = {}){
     const rect = formEl.getBoundingClientRect(); blocker.style.left = rect.left + window.scrollX + 'px'; blocker.style.top = rect.top + window.scrollY + 'px'; blocker.style.width = rect.width + 'px'; blocker.style.height = rect.height + 'px';
     blocker.style.background = 'rgba(255,255,255,0.0)'; blocker.style.zIndex = '9999'; blocker.style.cursor = 'not-allowed'; blocker.setAttribute('aria-hidden','true'); document.body.appendChild(blocker);
   }
-  function dismiss(){ try { if (storageKey) localStorage.setItem(storageKey, '1'); } catch(e) {} try { overlay.remove(); } catch(e) {} try { const b = document.getElementById('visitorFormBlocker'); if (b) b.remove(); } catch(e) {} }
+  let dismissed = false;
+  function dismiss(){
+    if (dismissed) return;
+    dismissed = true;
+    try { if (storageKey) localStorage.setItem(storageKey, '1'); } catch(e) {}
+    try { document.removeEventListener('keydown', onMemoKeydown); } catch(e) {}
+    try { overlay.remove(); } catch(e) {}
+    try { const b = document.getElementById('visitorFormBlocker'); if (b) b.remove(); } catch(e) {}
+    try { if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus(); } catch(e) {}
+  }
+  function onMemoKeydown(e){ if (e.key === 'Escape') dismiss(); }
+  document.addEventListener('keydown', onMemoKeydown);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(); });
   close.addEventListener('click', dismiss); ok.addEventListener('click', dismiss);
+  setTimeout(() => { try { close.focus(); } catch(e) {} }, 0);
 }
 
 // Field-level helpers for showing validation visually
@@ -1858,6 +1872,7 @@ function selectSuggestionByIndex(idx, inputEl, wrapperEl) {
   // user selected a valid result — clear any toasts (old errors) immediately
   clearAllToasts();
   closeSuggestions(wrapperEl);
+  try { inputEl.dispatchEvent(new Event('change', { bubbles: true })); } catch(e) { /* ignore */ }
   // update aria + screen reader state and focus so user sees the change clearly
   try { inputEl.setAttribute('aria-activedescendant', `unit-suggestion-${idx}`); } catch(e) {}
   inputEl.focus();
@@ -1940,7 +1955,7 @@ const subCategoryHelpMap = {
 const categoryHelpMap = {
   'Pelawat': 'Pendaftaran untuk pelawat yang bermalam / tidak bermalam.',
   'Kontraktor': 'Pendaftaran untuk beri kebenaran kepada kontraktor untuk masuk ke Banjaria Court.',
-  'Penghantaran Barang': 'Penggunaan lif yang minima (1x pengunaan sahaja).',
+  'Penghantaran Barang': 'Penggunaan lif yang minimum (1x penggunaan sahaja).',
   'Pindah Rumah': 'Penggunaan lif berulang kali (mengunci lif bagi kerja pemindahan barang).',
   'Pelawat Khas': 'Pendaftaran untuk penghuni yang menganjurkan majlis yang melibatkan ramai pelawat.',
   'Drop-off': 'Pendaftaran untuk mengambil atau menghantar penghuni di dalam Banjaria Court. (Maksimum 15 minit waktu yang dibenarkan untuk berada di dalam Banjaria Court)'
@@ -1953,8 +1968,11 @@ function renderCategorySectionNote() {
   if (!note) return;
   const select = document.getElementById('category');
 
+  const selectedCategory = select ? String(select.value || '').trim() : '';
   const items = [];
-  if (select) {
+  if (selectedCategory && categoryHelpMap[selectedCategory]) {
+    items.push([selectedCategory, categoryHelpMap[selectedCategory]]);
+  } else if (select) {
     Array.from(select.options || []).forEach(opt => {
       const val = opt.value;
       if (!val) return;
@@ -1989,7 +2007,7 @@ function renderCategorySectionNote() {
   if (noteWrap) {
     const summary = noteWrap.querySelector('summary');
     if (summary) {
-      summary.textContent = 'Penerangan Kategori';
+      summary.textContent = selectedCategory ? `Tentang kategori ${selectedCategory}` : 'Tidak pasti kategori?';
     }
   }
 }
@@ -2319,9 +2337,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const wrapper = input?.closest('.autocomplete-wrap');
   const listEl = document.getElementById('unitSuggestions');
   const confirmAgreeEl = document.getElementById('confirmAgree');
+  const submitBtn = document.getElementById('submitBtn');
+  const submitActionBlock = document.getElementById('submitActionBlock');
   const waBtn = document.getElementById('waBtn');
+  const waActionBlock = document.getElementById('waActionBlock');
   const waHint = document.getElementById('waHint');
+  const finalStepStateEl = document.getElementById('finalStepState');
+  const finalStepKickerEl = document.getElementById('finalStepKicker');
+  const finalStepTitleEl = document.getElementById('finalStepTitle');
+  const finalSystemStepEl = document.getElementById('finalSystemStep');
+  const finalWhatsappStepEl = document.getElementById('finalWhatsappStep');
+  const finalSystemMarkerEl = document.getElementById('finalSystemMarker');
+  const finalWhatsappMarkerEl = document.getElementById('finalWhatsappMarker');
   const repeatModeEl = document.getElementById('repeatMode');
+  const repeatModeActionBtnEl = document.getElementById('repeatModeActionBtn');
   const repeatModeWrapEl = document.querySelector('.repeat-mode-wrap');
   const repeatModeInfoBtnEl = document.getElementById('repeatModeInfoBtn');
   const repeatModeHintEl = document.getElementById('repeatModeHint');
@@ -2332,36 +2361,72 @@ document.addEventListener('DOMContentLoaded', () => {
   const VISITOR_DRAFT_KEY = 'visitorForm:draft:v2';
   const VISITOR_REPEAT_KEY = 'visitorForm:repeatMode';
   const VISITOR_LAST_SUBMISSION_KEY = 'visitorForm:lastSubmission:v1';
+  const VISITOR_LAST_BY_UNIT_KEY = 'visitorForm:lastSubmissionByUnit:v1';
   let isMockSubmit = false;
   let draftTimer = null;
 
+  function setFinalStepState(state = 'save') {
+    const isWhatsApp = state === 'whatsapp' || state === 'opened';
+    finalStepStateEl?.classList.toggle('is-step-two', isWhatsApp);
+    finalStepStateEl?.classList.toggle('is-complete', state === 'opened');
+    finalSystemStepEl?.classList.toggle('is-active', state === 'save');
+    finalSystemStepEl?.classList.toggle('is-complete', isWhatsApp);
+    finalWhatsappStepEl?.classList.toggle('is-active', state === 'whatsapp');
+    finalWhatsappStepEl?.classList.toggle('is-complete', state === 'opened');
+    if (finalSystemMarkerEl) finalSystemMarkerEl.textContent = isWhatsApp ? '✓' : '1';
+    if (finalWhatsappMarkerEl) finalWhatsappMarkerEl.textContent = state === 'opened' ? '✓' : '2';
+    if (state === 'save') {
+      finalSystemStepEl?.setAttribute('aria-current', 'step');
+      finalWhatsappStepEl?.removeAttribute('aria-current');
+    } else if (state === 'whatsapp') {
+      finalSystemStepEl?.removeAttribute('aria-current');
+      finalWhatsappStepEl?.setAttribute('aria-current', 'step');
+    } else {
+      finalSystemStepEl?.removeAttribute('aria-current');
+      finalWhatsappStepEl?.removeAttribute('aria-current');
+    }
+    if (finalStepKickerEl) {
+      finalStepKickerEl.textContent = state === 'save'
+        ? 'Langkah 1 daripada 2'
+        : (state === 'opened' ? 'WhatsApp telah dibuka' : 'Langkah 2 daripada 2');
+    }
+    if (finalStepTitleEl) {
+      finalStepTitleEl.textContent = state === 'save'
+        ? 'Daftar maklumat ke sistem'
+        : (state === 'opened'
+          ? 'Hantar mesej yang disediakan untuk melengkapkan proses'
+          : 'Maklumat disimpan — hantar melalui WhatsApp');
+    }
+  }
+
   function resetWhatsAppAction(){
     pendingWaPayload = null;
+    if (submitActionBlock) submitActionBlock.hidden = false;
+    if (waActionBlock) waActionBlock.hidden = true;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('btn-disabled','is-active','is-loading','is-success');
+    }
     if (waBtn) {
       waBtn.disabled = true;
       waBtn.classList.add('btn-disabled');
       waBtn.classList.remove('is-active','is-loading','is-success');
     }
-    if (waHint) waHint.textContent = 'Aktif selepas borang dihantar.';
+    if (waHint) waHint.textContent = 'Aktif selepas pendaftaran disimpan.';
+    setFinalStepState('save');
   }
 
   function enableWhatsAppAction(payload){
     pendingWaPayload = payload;
+    if (submitActionBlock) submitActionBlock.hidden = true;
+    if (waActionBlock) waActionBlock.hidden = false;
     if (waBtn) {
       waBtn.disabled = false;
       waBtn.classList.remove('btn-disabled','is-loading','is-success');
     }
-    if (waHint) waHint.textContent = 'Tekan untuk buka WhatsApp dan hantar mesej (Langkah 2).';
-  }
-
-  function playButtonSuccessAnimation(btn){
-    if (!btn) return;
-    if (btn.classList.contains('loader-btn')) {
-      btn.classList.remove('is-loading');
-      btn.classList.add('is-success');
-      return;
-    }
-    btn.classList.add('is-active');
+    if (waHint) waHint.textContent = 'Pendaftaran berjaya. Tekan untuk maklumkan pihak keselamatan.';
+    setFinalStepState('whatsapp');
+    requestAnimationFrame(() => { try { waBtn?.focus(); } catch (e) { /* ignore */ } });
   }
 
   function setDraftState(text, isError = false) {
@@ -2382,6 +2447,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (raw === '0') repeatModeEl.checked = false;
       if (raw === '1') repeatModeEl.checked = true;
     } catch (e) { /* ignore */ }
+  }
+
+  function syncRepeatModeActionState() {
+    if (!repeatModeActionBtnEl) return;
+    const isActive = !!repeatModeEl?.checked;
+    repeatModeActionBtnEl.setAttribute('aria-pressed', String(isActive));
+    const label = repeatModeActionBtnEl.querySelector('.option-action-label');
+    if (label) label.textContent = isActive ? 'Aktif' : 'Aktifkan';
+    repeatModeActionBtnEl.title = isActive
+      ? 'Mode Pendaftaran Berulang sedang aktif. Tekan untuk nyahaktifkan.'
+      : 'Tekan untuk mengaktifkan Mode Pendaftaran Berulang.';
   }
 
   function setRepeatHintOpen(open) {
@@ -2503,14 +2579,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getSavedLastSubmissionForUnit(rawUnit) {
+    const unit = normalizeUnitInput(rawUnit || '');
+    if (!unit) return null;
+    try {
+      const raw = localStorage.getItem(VISITOR_LAST_BY_UNIT_KEY);
+      const records = raw ? JSON.parse(raw) : null;
+      const saved = records && typeof records === 'object' ? records[unit] : null;
+      if (saved && typeof saved === 'object') return saved;
+    } catch (e) { /* use legacy fallback below */ }
+
+    const legacy = getSavedLastSubmission();
+    return legacy && normalizeUnitInput(legacy.hostUnit || '') === unit ? legacy : null;
+  }
+
   function saveLastSubmission(data) {
     try { localStorage.setItem(VISITOR_LAST_SUBMISSION_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+    const unit = normalizeUnitInput(data?.hostUnit || '');
+    if (!unit) return;
+    try {
+      const raw = localStorage.getItem(VISITOR_LAST_BY_UNIT_KEY);
+      const records = raw ? JSON.parse(raw) : {};
+      const safeRecords = records && typeof records === 'object' && !Array.isArray(records) ? records : {};
+      safeRecords[unit] = data;
+      const orderedKeys = Object.keys(safeRecords).sort((a, b) => Number(safeRecords[b]?.savedAt || 0) - Number(safeRecords[a]?.savedAt || 0));
+      orderedKeys.slice(30).forEach((key) => { delete safeRecords[key]; });
+      localStorage.setItem(VISITOR_LAST_BY_UNIT_KEY, JSON.stringify(safeRecords));
+    } catch (e) { /* keep the legacy last-submission record */ }
   }
 
   function setAmendButtonState(btn, enabled) {
     if (!btn) return;
     btn.disabled = !enabled;
     btn.classList.toggle('btn-disabled', !enabled);
+  }
+
+  function refreshRecallButtonState(btn) {
+    const unit = normalizeUnitInput(input?.value || '');
+    const saved = unit ? getSavedLastSubmissionForUnit(unit) : null;
+    setAmendButtonState(btn, !!saved);
+    if (btn) {
+      btn.title = !unit
+        ? 'Masukkan Unit rumah untuk mencari data terakhir.'
+        : (saved ? `Panggil data terakhir untuk unit ${unit}.` : `Tiada data terakhir tersimpan untuk unit ${unit}.`);
+    }
   }
 
   // Debug helper: if URL contains ?debug=1, show a visible test button to simulate WhatsApp open (useful for iPhone tests)
@@ -2535,10 +2647,17 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch(e) {}
 
   restoreRepeatModePreference();
+  syncRepeatModeActionState();
   setDraftState('Draf automatik aktif');
   repeatModeEl?.addEventListener('change', () => {
+    syncRepeatModeActionState();
     saveRepeatModePreference();
     scheduleDraftSave();
+  });
+  repeatModeActionBtnEl?.addEventListener('click', () => {
+    if (!repeatModeEl) return;
+    repeatModeEl.checked = !repeatModeEl.checked;
+    repeatModeEl.dispatchEvent(new Event('change', { bubbles: true }));
   });
   repeatModeInfoBtnEl?.addEventListener('click', (e) => {
     e.preventDefault();
@@ -2555,19 +2674,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') setRepeatHintOpen(false);
   });
 
-  // Show floating memo before allowing form fill (once per browser)
+  // Keep the detailed parking guide optional so visitors can start immediately.
   try {
-    // Show every time: pass storageKey: null so it doesn't persist dismissal
+    const parkingGuideBtn = document.getElementById('openParkingGuideBtn');
     const memoText = [
-      '<details open style="border:1px solid #dbe5f0;border-radius:10px;background:#fff;overflow:hidden;">',
-      '<summary style="cursor:pointer;padding:10px 12px;font-weight:700;color:#0f172a;">Lihat Makluman Bergambar</summary>',
-      '<div style="padding:10px 12px;display:grid;gap:10px;">',
+      '<div class="parking-guide-summary">',
+      '<strong>Perkara penting sebelum mendaftar</strong>',
+      '<ul><li>Kadar parkir bergantung pada kategori tunggakan unit.</li><li>Masukkan semua kenderaan dalam satu pendaftaran.</li><li>Simpan bukti bayaran jika caj dikenakan.</li></ul>',
+      '</div>',
+      '<details class="parking-guide-posters">',
+      '<summary>Lihat poster panduan penuh</summary>',
+      '<div class="parking-guide-images">',
       '<img src="assets/OK-3.jpg" alt="Makluman bergambar" style="width:100%;max-width:420px;border:1px solid #d1d5db;border-radius:8px;background:#fff;">',
       '<img src="assets/visitor_parking_charges.jpeg" alt="Jadual caj parkir pelawat" style="width:100%;max-width:420px;border:1px solid #d1d5db;border-radius:8px;background:#fff;">',
       '</div>',
       '</details>'
     ].join('');
-    showFloatMemo(memoText, { storageKey: null, blockUntilClose: true, html: true });
+    parkingGuideBtn?.addEventListener('click', () => {
+      showFloatMemo(memoText, { storageKey: null, blockUntilClose: false, html: true });
+    });
   } catch(e) { /* ignore */ }
 
   // input handlers
@@ -2697,10 +2822,10 @@ document.addEventListener('DOMContentLoaded', () => {
       // set immediately
       const now = new Date();
       if (dateEl) dateEl.textContent = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
-      if (timeEl) timeEl.textContent = now.toLocaleTimeString();
+      if (timeEl) timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       visitorTimeTicker = setInterval(()=>{
         const n = new Date();
-        if (timeEl) timeEl.textContent = n.toLocaleTimeString();
+        if (timeEl) timeEl.textContent = n.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         // update date if day boundary changed
         if (dateEl) dateEl.textContent = `${String(n.getDate()).padStart(2,'0')}/${String(n.getMonth()+1).padStart(2,'0')}/${n.getFullYear()}`;
       }, 1000);
@@ -2821,7 +2946,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetWhatsAppAction();
 
     await updateUnitsLastUpdatedLabel();
-    setAmendButtonState(amendLastBtn, !!getSavedLastSubmission());
+    refreshRecallButtonState(amendLastBtn);
 
     if (!form) { console.error('visitorForm missing'); return; }
 
@@ -3025,14 +3150,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (t && t.matches && t.matches('#vehicleList .vehicle-row .vehicle-input')) {
         t.value = normalizeVehicleInput(t.value);
       }
+      if (t && t.id === 'hostUnit') refreshRecallButtonState(amendLastBtn);
       scheduleDraftSave();
       updateFormProgress();
     });
 
-    form.addEventListener('change', () => {
+    form.addEventListener('change', (ev) => {
+      if (ev.target && ev.target.id === 'hostUnit') refreshRecallButtonState(amendLastBtn);
       scheduleDraftSave();
       updateFormProgress();
     });
+
+    input?.addEventListener('blur', () => refreshRecallButtonState(amendLastBtn));
 
     visitorNameElMain?.addEventListener('input', refreshVehicleVisitorMeta);
     visitorPhoneElMain?.addEventListener('input', refreshVehicleVisitorMeta);
@@ -3040,18 +3169,25 @@ document.addEventListener('DOMContentLoaded', () => {
     visitorPhoneElMain?.addEventListener('change', refreshVehicleVisitorMeta);
 
     amendLastBtn?.addEventListener('click', () => {
-      const saved = getSavedLastSubmission();
+      const unit = normalizeUnitInput(input?.value || '');
+      if (!unit) {
+        showStatus('Masukkan Unit rumah dahulu untuk memanggil data terakhir.', false);
+        try { input?.focus(); } catch (e) { /* ignore */ }
+        return;
+      }
+      const saved = getSavedLastSubmissionForUnit(unit);
       if (!saved) {
-        showStatus('Tiada hantaran terakhir untuk dipinda.', false);
-        setAmendButtonState(amendLastBtn, false);
+        showStatus(`Tiada data terakhir tersimpan untuk unit ${unit} pada peranti ini.`, false);
+        refreshRecallButtonState(amendLastBtn);
         return;
       }
       const ok = loadSubmissionIntoForm(saved);
       if (!ok) {
-        showStatus('Gagal muat data hantaran terakhir.', false);
+        showStatus(`Gagal memuatkan data terakhir untuk unit ${unit}.`, false);
         return;
       }
-      showStatus('Data hantaran terakhir dimuat. Sila kemas kini butiran dan tekan Hantar ke sistem.', true);
+      showStatus(`Data terakhir untuk unit ${unit} berjaya dimuatkan. Semak butiran sebelum mendaftar.`, true);
+      resetWhatsAppAction();
       try { document.getElementById('vehicleNo')?.focus(); } catch (e) { /* ignore */ }
     });
 
@@ -3431,9 +3567,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try { renderCategorySectionNote(); } catch(e) { /* ignore */ }
     updatePaymentSummary();
     restoreDraftIfAny();
+    refreshRecallButtonState(amendLastBtn);
     updateFormProgress();
-
-    const submitBtn = document.getElementById('submitBtn');
 
     // submit
     form.addEventListener('submit', async (e) => {
@@ -3456,7 +3591,6 @@ document.addEventListener('DOMContentLoaded', () => {
           submitBtn.classList.remove('is-success');
         }
         setTimeout(() => {
-          playButtonSuccessAnimation(submitBtn);
           enableWhatsAppAction({ mock: true });
           if (submitBtn) {
             submitBtn.disabled = false;
@@ -3695,11 +3829,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         lastSubmissionSnapshot.responseId = resp && resp.id ? String(resp.id) : '';
         saveLastSubmission(lastSubmissionSnapshot);
-        setAmendButtonState(amendLastBtn, true);
         enableWhatsAppAction(payload);
-        playButtonSuccessAnimation(submitBtn);
         const repeatPreset = (repeatModeEl && repeatModeEl.checked) ? captureRepeatPreset() : null;
         form.reset();
+        if (repeatModeEl) repeatModeEl.checked = !!repeatPreset;
+        syncRepeatModeActionState();
+        saveRepeatModePreference();
         // clear any visual error state left on the hostUnit input after reset
         try { clearFieldError(document.getElementById('hostUnit')); updateUnitStatus(document.getElementById('hostUnit')); } catch(e) {}
         closeSuggestions(wrapper);
@@ -3739,6 +3874,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           clearDraft();
         }
+        refreshRecallButtonState(amendLastBtn);
         updateFormProgress();
       } catch (err) {
         console.error('visitor add error', err);
@@ -3792,17 +3928,21 @@ document.addEventListener('DOMContentLoaded', () => {
       waBtn.classList.remove('is-success');
       if (isMockSubmit) {
         setTimeout(() => {
-          playButtonSuccessAnimation(waBtn);
+          setFinalStepState('opened');
+          if (waHint) waHint.textContent = 'WhatsApp dibuka. Hantar mesej yang telah disediakan.';
         }, 450);
         return;
       }
-      playButtonSuccessAnimation(waBtn);
       try { openWhatsAppNotification(pendingWaPayload); } catch (e) { console.warn('WA open failed', e); }
+      setFinalStepState('opened');
+      if (waHint) waHint.textContent = 'WhatsApp dibuka. Hantar mesej yang telah disediakan.';
     });
 
     // clear handler
     clearBtn?.addEventListener('click', () => {
       form.reset();
+      syncRepeatModeActionState();
+      saveRepeatModePreference();
       try { clearFieldError(document.getElementById('hostUnit')); updateUnitStatus(document.getElementById('hostUnit')); } catch(e) {}
       showStatus('', true);
       closeSuggestions(wrapper);
@@ -3824,6 +3964,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (etdEl) { etdEl.min = ''; etdEl.max = ''; etdEl.value = ''; etdEl.disabled = true; try { etdEl.tabIndex = -1; } catch(e) {} }
       refreshVehicleVisitorMeta();
       clearDraft();
+      refreshRecallButtonState(amendLastBtn);
       updateFormProgress();
     });
   })();
