@@ -7,3 +7,8 @@ config.local.js
 /.vscode/
 npm-debug.log
 package-lock.json
+
+# Generated reports contain personal data; keep local only.
+/scripts/reports/
+/*report*.json
+/private-reports/
