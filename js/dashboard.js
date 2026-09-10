@@ -7,11 +7,13 @@
 
 import {
   collection, query, where, getDocs, onSnapshot, orderBy, limit, doc, updateDoc, serverTimestamp,
-  addDoc, setDoc, Timestamp, getDoc, runTransaction, writeBatch
+  addDoc, setDoc, Timestamp, getDoc, runTransaction, writeBatch, getCountFromServer
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+const DASHBOARD_PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
 
 /* ---------- helpers ---------- */
 function formatDateOnly(ts){
@@ -586,6 +588,15 @@ const unitSummaryLoadAllBtn = document.getElementById('unitSummaryLoadAllBtn');
 const unitSummaryExportSummaryBtn = document.getElementById('unitSummaryExportSummaryBtn');
 const unitSummaryExportDetailsBtn = document.getElementById('unitSummaryExportDetailsBtn');
 const unitSummarySearch = document.getElementById('unitSummarySearch');
+const databaseCountBtn = document.getElementById('databaseCountBtn');
+const databaseCountValue = document.getElementById('databaseCountValue');
+const databaseCountMeta = document.getElementById('databaseCountMeta');
+const unitSummaryPreviewBtn = document.getElementById('unitSummaryPreviewBtn');
+const unitSummaryReadEstimate = document.getElementById('unitSummaryReadEstimate');
+const unitReportUnit = document.getElementById('unitReportUnit');
+const unitReportCategory = document.getElementById('unitReportCategory');
+const unitReportStatus = document.getElementById('unitReportStatus');
+const unitReportKeyword = document.getElementById('unitReportKeyword');
 
 // Water readings page elements
 const waterDateEl = document.getElementById('waterDate');
@@ -633,6 +644,41 @@ const unitSummaryState = {
   summaries: [],
   selectedUnit: ''
 };
+const REPORT_SAFE_READ_LIMIT = 20000;
+
+// Preview is intentionally visual-only and must work even when Firebase is unavailable locally.
+if (DASHBOARD_PREVIEW_MODE) {
+  setTimeout(() => {
+    loginBox.style.display = 'none';
+    dashboardArea.style.display = 'block';
+    who.textContent = 'Mod Pratonton — tiada sambungan data';
+    logoutBtn.style.display = 'none';
+    const now = new Date();
+    todayLabel.textContent = formatDateOnly(now);
+    todayTime.textContent = now.toLocaleTimeString('ms-MY');
+    ['databaseCountBtn','unitSummaryPreviewBtn','unitSummaryLoadRangeBtn','unitSummaryExportSummaryBtn','unitSummaryExportDetailsBtn','exportAllCSVBtn','unitSummaryLoadAllBtn','purgeOldBtn'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) { el.disabled = true; el.title = 'Tidak tersedia dalam mod pratonton'; }
+    });
+    const spinner = document.getElementById('spinner'); if (spinner) spinner.style.display = 'none';
+    const previewPage = new URLSearchParams(window.location.search).get('page') === 'parking' ? 'parking' : 'unitsummary';
+    const activePreviewNavId = previewPage === 'parking' ? 'navParking' : 'navUnitSummary';
+    document.querySelectorAll('.head-nav .nav-item').forEach((button) => { button.disabled = button.id !== activePreviewNavId; });
+    if (previewPage === 'parking') {
+      document.body.dataset.dashboardPage = 'parking';
+      ['pageSummary','pageCheckedIn','pageUnitSummary','pageUnitArrears','pageUnitAdmin','pageWater'].forEach((id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+      const parkingPage = document.getElementById('pageParking'); if (parkingPage) parkingPage.style.display = '';
+      const staticCard = parkingPage?.querySelector('.card.card-tight'); if (staticCard) staticCard.style.display = 'none';
+      setSelectedNav(navParking); navParking?.classList.add('active'); navUnitSummary?.classList.remove('active');
+      const previewParkingDateLabel = document.getElementById('parkingDateLabel');
+      if (previewParkingDateLabel) previewParkingDateLabel.textContent = formatDateOnly(now);
+      if (typeof window.__renderParkingWeekCalendar === 'function') window.__renderParkingWeekCalendar(isoDateString(now));
+    } else {
+      showPage('unitsummary');
+      if (unitSummaryReadEstimate) unitSummaryReadEstimate.textContent = 'Mod pratonton aktif — tiada rekod Firebase dibaca. Log masuk untuk menggunakan fungsi kiraan dan laporan.';
+    }
+  }, 0);
+}
 
 function filterRowsBySearch(rows, term){
   try {
@@ -1193,7 +1239,7 @@ logoutBtn.addEventListener('click', async ()=> {
 /* ---------- auth state change ---------- */
 onAuthStateChanged(window.__AUTH, user => {
   console.info('dashboard: onAuthStateChanged ->', user ? (user.email || user.uid) : 'signed out');
-  if (user) {
+  if (user && !DASHBOARD_PREVIEW_MODE) {
     loginBox.style.display = 'none';
     dashboardArea.style.display = 'block';
     who.textContent = user.email || user.uid;
@@ -1259,7 +1305,7 @@ onAuthStateChanged(window.__AUTH, user => {
     try { ensureArrearsTrendMonthValue(); } catch(e) { /* ignore */ }
     loadTodayList();
     if (ENABLE_AUTO_REFRESH) startAutoRefresh();
-  } else {
+  } else if (!DASHBOARD_PREVIEW_MODE) {
     loginBox.style.display = 'block';
     dashboardArea.style.display = 'none';
     logoutBtn.style.display = 'none';
@@ -2131,6 +2177,27 @@ if (unitSummaryLoadRangeBtn) {
   unitSummaryLoadRangeBtn.addEventListener('click', async ()=> {
     await loadUnitSummaryByUnit({ mode: 'range' });
   });
+}
+if (databaseCountBtn) databaseCountBtn.addEventListener('click', countAllResponses);
+if (unitSummaryPreviewBtn) unitSummaryPreviewBtn.addEventListener('click', previewUnitReportCount);
+if (unitReportCategory) {
+  ['Pelawat','Pelawat Khas','Kontraktor','Penghantaran Barang','Pindah Rumah'].forEach((category) => {
+    const option = document.createElement('option');
+    option.value = category;
+    option.textContent = category;
+    unitReportCategory.appendChild(option);
+  });
+}
+[unitReportUnit, unitReportCategory, unitReportStatus, unitReportKeyword].forEach((control) => {
+  if (!control) return;
+  control.addEventListener('input', refreshUnitReportFromFilters);
+  control.addEventListener('change', refreshUnitReportFromFilters);
+});
+if (unitSummaryFromDate && unitSummaryToDate) {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  unitSummaryFromDate.value = isoDateString(firstDay);
+  unitSummaryToDate.value = isoDateString(today);
 }
 if (unitSummaryLoadAllBtn) {
   unitSummaryLoadAllBtn.addEventListener('click', async ()=> {
@@ -3136,10 +3203,94 @@ function triggerCsvDownload(filename, csvLines){
   URL.revokeObjectURL(url);
 }
 
+function buildUnitReportRangeQuery(){
+  if (!unitSummaryFromDate?.value || !unitSummaryToDate?.value) throw new Error('Sila pilih tarikh mula dan tarikh akhir dahulu.');
+  const from = new Date(`${unitSummaryFromDate.value}T00:00:00`);
+  const toEnd = new Date(`${unitSummaryToDate.value}T00:00:00`);
+  if (isNaN(from.getTime()) || isNaN(toEnd.getTime()) || toEnd.getTime() < from.getTime()) throw new Error('Julat tarikh tidak sah.');
+  const toExclusive = new Date(toEnd);
+  toExclusive.setDate(toExclusive.getDate() + 1);
+  return query(
+    collection(window.__FIRESTORE, 'responses'),
+    where('eta', '>=', Timestamp.fromDate(from)),
+    where('eta', '<', Timestamp.fromDate(toExclusive)),
+    orderBy('eta', 'asc')
+  );
+}
+
+async function countAllResponses(){
+  if (!window.__FIRESTORE) return toast('Firestore belum tersedia.', false);
+  if (databaseCountBtn) databaseCountBtn.disabled = true;
+  if (databaseCountMeta) databaseCountMeta.textContent = 'Sedang mengira...';
+  try {
+    const snapshot = await getCountFromServer(collection(window.__FIRESTORE, 'responses'));
+    const count = snapshot.data().count || 0;
+    if (databaseCountValue) databaseCountValue.textContent = Number(count).toLocaleString('ms-MY');
+    if (databaseCountMeta) databaseCountMeta.textContent = `Disemak ${new Date().toLocaleString('ms-MY')} • anggaran kiraan: ${Math.max(1, Math.ceil(count / 1000))} read`;
+  } catch (err) {
+    console.error('countAllResponses err', err);
+    if (databaseCountMeta) databaseCountMeta.textContent = 'Kiraan gagal. Pastikan anda masih log masuk.';
+    toast('Gagal menyemak jumlah rekod.', false);
+  } finally {
+    if (databaseCountBtn) databaseCountBtn.disabled = false;
+  }
+}
+
+async function previewUnitReportCount({ quiet = false } = {}){
+  if (!window.__FIRESTORE) { toast('Firestore belum tersedia.', false); return null; }
+  try {
+    const queryRef = buildUnitReportRangeQuery();
+    if (unitSummaryReadEstimate) unitSummaryReadEstimate.textContent = 'Sedang mengira rekod dalam julat...';
+    const snapshot = await getCountFromServer(queryRef);
+    const count = snapshot.data().count || 0;
+    const countReads = Math.max(1, Math.ceil(count / 1000));
+    const warning = count > REPORT_SAFE_READ_LIMIT
+      ? ` Melebihi had keselamatan ${REPORT_SAFE_READ_LIMIT.toLocaleString('ms-MY')}; kecilkan julat tarikh.`
+      : ' Dalam had laporan; baki kuota harian Firebase belum disemak.';
+    if (unitSummaryReadEstimate) unitSummaryReadEstimate.textContent = `${count.toLocaleString('ms-MY')} rekod dalam julat • kiraan ≈ ${countReads} read • muat data ≈ ${count.toLocaleString('ms-MY')} reads.${warning}`;
+    if (!quiet) toast(`Julat mengandungi ${count.toLocaleString('ms-MY')} rekod.`, count <= REPORT_SAFE_READ_LIMIT);
+    return count;
+  } catch (err) {
+    const message = err && err.message ? err.message : 'Gagal menyemak jumlah julat.';
+    if (unitSummaryReadEstimate) unitSummaryReadEstimate.textContent = message;
+    if (!quiet) toast(message, false);
+    return null;
+  }
+}
+
+function getReportFilteredRows(){
+  const unit = String(unitReportUnit?.value || '').trim().toLowerCase();
+  const category = String(unitReportCategory?.value || '').trim().toLowerCase();
+  const status = String(unitReportStatus?.value || '').trim().toLowerCase();
+  const keyword = String(unitReportKeyword?.value || '').trim().toLowerCase();
+  return (unitSummaryState.rows || []).filter((row) => {
+    if (unit && !String(row.hostUnit || '').toLowerCase().includes(unit)) return false;
+    if (category && String(row.category || '').trim().toLowerCase() !== category) return false;
+    if (status && String(row.status || 'Pending').trim().toLowerCase() !== status) return false;
+    if (keyword) {
+      const haystack = [row.visitorName, row.visitorPhone, row.hostName, row.hostPhone, ...collectVehiclesFromResponse(row)].join(' ').toLowerCase();
+      if (!haystack.includes(keyword)) return false;
+    }
+    return true;
+  });
+}
+
+function refreshUnitReportFromFilters(){
+  if (!unitSummaryState.generatedAt) return;
+  const filteredRows = getReportFilteredRows();
+  unitSummaryState.summaries = buildUnitSummary(filteredRows);
+  if (!unitSummaryState.summaries.some((item) => item.unit.toLowerCase() === String(unitSummaryState.selectedUnit || '').toLowerCase())) {
+    unitSummaryState.selectedUnit = unitSummaryState.summaries[0]?.unit || '';
+  }
+  renderUnitSummaryMeta();
+  renderUnitSummaryTable();
+  renderUnitSummaryDetail(unitSummaryState.selectedUnit);
+}
+
 function buildUnitSummary(rows){
   const map = Object.create(null);
   (rows || []).forEach((r) => {
-    const unit = String(r.hostUnit || '').trim();
+    const unit = String(r.hostUnit || '').trim().toUpperCase();
     if (!unit) return;
 
     if (!map[unit]) {
@@ -3199,7 +3350,8 @@ function renderUnitSummaryMeta(){
   }
 
   const genTime = unitSummaryState.generatedAt.toLocaleString();
-  unitSummaryMeta.textContent = `${unitSummaryState.mode} • ${unitSummaryState.rows.length} rekod diproses (${unitSummaryState.docsRead} bacaan dokumen) • ${unitSummaryState.summaries.length} unit • Dijana: ${genTime}`;
+  const filteredCount = getReportFilteredRows().length;
+  unitSummaryMeta.textContent = `${unitSummaryState.mode} • ${unitSummaryState.rows.length} rekod dibaca • ${filteredCount} rekod sepadan • ${unitSummaryState.summaries.length} unit • Dijana: ${genTime}`;
 }
 
 function renderUnitSummaryDetail(unitId){
@@ -3210,7 +3362,7 @@ function renderUnitSummaryDetail(unitId){
     return;
   }
 
-  const rows = (unitSummaryState.rows || [])
+  const rows = getReportFilteredRows()
     .filter((r) => String(r.hostUnit || '').trim().toLowerCase() === unit.toLowerCase())
     .sort((a, b) => {
       const ta = toJsDateSafe(a.eta)?.getTime() || Number.MAX_SAFE_INTEGER;
@@ -3227,10 +3379,10 @@ function renderUnitSummaryDetail(unitId){
   }
 
   let html = `<div class="small" style="margin-bottom:8px">Unit <strong>${escapeHtml(unit)}</strong> • ${rows.length} rekod</div>`;
-  html += '<div class="table-wrap"><table class="table"><thead><tr><th>No.</th><th>ETA</th><th>ETD</th><th>Nombor Kenderaan</th><th>Kategori</th><th>Status</th><th>Tarikh Isi</th><th>ID</th></tr></thead><tbody>';
+  html += '<div class="table-wrap"><table class="table"><thead><tr><th>No.</th><th>Pelawat</th><th>Telefon</th><th>ETA</th><th>ETD</th><th>Kenderaan</th><th>Kategori</th><th>Status</th><th>Tarikh Isi</th></tr></thead><tbody>';
   rows.forEach((r, idx) => {
     const vehicles = collectVehiclesFromResponse(r);
-    html += `<tr><td>${idx+1}</td><td>${escapeHtml(formatDateOnly(r.eta))}</td><td>${escapeHtml(formatDateOnly(r.etd))}</td><td>${escapeHtml(vehicles.length ? vehicles.join(', ') : '-')}</td><td>${escapeHtml(String(r.category || '-'))}</td><td>${escapeHtml(String(r.status || 'Pending'))}</td><td>${escapeHtml(formatDateTime(r.createdAt))}</td><td>${escapeHtml(String(r.id || ''))}</td></tr>`;
+    html += `<tr><td>${idx+1}</td><td>${escapeHtml(String(r.visitorName || '-'))}</td><td>${escapeHtml(String(r.visitorPhone || '-'))}</td><td>${escapeHtml(formatDateOnly(r.eta))}</td><td>${escapeHtml(formatDateOnly(r.etd))}</td><td>${escapeHtml(vehicles.length ? vehicles.join(', ') : '-')}</td><td>${escapeHtml(String(r.category || '-'))}</td><td>${escapeHtml(String(r.status || 'Pending'))}</td><td>${escapeHtml(formatDateTime(r.createdAt))}</td></tr>`;
   });
   html += '</tbody></table></div>';
   unitSummaryDetailArea.innerHTML = html;
@@ -3278,24 +3430,14 @@ async function loadUnitSummaryByUnit({ mode = 'all' } = {}){
   let queryRef = null;
   let modeLabel = '';
   if (mode === 'range') {
-    if (!unitSummaryFromDate || !unitSummaryToDate || !unitSummaryFromDate.value || !unitSummaryToDate.value) {
-      toast('Sila pilih tarikh mula dan tarikh akhir dahulu.', false);
+    try { queryRef = buildUnitReportRangeQuery(); }
+    catch (err) { toast(err.message || 'Julat tarikh tidak sah.', false); return; }
+    const estimatedCount = await previewUnitReportCount({ quiet: true });
+    if (estimatedCount == null) return;
+    if (estimatedCount > REPORT_SAFE_READ_LIMIT) {
+      toast(`Operasi dihentikan: ${estimatedCount.toLocaleString('ms-MY')} rekod melebihi had keselamatan. Kecilkan julat tarikh.`, false, { duration: 6000 });
       return;
     }
-    const from = new Date(`${unitSummaryFromDate.value}T00:00:00`);
-    const toEnd = new Date(`${unitSummaryToDate.value}T00:00:00`);
-    if (isNaN(from.getTime()) || isNaN(toEnd.getTime()) || toEnd.getTime() < from.getTime()) {
-      toast('Julat tarikh tidak sah.', false);
-      return;
-    }
-    const toExclusive = new Date(toEnd.getTime());
-    toExclusive.setDate(toExclusive.getDate() + 1);
-    queryRef = query(
-      collection(window.__FIRESTORE, 'responses'),
-      where('eta', '>=', Timestamp.fromDate(from)),
-      where('eta', '<', Timestamp.fromDate(toExclusive)),
-      orderBy('eta', 'asc')
-    );
     modeLabel = `Julat ETA ${unitSummaryFromDate.value} hingga ${unitSummaryToDate.value}`;
   } else {
     queryRef = query(collection(window.__FIRESTORE, 'responses'), orderBy('eta', 'asc'));
@@ -3308,18 +3450,21 @@ async function loadUnitSummaryByUnit({ mode = 'all' } = {}){
   if (listAreaUnitSummary) listAreaUnitSummary.innerHTML = '<div class="small">Memuat summary unit...</div>';
 
   try {
-    const snap = await getDocs(queryRef);
+    const snap = await getDocs(query(queryRef, limit(REPORT_SAFE_READ_LIMIT + 1)));
+    if (snap.size > REPORT_SAFE_READ_LIMIT) {
+      throw new Error('Jumlah rekod melebihi had laporan. Kecilkan julat tarikh.');
+    }
     const rows = [];
     snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
 
     const validRows = rows.filter((r) => String(r.hostUnit || '').trim().length > 0);
-    const summaries = buildUnitSummary(validRows);
 
     unitSummaryState.mode = modeLabel;
     unitSummaryState.docsRead = snap.size;
     unitSummaryState.generatedAt = new Date();
     unitSummaryState.rows = validRows;
-    unitSummaryState.summaries = summaries;
+    unitSummaryState.summaries = buildUnitSummary(getReportFilteredRows());
+    const summaries = unitSummaryState.summaries;
 
     if (!unitSummaryState.selectedUnit || !summaries.some((s) => s.unit.toLowerCase() === unitSummaryState.selectedUnit.toLowerCase())) {
       unitSummaryState.selectedUnit = summaries.length ? summaries[0].unit : '';
@@ -3333,7 +3478,7 @@ async function loadUnitSummaryByUnit({ mode = 'all' } = {}){
   } catch (err) {
     console.error('loadUnitSummaryByUnit err', err);
     if (listAreaUnitSummary) listAreaUnitSummary.innerHTML = '<div class="small err">Gagal memuat summary unit.</div>';
-    toast('Gagal memuat summary unit. Semak konsol.', false);
+    toast(err?.message || 'Gagal memuat summary unit. Sila cuba semula.', false);
   } finally {
     unitSummaryState.loading = false;
     if (spinner) spinner.style.display = 'none';
@@ -3376,9 +3521,10 @@ function exportUnitSummaryDetailsCSV(){
   }
 
   const selected = String(unitSummaryState.selectedUnit || '').trim();
+  const filteredRows = getReportFilteredRows();
   const rows = selected
-    ? unitSummaryState.rows.filter((r) => String(r.hostUnit || '').trim().toLowerCase() === selected.toLowerCase())
-    : unitSummaryState.rows.slice();
+    ? filteredRows.filter((r) => String(r.hostUnit || '').trim().toLowerCase() === selected.toLowerCase())
+    : filteredRows;
 
   if (!rows.length) {
     toast('Tiada butiran sepadan untuk dieksport.', false);
@@ -3386,19 +3532,25 @@ function exportUnitSummaryDetailsCSV(){
   }
 
   const lines = [];
-  lines.push('id,hostUnit,eta,etd,nomborKenderaan,status,kategori,namaPelawat,namaTuanRumah,createdAt');
+  lines.push('id,hostUnit,namaPelawat,telefonPelawat,namaPenghuni,telefonPenghuni,kategori,subKategori,namaSyarikat,eta,etd,nomborKenderaan,jenisKenderaan,status,bermalam,createdAt');
   rows.forEach((r) => {
     const vehicles = collectVehiclesFromResponse(r);
     lines.push([
       quoteCsv(r.id || ''),
       quoteCsv(r.hostUnit || ''),
+      quoteCsv(r.visitorName || ''),
+      quoteCsv(r.visitorPhone || ''),
+      quoteCsv(r.hostName || ''),
+      quoteCsv(r.hostPhone || ''),
+      quoteCsv(r.category || ''),
+      quoteCsv(r.subCategory || ''),
+      quoteCsv(r.companyName || ''),
       quoteCsv(toIsoSafe(r.eta)),
       quoteCsv(toIsoSafe(r.etd)),
       quoteCsv(vehicles.join(';')),
+      quoteCsv(r.vehicleType || ''),
       quoteCsv(r.status || 'Pending'),
-      quoteCsv(r.category || ''),
-      quoteCsv(r.visitorName || ''),
-      quoteCsv(r.hostName || ''),
+      quoteCsv(r.stayOver || 'No'),
       quoteCsv(toIsoSafe(r.createdAt))
     ].join(','));
   });
@@ -3611,6 +3763,7 @@ document.getElementById('saveEditBtn').addEventListener('click', async (ev) => {
 
 /* ---------- page switching ---------- */
 function showPage(key){
+  document.body.dataset.dashboardPage = key;
   if (key === 'summary') {
     document.getElementById('pageSummary').style.display = '';
     document.getElementById('pageCheckedIn').style.display = 'none';
@@ -4347,7 +4500,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
       filterDateUserChangedParking = true;
       const wr = weekRangeFromDate(ds);
       const from = new Date(wr.start); const to = new Date(wr.start); to.setDate(to.getDate()+7);
-      // Retrieve overlapping stays without assuming a three-day maximum.
 
       // Query responses for the week
       const weekKey = isoDateString(wr.start);
@@ -4355,9 +4507,21 @@ document.addEventListener('DOMContentLoaded', ()=>{
       // reuse cached week rows when possible; on cache-only mode, skip fetching when missing
       let rows = weekResponseCache[weekKey];
       if (!Array.isArray(rows)) {
-        if (useCacheOnly) {
+        if (DASHBOARD_PREVIEW_MODE) {
+          const makeDate = (offset) => { const d = new Date(wr.start); d.setDate(d.getDate() + offset); return d; };
+          rows = [
+            { id:'preview-a', hostUnit:'A-10-01', category:'Pelawat', stayOver:'Yes', vehicleNo:'VBC 1288', eta:makeDate(0), etd:makeDate(3) },
+            { id:'preview-b', hostUnit:'B-03-02', category:'Pelawat', stayOver:'Yes', vehicleNo:'WXY 5510', eta:makeDate(1), etd:makeDate(2) },
+            { id:'preview-c', hostUnit:'C-08-06', category:'Pelawat', stayOver:'Yes', vehicleNumbers:['ABC 9081','QRS 72'], eta:makeDate(4), etd:makeDate(4) },
+            { id:'preview-d', hostUnit:'D-12-03', category:'Pelawat', stayOver:'Yes', vehicleNo:'JTU 3309', eta:makeDate(2), etd:makeDate(6) }
+          ];
+          weekResponseCache[weekKey] = rows;
+        } else if (useCacheOnly) {
           rows = [];
         } else {
+          // Include long stays regardless of their arrival date. Separate single-field
+          // queries retain compatibility with the deployed SDK and existing indexes.
+          // The arrival query also preserves legacy records without an exit date.
           const maxRows = 2000;
           const requests = [
             query(col, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'), limit(maxRows + 1)),
@@ -4389,123 +4553,70 @@ document.addEventListener('DOMContentLoaded', ()=>{
       });
 
       // Filter by plate/unit search term (case-insensitive). Matches vehicleNo or any vehicleNumbers.
-      const pelawat = searchTerm ? pelawatAll.filter(r => {
+      const matchedRows = searchTerm ? pelawatAll.filter(r => {
         const vals = [];
-        if (r.vehicleNo) vals.push(String(r.vehicleNo));
+        vals.push(...collectVehiclesFromResponse(r));
         if (Array.isArray(r.vehicleNumbers)) vals.push(...r.vehicleNumbers.map(String));
         else if (typeof r.vehicleNumbers === 'string' && !r.vehicleNo) vals.push(String(r.vehicleNumbers));
         const unitVal = r.hostUnit ? String(r.hostUnit) : '';
         return vals.some(v => v.toLowerCase().includes(searchTerm)) || (unitVal && unitVal.toLowerCase().includes(searchTerm));
       }) : pelawatAll;
-
-      // Build per-plate counts across the week (count of total occurrences in the week)
-      // We'll use this to mark plates that appear more than once in the rendered Monday–Sunday week
-      // Also track the distinct days a plate spans, so multi-day stays are flagged as duplicates too.
-      const plateCounts = {}; // plate -> occurrence count
-      const plateDayMap = {}; // plate -> Set of dayKeys it appears on
-      pelawat.forEach(r => {
-        // gather all plates for this registration (dedupe within a registration)
-        const plates = new Set();
-        if (r.vehicleNo) plates.add(String(r.vehicleNo).trim());
-        if (Array.isArray(r.vehicleNumbers)) r.vehicleNumbers.forEach(x => plates.add(String(x).trim()));
-        if (typeof r.vehicleNumbers === 'string' && !r.vehicleNo) plates.add(String(r.vehicleNumbers).trim());
-        const eta = r.eta && r.eta.toDate ? r.eta.toDate() : (r.eta ? new Date(r.eta) : new Date());
-        const etd = r.etd && r.etd.toDate ? r.etd.toDate() : (r.etd ? new Date(r.etd) : eta);
-        // span each day from eta..etd (inclusive), but only within the week window
-        const spanStart = dayStart(eta);
-        const spanEnd = dayStart(etd);
-        plates.forEach(pl => {
-          if (!pl) return;
-          plateCounts[pl] = (plateCounts[pl] || 0) + 1;
-          plateDayMap[pl] = plateDayMap[pl] || new Set();
-          const cursor = new Date(spanStart);
-          while (cursor.getTime() <= spanEnd.getTime() && cursor.getTime() < to.getTime()) {
-            plateDayMap[pl].add(dayKey(cursor));
-            cursor.setDate(cursor.getDate() + 1);
-          }
-        });
-      });
-
-      // Compute plates that appear on consecutive days within the week
-      const plateConsecutiveDays = {}; // plate -> Set of dayKeys that are part of a consecutive streak
-      Object.keys(plateDayMap).forEach(p => {
-        const days = Array.from(plateDayMap[p]);
-        days.sort();
-        const set = new Set();
-        for (let i = 1; i < days.length; i++) {
-          const prev = new Date(days[i-1]);
-          const curr = new Date(days[i]);
-          const diffDays = Math.round((curr - prev) / (24*60*60*1000));
-          if (diffDays === 1) {
-            set.add(days[i-1]);
-            set.add(days[i]);
-          }
-        }
-        if (set.size) plateConsecutiveDays[p] = set;
-      });
-
-      // --- Detect duplicate submissions (same-date | same-hostUnit | same phone-or-name)
-      // Use similar fingerprint logic as scripts/find-duplicates.js so UI flags repeated
-      // submissions of identical data (server-side dedupe key: dateKey|hostUnit|phone-or-name)
-      const fingerprintGroups = {}; // fingerprint -> array of response ids
-      const idDupCounts = {}; // response id -> duplicate group size
-      function mkNameKey(name) {
-        if (!name) return '';
-        return String(name).trim().toLowerCase().replace(/\s+/g,'_').slice(0,64);
-      }
-      function normalizePhoneLocal(p) { return (p || '').replace(/[^0-9+]/g,''); }
-
-      pelawat.forEach(r => {
-        try {
-          const fpDate = r.eta ? dayKey(r.eta && r.eta.toDate ? r.eta.toDate() : (r.eta ? new Date(r.eta) : new Date())) : 'null';
-          const hostUnit = (r.hostUnit || '').replace(/\s+/g,'') || 'null';
-          const phone = normalizePhoneLocal(r.visitorPhone || '');
-          const nameK = mkNameKey(r.visitorName || '');
-          const idKey = phone || nameK || 'noid';
-          const fp = `${fpDate}|${hostUnit}|${idKey}`;
-          fingerprintGroups[fp] = fingerprintGroups[fp] || [];
-          fingerprintGroups[fp].push(r.id);
-        } catch(e) { /* ignore individual row errors */ }
-      });
-
-      Object.keys(fingerprintGroups).forEach(fp => {
-        const arr = fingerprintGroups[fp] || [];
-        arr.forEach(id => { idDupCounts[id] = arr.length; });
-      });
+      // Search selects units, not individual registrations: retain their full
+      // weekly usage so searching one plate cannot reduce the unit's day count.
+      const matchedUnits = new Set(matchedRows.map(r => String(r.hostUnit || '').trim().toUpperCase()));
+      const pelawat = pelawatAll.filter(r => matchedUnits.has(String(r.hostUnit || '').trim().toUpperCase()));
 
       // build calendar container
       let calWrap = document.getElementById('parkingWeekCalendar');
-      if (!calWrap){ calWrap = document.createElement('div'); calWrap.id = 'parkingWeekCalendar'; calWrap.className = 'card'; calWrap.style.marginTop = '12px'; }
+      if (!calWrap){ calWrap = document.createElement('div'); calWrap.id = 'parkingWeekCalendar'; calWrap.className = 'card parking-monitor'; calWrap.style.marginTop = '12px'; }
       calWrap.innerHTML = '';
 
-      // helper: palette keyed per plate (not per count) so different plates get different colors
-      const platePalette = ['#FB7185','#60A5FA','#F59E0B','#34D399','#A78BFA','#F97316','#06B6D4','#10B981','#F472B6','#9CA3AF'];
-      const plateColorMap = {};
-      function colorForPlate(plate){
-        if (!plate) return null;
-        const key = String(plate).trim().toUpperCase();
-        if (!plateColorMap[key]) {
-          const idx = Object.keys(plateColorMap).length % platePalette.length;
-          plateColorMap[key] = platePalette[idx];
+      const dayKeys = wr.days.map(dayKey);
+      const unitMap = new Map();
+      pelawat.forEach((registration) => {
+        const unit = String(registration.hostUnit || 'Unit tidak dinyatakan').trim().toUpperCase();
+        if (!unitMap.has(unit)) unitMap.set(unit, { unit, days: new Map(), daySet: new Set(), registrations: new Set() });
+        const bucket = unitMap.get(unit);
+        const eta = toJsDateSafe(registration.eta);
+        const etd = toJsDateSafe(registration.etd) || eta;
+        if (!eta) return;
+        const plates = collectVehiclesFromResponse(registration);
+        const cursor = dayStart(eta < from ? from : eta);
+        const lastDay = dayStart(etd);
+        while (cursor <= lastDay && cursor < to) {
+          const key = dayKey(cursor);
+          if (dayKeys.includes(key)) {
+            if (!bucket.days.has(key)) bucket.days.set(key, { plates: new Set(), ids: new Set() });
+            const dayBucket = bucket.days.get(key);
+            plates.forEach((plate) => dayBucket.plates.add(plate));
+            if (registration.id) dayBucket.ids.add(registration.id);
+            bucket.daySet.add(key);
+            if (registration.id) bucket.registrations.add(registration.id);
+          }
+          cursor.setDate(cursor.getDate() + 1);
         }
-        return plateColorMap[key];
-      }
+      });
 
-      function hexToRgba(hex, alpha){
-        if (!hex) return null;
-        // support #RRGGBB
-        const h = hex.replace('#','');
-        const r = parseInt(h.substring(0,2),16);
-        const g = parseInt(h.substring(2,4),16);
-        const b = parseInt(h.substring(4,6),16);
-        return `rgba(${r},${g},${b},${alpha})`;
-      }
+      const allUnits = Array.from(unitMap.values()).sort((a,b) => {
+        const alertDiff = Number(b.daySet.size > 3) - Number(a.daySet.size > 3);
+        if (alertDiff) return alertDiff;
+        if (b.daySet.size !== a.daySet.size) return b.daySet.size - a.daySet.size;
+        return a.unit.localeCompare(b.unit, undefined, { numeric:true, sensitivity:'base' });
+      });
+      const pageSize = 20;
+      const currentFilter = renderParkingWeekCalendar.unitFilter || 'all';
+      const filteredUnits = currentFilter === 'over3' ? allUnits.filter((item) => item.daySet.size > 3) : allUnits;
+      const totalPages = Math.max(1, Math.ceil(filteredUnits.length / pageSize));
+      let pageNumber = Math.min(Math.max(1, renderParkingWeekCalendar.page || 1), totalPages);
+      renderParkingWeekCalendar.page = pageNumber;
+      const visibleUnits = filteredUnits.slice((pageNumber - 1) * pageSize, pageNumber * pageSize);
+      const overLimitCount = allUnits.filter((item) => item.daySet.size > 3).length;
 
       const header = document.createElement('div');
       header.style.display = 'flex'; header.style.justifyContent='space-between'; header.style.alignItems='center'; header.style.gap='8px';
       // left: title + prev/next controls, right: week range
       const left = document.createElement('div'); left.style.display='flex'; left.style.alignItems='center'; left.style.gap='8px';
-      const title = document.createElement('div'); title.style.fontWeight = '700'; title.textContent = 'Kalendar Mingguan Parkir — Pelawat Bermalam';
+      const title = document.createElement('div'); title.className = 'parking-monitor-title'; title.innerHTML = '<strong>Pemantauan Mingguan Parkir</strong><span>Pelawat bermalam mengikut unit</span>';
       const navWrap = document.createElement('div'); navWrap.className = 'pw-week-nav';
       const prevBtn = document.createElement('button'); prevBtn.type='button'; prevBtn.className='btn-ghost'; prevBtn.textContent = '‹'; prevBtn.title = 'Minggu sebelumnya';
       const nextBtn = document.createElement('button'); nextBtn.type='button'; nextBtn.className='btn-ghost'; nextBtn.textContent = '›'; nextBtn.title = 'Minggu seterusnya';
@@ -4527,183 +4638,103 @@ document.addEventListener('DOMContentLoaded', ()=>{
         } catch(e){ console.warn('[parking] next week failed', e); }
       });
       calWrap.appendChild(header);
-
-      // Render a simplified 2-column weekly table (Date | Unit + Vehicle) for Pelawat only
-      const dayKeys = wr.days.map(dayKey);
+      const refreshWeek = document.createElement('button');
+      refreshWeek.type = 'button';
+      refreshWeek.className = 'btn-ghost';
+      refreshWeek.textContent = 'Muat semula minggu';
+      refreshWeek.title = 'Membaca semula rekod minggu ini daripada Firebase';
+      refreshWeek.addEventListener('click', async () => {
+        refreshWeek.disabled = true;
+        delete weekResponseCache[weekKey];
+        await renderParkingWeekCalendar(ds);
+      });
+      header.appendChild(refreshWeek);
+      const stats = document.createElement('div');
+      stats.className = 'parking-monitor-stats';
+      stats.innerHTML = `<div><span>Unit bermalam</span><strong>${allUnits.length}</strong></div><div><span>Kenderaan berdaftar</span><strong>${new Set(pelawat.flatMap(collectVehiclesFromResponse)).size}</strong></div><div><span>Penggunaan lebih 3 hari</span><strong>${overLimitCount}</strong></div>`;
+      calWrap.appendChild(stats);
+      const usageNote = document.createElement('p');
+      usageNote.className = 'small muted';
+      usageNote.style.padding = '0 16px';
+      usageNote.textContent = 'Jumlah hari berdasarkan pendaftaran, bukan pengesahan kehadiran. Lebih 3 hari bukan semestinya pelanggaran SOP. Caj dan status pembayaran belum disahkan dalam paparan ini.';
+      calWrap.appendChild(usageNote);
+      const toolbar = document.createElement('div');
+      toolbar.className = 'parking-monitor-toolbar';
+      toolbar.innerHTML = `<div class="parking-monitor-tabs"><button type="button" data-filter="all" class="${currentFilter === 'all' ? 'active' : ''}">Semua unit</button><button type="button" data-filter="over3" class="${currentFilter === 'over3' ? 'active' : ''}">Melebihi 3 hari <span>${overLimitCount}</span></button></div><div class="small muted">${filteredUnits.length} unit • Halaman ${pageNumber}/${totalPages}</div>`;
+      toolbar.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => {
+        renderParkingWeekCalendar.unitFilter = button.dataset.filter;
+        renderParkingWeekCalendar.page = 1;
+        renderParkingWeekCalendar(dateStr, { useCacheOnly:true });
+      }));
+      calWrap.appendChild(toolbar);
 
       const table = document.createElement('table');
-      table.className = 'parking-week-table';
-      table.style.width = '100%';
-      // No table column headers (we display combined cards per date)
+      table.className = 'parking-unit-matrix';
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      headerRow.innerHTML = '<th>Unit</th>' + wr.days.map((day) => `<th><span>${['Aha','Isn','Sel','Rab','Kha','Jum','Sab'][day.getDay()]}</span><strong>${day.getDate()}</strong></th>`).join('') + '<th>Jumlah</th>';
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
       const tbody = document.createElement('tbody');
-      // Build rows per day (2-column: Date | Vehicle + Unit)
-      dayKeys.forEach(k => {
-        const theDate = new Date(k);
+      visibleUnits.forEach((unitItem) => {
         const tr = document.createElement('tr');
-        const tdDate = document.createElement('td'); tdDate.className = 'pw-date-cell';
-        const tdItems = document.createElement('td'); tdItems.className = 'pw-items-cell';
-        // find rows where ETA..ETD includes this date
-        const items = pelawat.filter(r => {
-          try{
-            const eta = r.eta && r.eta.toDate ? r.eta.toDate() : (r.eta ? new Date(r.eta) : null);
-            const etd = r.etd && r.etd.toDate ? r.etd.toDate() : (r.etd ? new Date(r.etd) : null);
-            if (!eta) return false;
-            const s = dayStart(eta); const e = etd ? dayStart(etd) : s;
-            const dd = dayStart(k);
-            return s.getTime() <= dd.getTime() && dd.getTime() <= e.getTime();
-          } catch(e){ return false; }
+        const unitCell = document.createElement('td');
+        unitCell.className = 'parking-unit-cell';
+        unitCell.innerHTML = `<strong>${escapeHtml(unitItem.unit)}</strong><span>${unitItem.registrations.size} pendaftaran</span>`;
+        tr.appendChild(unitCell);
+        dayKeys.forEach((key) => {
+          const td = document.createElement('td');
+          const dayData = unitItem.days.get(key);
+          if (!dayData) {
+            td.innerHTML = '<span class="parking-empty-day">—</span>';
+          } else {
+            td.className = 'has-parking';
+            const plates = Array.from(dayData.plates).sort();
+            td.innerHTML = plates.length ? plates.map((plate) => `<span class="parking-plate-chip">${escapeHtml(plate)}</span>`).join('') : '<span class="parking-plate-chip">Tiada nombor</span>';
+            if (!DASHBOARD_PREVIEW_MODE) {
+              // A day may contain multiple registrations. Never silently edit
+              // the first record when the guard selected a different vehicle.
+              const details = document.createElement('details');
+              const summary = document.createElement('summary');
+              summary.textContent = `${dayData.ids.size} pendaftaran`;
+              details.appendChild(summary);
+              Array.from(dayData.ids).forEach((id) => {
+                const record = pelawat.find(r => r.id === id);
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn-ghost';
+                button.textContent = record ? `${record.visitorName || 'Pelawat'} — ${collectVehiclesFromResponse(record).join(', ')}` : id;
+                button.addEventListener('click', () => openEditModalFor(id));
+                details.appendChild(button);
+              });
+              td.appendChild(details);
+            }
+          }
+          tr.appendChild(td);
         });
-
-        // header with date information (left column)
-        const headerEl = document.createElement('div'); headerEl.className = 'pw-day-header';
-        const dayLong = theDate.toLocaleDateString(undefined, { weekday: 'long' });
-        const malayDays = ['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
-        const malay = malayDays[theDate.getDay()];
-        const dd = String(theDate.getDate()).padStart(2,'0');
-        const mm = String(theDate.getMonth()+1).padStart(2,'0');
-        const yy = theDate.getFullYear();
-        headerEl.innerHTML = `<div style="font-weight:700">${dayLong} (${malay})</div><div class="small">${dd}/${mm}/${yy}</div>`;
-        tdDate.appendChild(headerEl);
-
-        // total vehicle count for this day (account for arrays / strings)
-        const totalVehicles = items.reduce((acc, rr) => {
-          let cnt = 0;
-          if (rr.vehicleNo) cnt++;
-          if (Array.isArray(rr.vehicleNumbers)) cnt += rr.vehicleNumbers.length;
-          else if (typeof rr.vehicleNumbers === 'string' && !rr.vehicleNo) cnt++;
-          return acc + cnt;
-        }, 0);
-
-        if (!items.length) {
-          const empty = document.createElement('div'); empty.className = 'small muted'; empty.textContent = 'Tiada pelawat Checked In'; tdItems.appendChild(empty);
-        } else {
-          const list = document.createElement('div'); list.className = 'pw-vehicle-list';
-          // always use the 5-column grid for a uniform layout
-          list.classList.add('multi-cols');
-          // show all vehicle numbers (no limit); support vehicleNo and vehicleNumbers (array or string)
-          // Collect vehicle+unit entries and dedupe exact pairs per day
-          const pairs = [];
-          items.forEach(r => {
-            const rawNums = [];
-            if (r.vehicleNo) rawNums.push(String(r.vehicleNo));
-            if (Array.isArray(r.vehicleNumbers)) rawNums.push(...r.vehicleNumbers.map(x => String(x)));
-            if (typeof r.vehicleNumbers === 'string' && !r.vehicleNo) rawNums.push(String(r.vehicleNumbers));
-            rawNums.forEach(num => {
-              const plate = String(num || '').trim();
-              if (!plate) return;
-              const unit = r.hostUnit ? String(r.hostUnit).trim() : '';
-              pairs.push({ plate, unit, id: r.id });
-            });
-          });
-
-          // dedupe by plate + unit (so same plate at different units is kept, exact duplicates removed)
-          const unique = [];
-          const seen = new Set();
-          pairs.forEach(p => {
-            const key = `${p.plate}||${p.unit}`;
-            if (!seen.has(key)) { seen.add(key); unique.push(p); }
-          });
-          // sort so duplicates appear first, then alphabetical by first word of the plate
-          const firstWord = (plate) => {
-            const s = String(plate || '').trim();
-            if (!s) return '';
-            const token = s.split(/\s+/)[0];
-            return token.toLowerCase();
-          };
-          unique.sort((a, b) => {
-            const daySpanA = plateDayMap[a.plate] ? plateDayMap[a.plate].size : 0;
-            const daySpanB = plateDayMap[b.plate] ? plateDayMap[b.plate].size : 0;
-            const dupA = ((plateCounts[a.plate] || 0) > 1 || daySpanA > 1) ? 1 : 0;
-            const dupB = ((plateCounts[b.plate] || 0) > 1 || daySpanB > 1) ? 1 : 0;
-            if (dupA !== dupB) return dupB - dupA; // duplicates first
-            const fa = firstWord(a.plate);
-            const fb = firstWord(b.plate);
-            const cmp = fa.localeCompare(fb, undefined, { sensitivity: 'base' });
-            if (cmp !== 0) return cmp;
-            return String(a.plate || '').localeCompare(String(b.plate || ''), undefined, { sensitivity: 'base' });
-          });
-
-
-          unique.forEach(r => {
-              const item = document.createElement('div'); item.className = 'pw-vehicle-item';
-              // build left-side content matching the provided sample: small dot, rounded icon, plate text + unit
-              const left = document.createElement('div'); left.className = 'pw-vehicle-left';
-              // vehicle badge removed per request (no icon)
-              const plateSpan = document.createElement('span'); plateSpan.className = 'pw-plate-text';
-              const unit = r.unit ? ` — ${r.unit}` : '';
-              plateSpan.textContent = `${r.plate}${unit}`;
-              // left dot removed per request
-              // badge removed; no longer append an icon here
-              left.appendChild(plateSpan);
-              item.appendChild(left);
-              // compute per-plate count for multi-day highlighting
-              const count = plateCounts[r.plate] || 0;
-              const daySpan = plateDayMap[r.plate] ? plateDayMap[r.plate].size : 0;
-              const isDup = (count > 1) || (daySpan > 1);
-              const isConsecutive = plateConsecutiveDays[r.plate] && plateConsecutiveDays[r.plate].has(k);
-              if (isDup) {
-                item.classList.add('pw-vehicle-duplicate');
-                item.classList.add('pw-week-duplicate');
-                // show day span when it spans multiple days; otherwise show occurrence count
-                const dupCountVal = (daySpan > 1) ? daySpan : count;
-                item.setAttribute('data-dup-count', String(dupCountVal));
-                if (daySpan > 3) item.classList.add('pw-dup-long');
-                // store plate on element for later color mapping
-                item.setAttribute('data-plate', r.plate);
-                // choose color per plate so each distinct plate uses its own tint
-                const pcolor = colorForPlate(r.plate);
-                if (pcolor) {
-                  try {
-                    const bg = hexToRgba(pcolor, 0.12);
-                    const border = hexToRgba(pcolor, 0.45);
-                    const shadow = hexToRgba(pcolor, 0.18);
-                    item.style.setProperty('background', `linear-gradient(180deg, ${bg}, rgba(255,255,255,0.96))`, 'important');
-                    item.style.setProperty('border', `1px solid ${border}`, 'important');
-                  } catch(e) {}
-                }
-                // add small icon for duplication visibility (retain previous icon for parity)
-                // multi-day duplicate icon removed per request
-              }
-              if (isConsecutive) {
-                item.classList.add('pw-consecutive');
-              }
-            // mark if the underlying registration(s) for this displayed plate+unit
-            // represent repeated submissions of identical data (same-date|unit|phone-or-name)
-            try {
-              // If the underlying registration(s) for this displayed plate+unit
-              // represent repeated submissions of identical data (same-date|unit|phone-or-name)
-              // we still mark the element with the class so it can be styled, but
-              // we intentionally do not append a right-side exclamation icon (removed).
-              const subCount = idDupCounts[r.id] || 0;
-              if (subCount > 1) {
-                item.classList.add('pw-submission-duplicate');
-              }
-
-              // combine duplicate reasons (week-level plate occurrences + submission duplicates)
-              const reasons = [];
-              if ((count || 0) > 1) reasons.push(`Plate appears ${count} time${count>1?'s':''} this week`);
-              else if (daySpan > 1) reasons.push(`Plate spans ${daySpan} day${daySpan>1?'s':''} this week`);
-              if (isConsecutive) reasons.push('Plate appears on consecutive days this week');
-              if (subCount > 1) reasons.push(`Registration duplicated ${subCount} time${subCount>1?'s':''}`);
-              if (reasons.length) {
-                item.classList.add('pw-duplicate');
-                try { item.setAttribute('title', reasons.join(' — ')); } catch(e){}
-              }
-            } catch(e) { /* ignore */ }
-            // attempt to open matching response id if available
-            item.addEventListener('click', ()=>{ try{ const id = r.id; if (id) openEditModalFor && typeof openEditModalFor === 'function' ? openEditModalFor(id) : toast('Buka butiran pendaftaran (fungsi tidak tersedia)', false); } catch(e) { console.warn(e); } });
-            list.appendChild(item);
-          });
-          tdItems.appendChild(list);
-        }
-        // append two columns
-        tr.appendChild(tdDate);
-        tr.appendChild(tdItems);
+        const totalCell = document.createElement('td');
+        totalCell.className = 'parking-days-total';
+        totalCell.innerHTML = `<strong>${unitItem.daySet.size} hari</strong><span>Penggunaan minggu ini</span>`;
+        tr.appendChild(totalCell);
         tbody.appendChild(tr);
       });
 
+      if (!visibleUnits.length) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="9" class="parking-matrix-empty">${currentFilter === 'over3' ? 'Tiada unit melebihi tiga hari dalam minggu ini.' : 'Tiada pendaftaran pelawat bermalam dalam minggu ini.'}</td>`;
+        tbody.appendChild(tr);
+      }
+
       table.appendChild(tbody);
-      calWrap.appendChild(table);
+      const tableWrap = document.createElement('div'); tableWrap.className = 'parking-matrix-wrap'; tableWrap.appendChild(table); calWrap.appendChild(tableWrap);
+      if (totalPages > 1) {
+        const pager = document.createElement('div'); pager.className = 'parking-monitor-pager';
+        pager.innerHTML = `<button type="button" class="btn-ghost" ${pageNumber <= 1 ? 'disabled' : ''}>← Sebelumnya</button><span>Halaman ${pageNumber} daripada ${totalPages}</span><button type="button" class="btn-ghost" ${pageNumber >= totalPages ? 'disabled' : ''}>Seterusnya →</button>`;
+        const pagerButtons = pager.querySelectorAll('button');
+        pagerButtons[0].addEventListener('click', () => { renderParkingWeekCalendar.page = pageNumber - 1; renderParkingWeekCalendar(dateStr, {useCacheOnly:true}); });
+        pagerButtons[1].addEventListener('click', () => { renderParkingWeekCalendar.page = pageNumber + 1; renderParkingWeekCalendar(dateStr, {useCacheOnly:true}); });
+        calWrap.appendChild(pager);
+      }
 
       // insert calendar after summary or top of page
       const existingCal = document.getElementById('parkingWeekCalendar');
@@ -4720,6 +4751,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       toast(err?.message || 'Laporan mingguan gagal dimuat. Sila cuba semula.', false);
     }
   }
+  window.__renderParkingWeekCalendar = renderParkingWeekCalendar;
 
   /* ---------- Assign Lot transaction helpers ---------- */
 

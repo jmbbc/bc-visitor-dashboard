@@ -229,6 +229,78 @@
     /* Modal base (kept minimal; additional styles in css/style.css) */
     .modal.hidden { display:none !important; }
 
+    body[data-dashboard-page="unitsummary"] .kpi-title,
+    body[data-dashboard-page="unitsummary"] .kpi-filter-hint { display:none; }
+    body[data-dashboard-page="parking"] .kpi-title,
+    body[data-dashboard-page="parking"] .kpi-filter-hint,
+    body[data-dashboard-page="parking"] #kpiWrap,
+    body[data-dashboard-page="parking"] #dateFiltersWrap { display:none !important; }
+    .management-hero { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:20px 22px; border-radius:16px; color:#fff; background:linear-gradient(120deg,#0f766e 0%,#0d9488 58%,#14b8a6 100%); box-shadow:0 12px 30px rgba(15,118,110,.18); margin-bottom:14px; }
+    .management-hero h3 { margin:0 0 5px; font-size:22px; }
+    .management-hero p { margin:0; color:rgba(255,255,255,.82); }
+    .management-hero-badge { flex:0 0 auto; padding:8px 11px; border:1px solid rgba(255,255,255,.3); border-radius:999px; background:rgba(255,255,255,.13); font-size:12px; font-weight:700; }
+    .data-management-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:14px; }
+    .data-management-card { position:relative; min-height:154px; border:1px solid #dbe7e5; border-radius:14px; padding:15px 16px; background:linear-gradient(180deg,#fff,#fbfefd); box-shadow:0 4px 14px rgba(15,23,42,.045); }
+    .data-management-card h4 { margin:0 0 5px; font-size:15px; }
+    .data-management-card .metric-value { font-size:25px; line-height:1.1; font-weight:800; color:#0f766e; margin:12px 0 4px; }
+    .data-management-card .metric-icon { position:absolute; right:14px; top:14px; display:grid; place-items:center; width:34px; height:34px; border-radius:10px; background:#ccfbf1; font-size:17px; }
+    .database-count-value { font-size:25px; line-height:1.1; font-weight:800; color:#0f766e; margin:12px 0 4px; }
+    .report-builder { border:1px solid #dce7e6; border-radius:16px; background:#fff; box-shadow:0 8px 24px rgba(15,23,42,.05); overflow:hidden; }
+    .report-builder-head { display:flex; justify-content:space-between; gap:20px; align-items:center; padding:17px 19px; border-bottom:1px solid #e7efee; background:#f8fcfb; }
+    .report-builder-head h4 { margin:0 0 4px; font-size:17px; }
+    .report-builder-body { padding:18px 19px; }
+    .report-filter-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px 14px; margin:0 0 16px; }
+    .report-filter-grid label { display:block; margin-bottom:4px; }
+    .report-filter-grid input, .report-filter-grid select { width:100%; min-height:40px; }
+    .report-actions { display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; padding-top:14px; border-top:1px solid #e8efee; }
+    .read-budget-note { padding:9px 10px; border-radius:9px; background:#f0fdfa; border:1px solid #99f6e4; color:#134e4a; }
+    .parking-monitor { padding:0 !important; overflow:hidden; border:1px solid #dbe7e5; border-radius:16px !important; box-shadow:0 8px 24px rgba(15,23,42,.06); }
+    .parking-monitor > div:first-child { padding:16px 18px; background:linear-gradient(180deg,#f8fcfb,#fff); border-bottom:1px solid #e4eeec; }
+    .parking-monitor-title { display:flex; flex-direction:column; gap:2px; }
+    .parking-monitor-title strong { font-size:17px; color:#102a2a; }
+    .parking-monitor-title span { font-size:11px; color:var(--muted); }
+    .parking-monitor-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:14px 18px; background:#f7faf9; border-bottom:1px solid #e4eeec; }
+    .parking-monitor-stats > div { padding:11px 13px; border:1px solid #dce8e6; border-radius:11px; background:#fff; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .parking-monitor-stats span { color:var(--muted); font-size:12px; font-weight:600; }
+    .parking-monitor-stats strong { font-size:22px; color:#0f766e; }
+    .parking-monitor-stats .is-alert { border-color:#fecaca; background:#fff7f7; }
+    .parking-monitor-stats .is-alert strong { color:#b91c1c; }
+    .parking-monitor-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 18px; border-bottom:1px solid #e4eeec; }
+    .parking-monitor-tabs { display:flex; gap:5px; padding:4px; border-radius:10px; background:#edf4f3; }
+    .parking-monitor-tabs button { border:0; border-radius:7px; padding:7px 11px; background:transparent; color:#48615f; font-weight:700; cursor:pointer; }
+    .parking-monitor-tabs button.active { background:#fff; color:#0f766e; box-shadow:0 1px 5px rgba(15,23,42,.1); }
+    .parking-monitor-tabs button span { display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 4px; margin-left:4px; border-radius:999px; background:#fee2e2; color:#b91c1c; font-size:10px; }
+    .parking-matrix-wrap { overflow:auto; }
+    .parking-unit-matrix { width:100%; min-width:980px; border-collapse:separate; border-spacing:0; font-size:12px; }
+    .parking-unit-matrix th { position:sticky; top:0; z-index:1; padding:10px 8px; border-bottom:1px solid #dce8e6; background:#f5f9f8; color:#506664; text-align:center; }
+    .parking-unit-matrix th:first-child { width:145px; text-align:left; padding-left:16px; }
+    .parking-unit-matrix th:last-child { width:110px; }
+    .parking-unit-matrix th span, .parking-unit-matrix th strong { display:block; }
+    .parking-unit-matrix th strong { margin-top:2px; font-size:15px; color:#173b38; }
+    .parking-unit-matrix td { min-width:104px; padding:10px 8px; border-bottom:1px solid #edf2f1; border-right:1px solid #f0f4f3; text-align:center; vertical-align:middle; background:#fff; }
+    .parking-unit-matrix tr:hover td { background:#fbfefd; }
+    .parking-unit-matrix tr.is-over-limit td { background:#fff8f8; border-bottom-color:#fee2e2; }
+    .parking-unit-matrix tr.is-over-limit td:first-child { box-shadow:inset 4px 0 #dc2626; }
+    .parking-unit-cell { text-align:left !important; padding-left:16px !important; }
+    .parking-unit-cell strong, .parking-unit-cell span { display:block; }
+    .parking-unit-cell strong { font-size:14px; color:#122d2a; }
+    .parking-unit-cell span { margin-top:3px; color:var(--muted); font-size:10px; }
+    .parking-unit-matrix td.has-parking { cursor:pointer; background:#f0fdfa; }
+    .parking-plate-chip { display:block; padding:5px 6px; border:1px solid #99f6e4; border-radius:7px; background:#fff; color:#115e59; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:800; white-space:nowrap; }
+    .parking-plate-chip + .parking-plate-chip { margin-top:4px; }
+    .parking-empty-day { color:#b6c1c0; }
+    .parking-days-total strong, .parking-days-total span { display:block; }
+    .parking-days-total strong { color:#0f766e; font-size:14px; }
+    .parking-days-total span { margin-top:3px; color:var(--muted); font-size:10px; }
+    .is-over-limit .parking-days-total strong, .is-over-limit .parking-days-total span { color:#b91c1c; }
+    .parking-matrix-empty { padding:30px !important; color:var(--muted); text-align:center !important; }
+    .parking-monitor-pager { display:flex; justify-content:center; align-items:center; gap:12px; padding:12px 18px; background:#fafcfc; }
+    @media (max-width: 760px) {
+      .management-hero { align-items:flex-start; flex-direction:column; }
+      .data-management-grid, .report-filter-grid { grid-template-columns:1fr; }
+      .parking-monitor-stats { grid-template-columns:1fr; }
+    }
+
     /* Page-level boxed headings (matches nav colors) */
     /* Make heading box take full width and match approx 34.4px height while remaining responsive */
     .page-heading-box {
@@ -377,25 +449,50 @@
           </div>
 
           <div id="pageUnitSummary" style="display:none; margin-top:12px;">
-            <h3 class="page-heading-box" style="margin-top:6px">Pengurusan Data</h3>
-            <div class="card card-tight">
-              <div class="small muted" style="margin-bottom:8px;">Eksport, pembersihan data lama, dan summary unit dikumpulkan di halaman ini.</div>
-
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--input-border);">
-                <div class="small" style="font-weight:700;">Eksport CSV:</div>
-                <button id="exportAllCSVBtn" class="btn" type="button">Eksport CSV (Semua Rekod)</button>
+            <div class="management-hero">
+              <div>
+                <h3>Pengurusan Data</h3>
+                <p>Semak rekod, teliti sejarah pelawat dan hasilkan laporan CSV dengan penggunaan reads terkawal.</p>
               </div>
+              <div class="management-hero-badge">Firebase Spark • Read-aware</div>
+            </div>
 
-              <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--input-border);">
-                <div>
-                  <label for="purgeBeforeDate" class="small muted">Padam data sebelum tarikh</label>
-                  <input id="purgeBeforeDate" type="date" style="padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Tarikh cutoff padam data lama" />
+            <div>
+
+              <div class="data-management-grid">
+                <div class="data-management-card">
+                  <span class="metric-icon" aria-hidden="true">▤</span>
+                  <h4>Jumlah Rekod Database</h4>
+                  <div class="small muted">Kiraan ringan tanpa memuat turun kandungan rekod.</div>
+                  <div id="databaseCountValue" class="database-count-value">—</div>
+                  <div id="databaseCountMeta" class="small muted">Belum disemak</div>
+                  <button id="databaseCountBtn" class="btn-ghost" type="button" style="margin-top:9px;">Semak Jumlah Rekod</button>
                 </div>
-                <button id="purgeOldBtn" type="button" class="btn-ghost" style="padding:8px 10px; border-radius:10px;">Padam Data Lama</button>
+                <div class="data-management-card">
+                  <span class="metric-icon" aria-hidden="true">⌂</span>
+                  <h4>Sejarah Mengikut Unit</h4>
+                  <div class="metric-value">Unit → Pelawat</div>
+                  <div class="small muted">Teliti pelawat, telefon, kenderaan, kategori dan status bagi unit dipilih.</div>
+                </div>
+                <div class="data-management-card">
+                  <span class="metric-icon" aria-hidden="true">◷</span>
+                  <h4>Bajet Operasi</h4>
+                  <div class="metric-value">20,000</div>
+                  <div class="small muted">Had keselamatan rekod bagi satu operasi laporan.</div>
+                </div>
               </div>
 
-              <div class="small muted" style="margin-bottom:6px;">Summary Unit:</div>
-              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+              <div class="report-builder">
+                <div class="report-builder-head">
+                  <div>
+                    <h4>Penjana Laporan &amp; Sejarah Unit</h4>
+                    <div class="small muted">Pilih julat wajib, kemudian kecilkan hasil dengan penapis tambahan.</div>
+                  </div>
+                  <div class="small muted">1. Semak → 2. Muat → 3. Eksport</div>
+                </div>
+                <div class="report-builder-body">
+
+              <div class="report-filter-grid">
                 <div>
                   <label for="unitSummaryFromDate" class="small muted">Dari ETA</label>
                   <input id="unitSummaryFromDate" type="date" />
@@ -404,11 +501,37 @@
                   <label for="unitSummaryToDate" class="small muted">Hingga ETA</label>
                   <input id="unitSummaryToDate" type="date" />
                 </div>
-                <button id="unitSummaryLoadRangeBtn" class="btn" type="button">Muat Ikut Julat</button>
-                <button id="unitSummaryLoadAllBtn" class="btn-ghost" type="button">Muat Semua (Sejak Mula)</button>
-                <button id="unitSummaryExportSummaryBtn" class="btn-ghost" type="button">Eksport CSV Summary</button>
-                <button id="unitSummaryExportDetailsBtn" class="btn-ghost" type="button">Eksport CSV Butiran</button>
+                <div>
+                  <label for="unitReportUnit" class="small muted">Unit rumah</label>
+                  <input id="unitReportUnit" type="search" placeholder="Semua unit" />
+                </div>
+                <div>
+                  <label for="unitReportCategory" class="small muted">Kategori</label>
+                  <select id="unitReportCategory"><option value="">Semua kategori</option></select>
+                </div>
+                <div>
+                  <label for="unitReportStatus" class="small muted">Status</label>
+                  <select id="unitReportStatus">
+                    <option value="">Semua status</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Checked In">Checked In</option>
+                    <option value="Checked Out">Checked Out</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="unitReportKeyword" class="small muted">Pelawat / telefon / kenderaan</label>
+                  <input id="unitReportKeyword" type="search" placeholder="Carian pilihan" />
+                </div>
               </div>
+
+              <div class="report-actions">
+                <button id="unitSummaryPreviewBtn" class="btn-ghost" type="button">Semak Jumlah Julat</button>
+                <button id="unitSummaryLoadRangeBtn" class="btn" type="button">Muat &amp; Paparkan</button>
+                <button id="unitSummaryExportSummaryBtn" class="btn-ghost" type="button">Eksport Ringkasan CSV</button>
+                <button id="unitSummaryExportDetailsBtn" class="btn-ghost" type="button">Eksport Butiran CSV</button>
+              </div>
+
+              <div id="unitSummaryReadEstimate" class="small read-budget-note" style="margin-top:10px;">Semak jumlah julat sebelum memuat data. Had keselamatan: 20,000 rekod untuk satu operasi.</div>
 
               <div id="unitSummaryMeta" class="small muted" style="margin-top:10px;"></div>
 
@@ -417,12 +540,28 @@
               </div>
 
               <div id="listAreaUnitSummary" style="margin-top:10px"></div>
+                </div>
+              </div>
             </div>
 
             <div class="card card-tight" style="margin-top:10px;">
-              <h4 style="margin-top:0">Butiran Unit Dipilih</h4>
-              <div id="unitSummaryDetailArea" class="small muted">Pilih unit dari jadual summary untuk lihat senarai ETA, ETD dan nombor kenderaan.</div>
+              <h4 style="margin-top:0">Sejarah Pelawat Unit Dipilih</h4>
+              <div id="unitSummaryDetailArea" class="small muted">Pilih unit daripada ringkasan untuk melihat nama pelawat, telefon, kenderaan dan sejarah lawatan.</div>
             </div>
+
+            <details class="card card-tight" style="margin-top:10px;">
+              <summary style="cursor:pointer;font-weight:700;">Tindakan berisiko tinggi</summary>
+              <div class="small muted" style="margin:8px 0;">Gunakan hanya apabila benar-benar perlu kerana operasi ini boleh membaca keseluruhan database.</div>
+              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
+                <div>
+                  <label for="purgeBeforeDate" class="small muted">Padam data sebelum tarikh</label>
+                  <input id="purgeBeforeDate" type="date" aria-label="Tarikh cutoff padam data lama" />
+                </div>
+                <button id="purgeOldBtn" type="button" class="btn-ghost">Padam Data Lama</button>
+              </div>
+              <button id="exportAllCSVBtn" class="btn-ghost" type="button">Eksport Semua Rekod</button>
+              <button id="unitSummaryLoadAllBtn" class="btn-ghost" type="button">Muat Semua Sejak Mula</button>
+            </details>
           </div>
 
           <!-- Halaman Parkir: dua kolum, kad selari -->
@@ -699,6 +838,6 @@
   </script>
   <!-- Static units list used by admin views -->
   <script src="js/units-list.js"></script>
-  <script type="module" src="js/dashboard.js?v=20260909-1"></script>
+  <script type="module" src="js/dashboard.js?v=20260910-1"></script>
 </body>
 </html>
