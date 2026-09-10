@@ -8,7 +8,7 @@
   },
   "hosting": {
     "public": ".",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "scripts/**", "private-reports/**", "**/*report*.json", "serviceAccount.json", "config.local.js"],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "scripts/**", "private-reports/**", "private-notes/**", "**/*report*.json", "**/*debug*.log", "serviceAccount.json", "config.local.js"],
     "rewrites": [
       { "source": "/dashboard", "destination": "/dashboard.html" },
       { "source": "/visitor", "destination": "/visitor.html" }

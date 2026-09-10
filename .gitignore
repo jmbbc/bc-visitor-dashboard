@@ -12,3 +12,6 @@ package-lock.json
 /scripts/reports/
 /*report*.json
 /private-reports/
+/private-notes/
+firebase-debug*.log
+firestore-debug*.log

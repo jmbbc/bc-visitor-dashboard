@@ -77,6 +77,114 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // Payment storage: separate from visitor submission and existing collections.
+    // No anonymous provider, even if its token unexpectedly carries a staff claim.
+    function paymentAdmin() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.auth.token.admin == true;
+    }
+    function paymentStaff() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && (request.auth.token.get('admin', false) == true
+          || request.auth.token.get('guard', false) == true);
+    }
+    function validPaymentAllocation(item) {
+      return item.keys().hasOnly(['chargeId','amountSen'])
+        && item.chargeId is string && item.amountSen is int && item.amountSen > 0
+        && exists(/databases/$(database)/documents/parkingCharges/$(item.chargeId));
+    }
+    function validPaymentAllocations(items, ids, amount) {
+      return items is list && ids is list && items.size() > 0 && items.size() <= 8
+        && ids.size() == items.size() && ids.toSet().size() == ids.size()
+        && (items.size() <= 0 || validPaymentAllocation(items[0]))
+        && (items.size() <= 1 || validPaymentAllocation(items[1]))
+        && (items.size() <= 2 || validPaymentAllocation(items[2]))
+        && (items.size() <= 3 || validPaymentAllocation(items[3]))
+        && (items.size() <= 4 || validPaymentAllocation(items[4]))
+        && (items.size() <= 5 || validPaymentAllocation(items[5]))
+        && (items.size() <= 6 || validPaymentAllocation(items[6]))
+        && (items.size() <= 7 || validPaymentAllocation(items[7]))
+        && (ids.size() <= 0 || ids[0] == items[0].chargeId)
+        && (ids.size() <= 1 || ids[1] == items[1].chargeId)
+        && (ids.size() <= 2 || ids[2] == items[2].chargeId)
+        && (ids.size() <= 3 || ids[3] == items[3].chargeId)
+        && (ids.size() <= 4 || ids[4] == items[4].chargeId)
+        && (ids.size() <= 5 || ids[5] == items[5].chargeId)
+        && (ids.size() <= 6 || ids[6] == items[6].chargeId)
+        && (ids.size() <= 7 || ids[7] == items[7].chargeId)
+        && ((items.size() > 0 ? items[0].amountSen : 0) + (items.size() > 1 ? items[1].amountSen : 0) + (items.size() > 2 ? items[2].amountSen : 0) + (items.size() > 3 ? items[3].amountSen : 0) + (items.size() > 4 ? items[4].amountSen : 0) + (items.size() > 5 ? items[5].amountSen : 0) + (items.size() > 6 ? items[6].amountSen : 0) + (items.size() > 7 ? items[7].amountSen : 0)) <= amount;
+    }
+    match /parkingCharges/{id} {
+      allow read: if paymentStaff();
+      allow create: if paymentAdmin()
+        && request.resource.data.keys().hasOnly(['registrationId','amountSen','createdBy','createdAt'])
+        && request.resource.data.registrationId == id
+        && exists(/databases/$(database)/documents/responses/$(id))
+        && request.resource.data.amountSen is int
+        && request.resource.data.amountSen >= 0 && request.resource.data.amountSen <= 100000000
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if paymentAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amountSen','lastChangeId'])
+        && request.resource.data.amountSen is int
+        && request.resource.data.amountSen >= 0 && request.resource.data.amountSen <= 100000000
+        && !exists(/databases/$(database)/documents/parkingCharges/$(id)/changes/$(request.resource.data.lastChangeId))
+        && getAfter(/databases/$(database)/documents/parkingCharges/$(id)/changes/$(request.resource.data.lastChangeId)).data.afterSen == request.resource.data.amountSen;
+      allow delete: if false;
+      match /changes/{eventId} {
+        allow read: if paymentStaff();
+        allow create: if paymentAdmin()
+          && request.resource.data.keys().hasOnly(['beforeSen','afterSen','reason','by','at'])
+          && request.resource.data.beforeSen == get(/databases/$(database)/documents/parkingCharges/$(id)).data.amountSen
+          && request.resource.data.afterSen == getAfter(/databases/$(database)/documents/parkingCharges/$(id)).data.amountSen
+          && getAfter(/databases/$(database)/documents/parkingCharges/$(id)).data.lastChangeId == eventId
+          && request.resource.data.reason is string && request.resource.data.reason.size() > 0 && request.resource.data.reason.size() <= 500
+          && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time;
+        allow update, delete: if false;
+      }
+    }
+    match /parkingReceipts/{id} {
+      allow read: if paymentStaff();
+      allow create: if paymentStaff()
+        && id.matches('^[A-Z0-9_-]{4,80}$')
+        && request.resource.data.keys().hasOnly(['chargeId','reference','amountSen','state','createdBy','createdAt'])
+        && request.resource.data.chargeId is string
+        && exists(/databases/$(database)/documents/parkingCharges/$(request.resource.data.chargeId))
+        && request.resource.data.reference == id
+        && request.resource.data.amountSen is int
+        && request.resource.data.amountSen > 0 && request.resource.data.amountSen <= 100000000
+        && request.resource.data.state == 'active'
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if paymentAdmin()
+        && resource.data.state == 'active'
+        && request.resource.data.state == 'voided'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state','voidReason','voidBy','voidAt'])
+        && request.resource.data.voidReason is string
+        && request.resource.data.voidReason.size() > 0 && request.resource.data.voidReason.size() <= 500
+        && request.resource.data.voidBy == request.auth.uid
+        && request.resource.data.voidAt == request.time;
+      allow update: if paymentAdmin() && resource.data.state == 'active'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allocations','relatedChargeIds','lastChangeId'])
+        && validPaymentAllocations(request.resource.data.allocations, request.resource.data.relatedChargeIds, resource.data.amountSen)
+        && !exists(/databases/$(database)/documents/parkingReceipts/$(id)/changes/$(request.resource.data.lastChangeId))
+        && getAfter(/databases/$(database)/documents/parkingReceipts/$(id)/changes/$(request.resource.data.lastChangeId)).data.after == request.resource.data.allocations;
+      allow delete: if false;
+      match /changes/{eventId} {
+        allow read: if paymentStaff();
+        allow create: if paymentAdmin()
+          && request.resource.data.keys().hasOnly(['before','after','reason','by','at'])
+          && request.resource.data.before == get(/databases/$(database)/documents/parkingReceipts/$(id)).data.get('allocations', [{'chargeId':get(/databases/$(database)/documents/parkingReceipts/$(id)).data.chargeId, 'amountSen':get(/databases/$(database)/documents/parkingReceipts/$(id)).data.amountSen}])
+          && request.resource.data.after == getAfter(/databases/$(database)/documents/parkingReceipts/$(id)).data.allocations
+          && getAfter(/databases/$(database)/documents/parkingReceipts/$(id)).data.lastChangeId == eventId
+          && request.resource.data.reason is string && request.resource.data.reason.size() > 0 && request.resource.data.reason.size() <= 500
+          && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time;
+        allow update, delete: if false;
+      }
+    }
+
     // Deny everything else by default (explicit)
     match /{document=**} {
       allow read: if false;

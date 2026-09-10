@@ -335,7 +335,10 @@
 <body>
   <main class="container" style="padding:18px 12px;">
     <a href="index.html" class="small">← Kembali</a>
-    <h2 style="margin-top:8px">Dashboard Keselamatan</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:8px;margin-bottom:12px">
+      <h2 style="margin:0">Dashboard Keselamatan</h2>
+      <button id="logoutBtn" type="button" style="display:none;min-height:44px;padding:10px 16px;background:#fff;color:#065f46;border:1px solid #059669;border-radius:10px;font-weight:700;cursor:pointer" aria-label="Log keluar akaun semasa dan kembali ke borang log masuk">Tukar Akaun / Log Keluar</button>
+    </div>
 
     <div id="loginBox" class="login-box card small" style="max-width:420px;margin-top:12px">
       <label>Email</label>
@@ -344,7 +347,6 @@
       <input id="loginPass" type="password" />
       <div class="row" style="margin-top:8px">
         <button id="loginBtn">Log Masuk</button>
-        <button id="logoutBtn" style="display:none" class="btn-ghost">Log Keluar</button>
       </div>
       <div id="loginMsg" role="status" aria-live="polite" class="small" style="margin-top:8px"></div>
     </div>
@@ -838,6 +840,7 @@
   </script>
   <!-- Static units list used by admin views -->
   <script src="js/units-list.js"></script>
-  <script type="module" src="js/dashboard.js?v=20260910-1"></script>
+  <script type="module" src="js/dashboard.js?v=20260910-2"></script>
+  <script type="module" src="js/dashboard-payments.mjs"></script>
 </body>
 </html>

@@ -1227,12 +1227,19 @@ loginBtn.addEventListener('click', async ()=>{
 });
 
 logoutBtn.addEventListener('click', async ()=> {
+  logoutBtn.disabled = true;
   try {
     await signOut(window.__AUTH);
-    showLoginMsg(loginMsg, 'Anda telah log keluar.', true);
+    document.getElementById('loginPass').value = '';
+    showLoginMsg(loginMsg, 'Anda telah log keluar. Masukkan e-mel akaun yang ingin digunakan.', true);
+    loginBox.scrollIntoView({ block: 'center' });
+    document.getElementById('loginEmail').focus();
   } catch (err) {
     console.error('logout err', err);
     showLoginMsg(loginMsg, 'Gagal log keluar', false);
+    toast('Gagal log keluar. Sila cuba semula.', false);
+  } finally {
+    logoutBtn.disabled = false;
   }
 });
 
