@@ -3207,10 +3207,13 @@ document.addEventListener('DOMContentLoaded', () => {
       toggleInfoHint(clearInfoBtn, 'clearInfo');
     });
 
-    // Prevent backdated ETA on the client: set min to today so datepicker blocks past dates
+    // Advance registration is allowed; validate the stay separately from booking lead time.
     try {
       const todayIsoDate = clientIsoDateOnlyKey(new Date());
-      if (etaEl) etaEl.min = todayIsoDate;
+      if (etaEl) {
+        etaEl.min = todayIsoDate;
+        etaEl.removeAttribute('max');
+      }
       // remember the date when the user opened the form so we can accept it even if they
       // submit after midnight (avoid false 'backdated' errors when crossing midnight)
       try { window.__VISITOR_FORM_OPEN_DATE_KEY = todayIsoDate; } catch (e) { /* ignore */ }

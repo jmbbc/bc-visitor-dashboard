@@ -4347,8 +4347,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       filterDateUserChangedParking = true;
       const wr = weekRangeFromDate(ds);
       const from = new Date(wr.start); const to = new Date(wr.start); to.setDate(to.getDate()+7);
-      // extend backward by max stay span (3 days) so overlaps from previous week are included
-      const fromBuffered = new Date(from); fromBuffered.setDate(fromBuffered.getDate() - 3);
+      // Retrieve overlapping stays without assuming a three-day maximum.
 
       // Query responses for the week
       const weekKey = isoDateString(wr.start);
@@ -4359,10 +4358,18 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if (useCacheOnly) {
           rows = [];
         } else {
-          const q = query(col, where('eta','>=', Timestamp.fromDate(fromBuffered)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'));
-          const snap = await getDocs(q);
-          rows = [];
-          snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+          const maxRows = 2000;
+          const requests = [
+            query(col, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'), limit(maxRows + 1)),
+            query(col, where('etd','>=', Timestamp.fromDate(from)), orderBy('etd','asc'), limit(maxRows + 1))
+          ];
+          const snapshots = await Promise.all(requests.map(q => getDocs(q)));
+          if (snapshots.some(snap => snap.size > maxRows)) {
+            throw new Error('Laporan melebihi had bacaan. Data tidak dipaparkan untuk mengelakkan laporan tidak lengkap.');
+          }
+          const uniqueRows = new Map();
+          snapshots.forEach(snap => snap.forEach(d => uniqueRows.set(d.id, { id: d.id, ...d.data() })));
+          rows = Array.from(uniqueRows.values());
           weekResponseCache[weekKey] = rows;
         }
       }
@@ -4706,7 +4713,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
         else page.appendChild(calWrap);
       }
 
-    } catch(err){ console.error('[parking] renderParkingWeekCalendar err', err); }
+    } catch(err){
+      console.error('[parking] renderParkingWeekCalendar err', err);
+      const staleCalendar = document.getElementById('parkingWeekCalendar');
+      if (staleCalendar) staleCalendar.remove();
+      toast(err?.message || 'Laporan mingguan gagal dimuat. Sila cuba semula.', false);
+    }
   }
 
   /* ---------- Assign Lot transaction helpers ---------- */
