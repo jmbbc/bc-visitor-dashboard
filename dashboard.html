@@ -322,6 +322,9 @@
     #pageUnitArrears > h3.page-heading-box { background: linear-gradient(180deg, rgba(244,63,94,0.12), rgba(244,63,94,0.08)); border: 1px solid rgba(244,63,94,0.14); color: #4c0519; }
     #pageCheckedIn > h3.page-heading-box { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.08)); border: 1px solid rgba(79,70,229,0.14); color: #07102a; }
     #pageUnitSummary > h3.page-heading-box { background: linear-gradient(180deg, rgba(16,185,129,0.12), rgba(16,185,129,0.08)); border: 1px solid rgba(16,185,129,0.14); color: #064e3b; }
+    .parking-review-panel{margin-bottom:12px;border:1px solid rgba(245,158,11,.28);background:linear-gradient(135deg,#fff 0%,#fffbeb 100%)}
+    .parking-review-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.parking-review-head h4{margin:6px 0 4px}.admin-only-pill{display:inline-flex;padding:3px 8px;border-radius:999px;background:#7c3aed;color:#fff;font-size:10px;font-weight:800;letter-spacing:.08em}.parking-review-summary{min-width:110px;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid #fde68a;text-align:center}.parking-review-summary strong{display:block;font-size:24px;color:#92400e}.parking-review-summary span{font-size:11px;color:#78716c}.parking-review-toolbar{display:grid;grid-template-columns:minmax(180px,1fr) 180px auto;gap:8px;margin:14px 0 10px}.parking-review-toolbar input,.parking-review-toolbar select,.parking-review-form input,.parking-review-form select,.parking-review-form textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--input-border);border-radius:9px;background:#fff}.parking-review-list{display:grid;gap:8px;margin-top:8px}.parking-review-item{border:1px solid #e7e5e4;border-radius:12px;background:#fff;overflow:hidden}.parking-review-item summary{display:grid;grid-template-columns:120px minmax(190px,1fr) 130px auto;gap:10px;align-items:center;padding:11px 12px;cursor:pointer;list-style:none}.parking-review-item summary::-webkit-details-marker{display:none}.parking-review-unit{font-weight:800;color:#1f2937}.parking-review-reason{font-size:12px;color:#57534e}.review-status{justify-self:start;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e}.review-status.resolved{background:#dcfce7;color:#166534}.parking-review-form{border-top:1px solid #eee;padding:12px;display:grid;grid-template-columns:repeat(5,minmax(115px,1fr));gap:10px}.parking-review-form .review-reason-field{grid-column:1/-2}.parking-review-form .review-save{align-self:end}.parking-review-audit{grid-column:1/-1;padding:9px;border-radius:8px;background:#f8fafc;color:#475569;font-size:12px}
+    @media(max-width:900px){.parking-review-item summary{grid-template-columns:1fr 1fr}.parking-review-form{grid-template-columns:1fr 1fr}.parking-review-form .review-reason-field{grid-column:1/-1}.parking-review-toolbar{grid-template-columns:1fr}.parking-review-summary{min-width:90px}}
     #pageParking > h3.page-heading-box { background: linear-gradient(180deg, rgba(250,190,50,0.12), rgba(250,190,50,0.08)); border: 1px solid rgba(250,190,50,0.14); color: #2b1808; }
     /* Unit Admin page heading — match other page heading styles (indigo/violet) */
     #pageUnitAdmin > h3.page-heading-box { background: linear-gradient(180deg, rgba(99,102,241,0.12), rgba(99,102,241,0.08)); border: 1px solid rgba(99,102,241,0.14); color: #0f172a; }
@@ -460,6 +463,20 @@
             </div>
 
             <div>
+
+              <section id="parkingReviewAdminPanel" class="card parking-review-panel" hidden aria-labelledby="parkingReviewTitle">
+                <div class="parking-review-head">
+                  <div><span class="admin-only-pill">ADMIN SAHAJA</span><h4 id="parkingReviewTitle">Semakan Cooldown Unit</h4><p class="small muted">Sahkan keadaan unit lama yang pernah bertukar kategori sebelum peraturan cooldown automatik digunakan.</p></div>
+                  <div class="parking-review-summary" aria-live="polite"><strong id="parkingReviewPendingCount">—</strong><span>menunggu semakan</span></div>
+                </div>
+                <div class="parking-review-toolbar">
+                  <input id="parkingReviewSearch" type="search" placeholder="Cari unit" aria-label="Cari unit untuk semakan cooldown" />
+                  <select id="parkingReviewStatus" aria-label="Tapis status semakan"><option value="pending">Perlu semakan</option><option value="resolved">Selesai</option><option value="all">Semua</option></select>
+                  <button id="parkingReviewRefresh" class="btn-ghost" type="button">Muat Semula</button>
+                </div>
+                <div id="parkingReviewMessage" class="small muted" role="status" aria-live="polite">Memuatkan senarai semakan…</div>
+                <div id="parkingReviewList" class="parking-review-list"></div>
+              </section>
 
               <div class="data-management-grid">
                 <div class="data-management-card">
@@ -842,5 +859,6 @@
   <script src="js/units-list.js"></script>
   <script type="module" src="js/dashboard.js?v=20260910-2"></script>
   <script type="module" src="js/dashboard-payments.mjs"></script>
+  <script type="module" src="js/dashboard-category-review.mjs?v=20260911-1"></script>
 </body>
 </html>

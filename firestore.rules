@@ -65,9 +65,23 @@ service cloud.firestore {
     // Overnight lock to force Pelawat Bermalam vehicle combination in one submission
     match /overnightLocks/{lockId} {
       allow get: if true;
-      allow create, update: if isValidOvernightLock(request.resource.data, lockId)
+      allow create: if isValidOvernightLock(request.resource.data, lockId)
         && existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId));
+      allow update: if (isValidOvernightLock(request.resource.data, lockId)
+        && existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId)))
+        || (isAdmin() && isValidOvernightLock(request.resource.data, lockId)
+          && isAdminParkingReviewUpdate(resource.data, request.resource.data));
       allow delete, list: if false;
+    }
+
+    match /parkingReviewQueue/{unitId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidParkingReview(request.resource.data, unitId);
+      allow update: if isAdmin() && resource.data.status == 'pending'
+        && request.resource.data.status == 'resolved'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','finalCategory','finalMainUsageDays','finalCycleStart','finalLastMainEnd','finalLastAnyEnd','resolutionReason','resolvedBy','resolvedByEmail','resolvedAt'])
+        && isValidParkingReview(request.resource.data, unitId);
+      allow delete: if false;
     }
 
     // Audit logs: authenticated users may write and read; deletes disabled
@@ -296,7 +310,7 @@ service cloud.firestore {
 
     function isValidOvernightLock(data, lockId) {
       return data is map
-        && data.keys().hasOnly(['unit','startDate','endDate','category','stayOver','responseId','updatedAt','amendToken','parkingCategory','cycleStart','mainUsageDays','lastMainEnd','lastAnyEnd','parkingPolicyVersion','parkingReviewRequired','parkingStateMigratedAt'])
+        && data.keys().hasOnly(['unit','startDate','endDate','category','stayOver','responseId','updatedAt','amendToken','parkingCategory','cycleStart','mainUsageDays','lastMainEnd','lastAnyEnd','parkingPolicyVersion','parkingReviewRequired','parkingStateMigratedAt','parkingReviewedAt','parkingReviewedBy'])
         && (data.unit is string)
         && (data.startDate is timestamp)
         && (data.endDate is timestamp)
@@ -313,10 +327,12 @@ service cloud.firestore {
         && (data.parkingPolicyVersion is string || !('parkingPolicyVersion' in data))
         && (data.parkingReviewRequired is bool || !('parkingReviewRequired' in data))
         && (data.parkingStateMigratedAt is timestamp || !('parkingStateMigratedAt' in data))
+        && (data.parkingReviewedAt is timestamp || !('parkingReviewedAt' in data))
+        && (data.parkingReviewedBy is string || !('parkingReviewedBy' in data))
         && (!('mainUsageDays' in data) || data.mainUsageDays >= 0)
         && (!('parkingCategory' in data) || data.parkingCategory in [1,2,3])
         && (!('lastAnyEnd' in data) || data.lastAnyEnd >= data.endDate)
-        && (!('mainUsageDays' in data) || !exists(/databases/$(database)/documents/overnightLocks/$(lockId))
+        && (isAdmin() || !('mainUsageDays' in data) || !exists(/databases/$(database)/documents/overnightLocks/$(lockId))
           || !('mainUsageDays' in resource.data)
           || data.mainUsageDays >= resource.data.mainUsageDays
           || (('lastAnyEnd' in resource.data) && data.startDate >= resource.data.lastAnyEnd + duration.value(4, 'd')))
@@ -324,6 +340,32 @@ service cloud.firestore {
         && (data.stayOver in ['Yes', 'No'])
         && (lockId == ('unit-' + data.unit))
         && (data.startDate <= data.endDate);
+    }
+
+    function isValidParkingReview(data, unitId) {
+      return data is map
+        && data.keys().hasOnly(['unitId','status','reasons','suggestedCategory','suggestedMainUsageDays','suggestedCycleStart','suggestedLastMainEnd','suggestedLastAnyEnd','sourceResponseCount','generatedAt','finalCategory','finalMainUsageDays','finalCycleStart','finalLastMainEnd','finalLastAnyEnd','resolutionReason','resolvedBy','resolvedByEmail','resolvedAt'])
+        && data.unitId == unitId && data.status in ['pending','resolved']
+        && data.reasons is list && data.reasons.size() > 0
+        && data.sourceResponseCount is int && data.sourceResponseCount > 0
+        && data.generatedAt is timestamp
+        && (data.suggestedCategory is int || !('suggestedCategory' in data))
+        && (data.suggestedMainUsageDays is int || !('suggestedMainUsageDays' in data))
+        && (data.suggestedCycleStart is timestamp || !('suggestedCycleStart' in data))
+        && (data.suggestedLastMainEnd is timestamp || !('suggestedLastMainEnd' in data))
+        && (data.suggestedLastAnyEnd is timestamp || !('suggestedLastAnyEnd' in data))
+        && (data.status == 'pending' || (data.finalCategory in [1,2,3]
+          && data.finalMainUsageDays is int && data.finalMainUsageDays >= 0
+          && data.finalCycleStart is timestamp && data.finalLastMainEnd is timestamp && data.finalLastAnyEnd is timestamp
+          && data.resolutionReason is string && data.resolutionReason.size() > 2 && data.resolutionReason.size() <= 500
+          && data.resolvedBy == request.auth.uid && data.resolvedByEmail is string && data.resolvedAt == request.time));
+    }
+
+    function isAdminParkingReviewUpdate(oldData, newData) {
+      return newData.diff(oldData).affectedKeys().hasOnly(['parkingCategory','cycleStart','mainUsageDays','lastMainEnd','lastAnyEnd','parkingPolicyVersion','parkingReviewRequired','parkingReviewedAt','parkingReviewedBy'])
+        && newData.parkingReviewRequired == false
+        && newData.parkingReviewedAt == request.time
+        && newData.parkingReviewedBy == request.auth.uid;
     }
 
     function canAmendResponse(oldData, newData, respId) {
