@@ -19,3 +19,11 @@ test('non-overnight locks do not invalidate an admin-confirmed cooldown date',()
   const rules=readFileSync(new URL('../firestore.rules',import.meta.url),'utf8');
   assert.match(rules,/data\.stayOver != 'Yes' \|\| data\.lastAnyEnd >= data\.endDate/);
 });
+
+test('admin review may atomically create a missing legacy cooldown lock',()=>{
+  const review=readFileSync(new URL('../js/dashboard-category-review.mjs',import.meta.url),'utf8');
+  const rules=readFileSync(new URL('../firestore.rules',import.meta.url),'utf8');
+  assert.match(review,/if\(lockSnap\.exists\(\)\)tx\.update\(lockRef,decision\);else tx\.set\(lockRef/);
+  assert.match(rules,/isAdminParkingReviewCreate\(request\.resource\.data, lockId\)/);
+  assert.match(rules,/getAfter\(reviewPath\)\.data\.status == 'resolved'/);
+});

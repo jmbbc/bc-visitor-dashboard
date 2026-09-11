@@ -66,7 +66,8 @@ service cloud.firestore {
     match /overnightLocks/{lockId} {
       allow get: if true;
       allow create: if isValidOvernightLock(request.resource.data, lockId)
-        && existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId));
+        && (existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId))
+          || (isAdmin() && isAdminParkingReviewCreate(request.resource.data, lockId)));
       allow update: if (isValidOvernightLock(request.resource.data, lockId)
         && existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId)))
         || (isAdmin() && isValidOvernightLock(request.resource.data, lockId)
@@ -368,6 +369,18 @@ service cloud.firestore {
         && newData.parkingReviewRequired == false
         && newData.parkingReviewedAt == request.time
         && newData.parkingReviewedBy == request.auth.uid;
+    }
+
+    function isAdminParkingReviewCreate(data, lockId) {
+      let reviewPath = /databases/$(database)/documents/parkingReviewQueue/$(data.unit);
+      return lockId == ('unit-' + data.unit)
+        && data.responseId == ('admin-review-' + data.unit)
+        && data.parkingReviewRequired == false
+        && data.parkingReviewedAt == request.time
+        && data.parkingReviewedBy == request.auth.uid
+        && existsAfter(reviewPath)
+        && getAfter(reviewPath).data.status == 'resolved'
+        && getAfter(reviewPath).data.resolvedBy == request.auth.uid;
     }
 
     function canAmendResponse(oldData, newData, respId) {
