@@ -6,6 +6,18 @@ export function quoteFromUnitState({unitId, category, state = null, start, end, 
   const requested=datesInclusive(start,end);
   if(!unit || ![1,2,3].includes(category)) throw new Error('Unit atau kategori tidak sah.');
   if(requested.length>30) throw new Error('Maksimum 30 hari bagi satu permohonan.');
+  // Category 3 has no free entitlement or cooldown balance: every requested
+  // main-vehicle date is always RM15. Historical category transitions and
+  // unmigrated usage therefore cannot make the current amount ambiguous.
+  if(category===3){
+    if(state?.unitId && state.unitId!==unit) throw new Error('Ringkasan unit tidak sah.');
+    if(state?.lastAnyEnd && start<=state.lastAnyEnd) return {status:'requires_review',reason:'overlapping_or_out_of_order',totalSen:null};
+    const priorDays=state?.category===3&&Number.isInteger(state.mainUsageDays)?state.mainUsageDays:0;
+    const lines=requested.map((date,index)=>({date,day:priorDays+index+1,amountSen:dailyRateSen(3,priorDays+index+1,'main')}));
+    const anyEnd=lastAnyEnd<end?end:lastAnyEnd;
+    return {status:'quoted',policyVersion:POLICY_VERSION,unitId:unit,lines,totalSen:lines.reduce((sum,line)=>sum+line.amountSen,0),
+      nextState:{unitId:unit,category:3,cycleStart:state?.category===3&&state.cycleStart?state.cycleStart:start,mainUsageDays:priorDays+requested.length,lastMainEnd:end,lastAnyEnd:anyEnd,policyVersion:POLICY_VERSION}};
+  }
   if(state?.legacyMissingUsage === true) return {status:'requires_review',reason:'legacy_history_not_migrated',totalSen:null};
   let priorDays=0, cycleStart=start;
   if(state) {

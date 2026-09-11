@@ -36,3 +36,15 @@ test('compact state resets only after three full empty dates',()=>{
 test('legacy summary fails closed for admin review',()=>{
   assert.equal(quoteFromUnitState({unitId:'B2-15-9',category:1,state:{legacyMissingUsage:true},start:'2026-09-10',end:'2026-09-12'}).status,'requires_review');
 });
+
+test('category 3 always quotes RM15 per day despite legacy or category transition',()=>{
+  const legacy=quoteFromUnitState({unitId:'A-1-1',category:3,state:{legacyMissingUsage:true},start:'2026-10-01',end:'2026-10-03'});
+  assert.equal(legacy.status,'quoted');assert.equal(legacy.totalSen,4500);
+  const transition=quoteFromUnitState({unitId:'A-1-1',category:3,state:{unitId:'A-1-1',category:1,cycleStart:'2026-09-01',mainUsageDays:3,lastAnyEnd:'2026-09-03'},start:'2026-09-07',end:'2026-09-08'});
+  assert.equal(transition.status,'quoted');assert.equal(transition.totalSen,3000);assert.equal(transition.nextState.mainUsageDays,2);
+});
+
+test('category 3 still sends overlapping dates for review',()=>{
+  const result=quoteFromUnitState({unitId:'A-1-1',category:3,state:{unitId:'A-1-1',category:3,cycleStart:'2026-09-01',mainUsageDays:2,lastAnyEnd:'2026-09-02'},start:'2026-09-02',end:'2026-09-03'});
+  assert.equal(result.status,'requires_review');assert.equal(result.reason,'overlapping_or_out_of_order');
+});
