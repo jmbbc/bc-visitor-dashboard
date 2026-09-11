@@ -31,7 +31,8 @@ export function analyseUnitCycles({unitId, cat, allocations}) {
   }
   const cycles=groups.map((g,index)=>{
     const mainIds=new Set(g.rows.filter(a=>a.role==='main').map(a=>a.vehicleId));
-    if(mainIds.size>1) issues.push({code:'multiple_main_vehicles_or_unverified_replacement',cycleIndex:index});
+    // Main entitlement belongs to the unit's slot, not a permanent plate.
+    // Different plates on non-overlapping days continue the same unit cycle.
     if(!mainIds.size) issues.push({code:'missing_main_history',cycleIndex:index});
     const days=new Map();
     for(const a of g.rows) for(const date of a.dates){
@@ -45,6 +46,7 @@ export function analyseUnitCycles({unitId, cat, allocations}) {
     const ledger=[];
     for(const [date,vehicles] of [...days].sort(([a],[b])=>a.localeCompare(b))){
       const entries=[...vehicles.values()];
+      if(entries.filter(v=>v.role==='main').length>1) issues.push({code:'overlapping_main_vehicles',cycleIndex:index,date});
       if(entries.some(v=>v.role==='main'))mainDays++;
       for(const v of entries) ledger.push({date,...v,mainUsageDay:v.role==='main'?mainDays:null,
         candidateAmountSen:dailyRateSen(cat,v.role==='main'?mainDays:1,v.role)});
