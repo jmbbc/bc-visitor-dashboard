@@ -624,7 +624,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
       return;
     }
     const total=(quote.totalSen/100)+extraVehicleAmount;
-    summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),'<div class="pay-grid">',infoRow('Jumlah tunggakan',arrearsAmountDisplay),infoRow('Kiraan kenderaan utama',`Hari ${quote.lines[0].day}–${quote.lines.at(-1).day} kitaran unit`),infoRow('Kenderaan tambahan',`RM ${extraVehicleAmount.toFixed(2)}`),'</div>','<div class="pay-total-wrap">',`<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${total.toFixed(2)}</strong></div>`,renderPaymentCollectionInfo(total),`<ul class="arrears-payment-list pay-daily-list">${quote.lines.map(line=>`<li>${line.date} (Hari ${line.day}) : <strong>${line.amountSen?`RM ${(line.amountSen/100).toFixed(2)}`:'Percuma'}</strong></li>`).join('')}</ul>`,'</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
+    summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),'<div class="pay-grid">',infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)',arrearsAmountDisplay),infoRow('Kiraan kenderaan utama',`Hari ${quote.lines[0].day}–${quote.lines.at(-1).day} kitaran unit`),infoRow('Kenderaan tambahan',`RM ${extraVehicleAmount.toFixed(2)}`),'</div>','<div class="pay-total-wrap">',`<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${total.toFixed(2)}</strong></div>`,renderPaymentCollectionInfo(total),`<ul class="arrears-payment-list pay-daily-list">${quote.lines.map(line=>`<li>${line.date} (Hari ${line.day}) : <strong>${line.amountSen?`RM ${(line.amountSen/100).toFixed(2)}`:'Percuma'}</strong></li>`).join('')}</ul>`,'</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
     return;
   }
 
@@ -635,7 +635,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
       summary.innerHTML = [
         unitHeader('Kategori 1'),
         '<div class="pay-grid">',
-        infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+        infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
         infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
         infoRow('Parkir percuma', `${free} hari`),
         infoRow('Kadar cas', 'RM 0.00 / hari'),
@@ -654,7 +654,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
       summary.innerHTML = [
         unitHeader('Kategori 1'),
         '<div class="pay-grid">',
-        infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+        infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
         infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
         infoRow('Parkir percuma', `${free} hari`),
         infoRow('Kadar kereta utama', 'RM 0.00 / hari'),
@@ -691,7 +691,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     summary.innerHTML = [
       unitHeader('Kategori 1'),
       '<div class="pay-grid">',
-      infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+      infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
       infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
       infoRow('Parkir percuma', `${free} hari`),
       infoRow('Kadar kereta utama', 'RM 0.00 / hari'),
@@ -772,7 +772,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     summary.innerHTML = [
       unitHeader(`Kategori ${arrearsCat}`),
       '<div class="pay-grid">',
-      infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+      infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
       infoRow('Kategori kemasukan', 'Pelawat Khas'),
       infoRow('Jumlah kenderaan', String(totalCars)),
       infoRow('Kadar caj', `RM ${ratePerCar.toFixed(2)} / kereta / hari`),
@@ -811,7 +811,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     summary.innerHTML = [
       unitHeader(`Kategori ${arrearsCat}`),
       '<div class="pay-grid">',
-      infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+      infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
       infoRow('Kategori kemasukan', category || '-'),
       '</div>',
       '<div class="pay-note-line">Caj parkir hanya dikenakan untuk kategori Pelawat atau Kontraktor. Tiada caj dikira untuk kategori ini.</div>',
@@ -827,7 +827,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     summary.innerHTML = [
       unitHeader(`Kategori ${arrearsCat}`),
       '<div class="pay-grid">',
-      infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+      infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
       infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
       infoRow('Parkir percuma', `${freeDaysForCategory(arrearsCat)} hari`),
       infoRow('Kadar cas', arrearsCat === 2 ? 'RM 5.00 / hari' : 'RM 15.00 / hari'),
@@ -883,7 +883,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
   summary.innerHTML = [
     unitHeader(`Kategori ${arrearsCat}`),
     '<div class="pay-grid">',
-    infoRow('Jumlah tunggakan', arrearsAmountDisplay),
+    infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
     infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
     infoRow('Parkir percuma', `${freeDays} hari`),
     infoRow('Kadar cas', `RM ${rate.toFixed(2)} / hari`),
