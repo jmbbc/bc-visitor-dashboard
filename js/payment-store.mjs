@@ -29,7 +29,7 @@ export function createPaymentStore({db, auth, sdk}) {
           if (existing.data().amountSen !== amountSen) throw new Error('Caj sudah wujud dengan amaun berbeza.');
           return id;
         }
-        tx.set(ref, {registrationId:id, amountSen, createdBy:by, createdAt:serverTimestamp()});
+        tx.set(ref, {registrationId:id, amountSen, paidSen:0, paymentStatus:amountSen?'unconfirmed':'no_charge', createdBy:by, createdAt:serverTimestamp()});
         return id;
       });
     },
@@ -50,7 +50,11 @@ export function createPaymentStore({db, auth, sdk}) {
           if (old.state === 'active' && old.chargeId === chargeId && old.amountSen === amountSen && old.createdBy === by) return id;
           throw new Error('Rujukan bank sudah digunakan. Semak rekod asal.');
         }
+        const chargeData=charge.data(),paidSen=Number(chargeData.paidSen||0)+amountSen;
+        const paymentStatus=paidSen>chargeData.amountSen?'overpaid':paidSen===chargeData.amountSen?'paid':'partial';
         tx.set(ref, {chargeId, reference:id, amountSen, state:'active', createdBy:by, createdAt:serverTimestamp()});
+        tx.update(doc(db,'parkingCharges',chargeId),{paidSen,paymentStatus,lastReceiptId:id});
+        if(paidSen>=chargeData.amountSen)tx.update(doc(db,'responses',chargeId),{status:'Approved',updatedAt:serverTimestamp()});
         return id;
       });
     },

@@ -50,6 +50,8 @@ service cloud.firestore {
     match /responses/{respId} {
       allow create: if isValidResponse(request.resource.data);
       allow update: if (isAdmin() && isValidResponse(request.resource.data))
+        || canConfirmPaidResponse(resource.data, request.resource.data, respId)
+        || canGuardStatusUpdate(resource.data, request.resource.data)
         || canAmendResponse(resource.data, request.resource.data, respId);
       allow read, delete: if request.auth != null;
     }
@@ -133,14 +135,17 @@ service cloud.firestore {
     }
     match /parkingCharges/{id} {
       allow read: if paymentStaff();
-      allow create: if paymentAdmin()
-        && request.resource.data.keys().hasOnly(['registrationId','amountSen','createdBy','createdAt'])
+      allow create: if (paymentAdmin() || isVisitorFormCharge(id))
+        && request.resource.data.keys().hasOnly(['registrationId','amountSen','paidSen','paymentStatus','createdBy','createdAt'])
         && request.resource.data.registrationId == id
         && exists(/databases/$(database)/documents/responses/$(id))
         && request.resource.data.amountSen is int
         && request.resource.data.amountSen >= 0 && request.resource.data.amountSen <= 100000000
-        && request.resource.data.createdBy == request.auth.uid
+        && ((paymentAdmin() && request.resource.data.createdBy == request.auth.uid) || request.resource.data.createdBy == 'visitor-form')
+        && request.resource.data.paidSen == 0
+        && request.resource.data.paymentStatus in ['unconfirmed','no_charge']
         && request.resource.data.createdAt == request.time;
+      allow update: if paymentStaff() && isStaffPaymentUpdate(resource.data, request.resource.data, id);
       allow update: if paymentAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amountSen','lastChangeId'])
         && request.resource.data.amountSen is int
@@ -159,6 +164,41 @@ service cloud.firestore {
           && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time;
         allow update, delete: if false;
       }
+    }
+
+    function isVisitorFormCharge(id) {
+      return request.resource.data.createdBy == 'visitor-form'
+        && existsAfter(/databases/$(database)/documents/responses/$(id))
+        && getAfter(/databases/$(database)/documents/responses/$(id)).data.status == 'Pending Payment'
+        && getAfter(/databases/$(database)/documents/responses/$(id)).data.parkingQuote.mainTotalSen == request.resource.data.amountSen;
+    }
+
+    function isStaffPaymentUpdate(oldData, newData, id) {
+      let receiptPath = /databases/$(database)/documents/parkingReceipts/$(newData.lastReceiptId);
+      return newData.diff(oldData).affectedKeys().hasOnly(['paidSen','paymentStatus','lastReceiptId'])
+        && newData.paidSen is int && newData.paidSen > oldData.get('paidSen', 0)
+        && newData.paymentStatus in ['partial','paid','overpaid']
+        && existsAfter(receiptPath)
+        && getAfter(receiptPath).data.chargeId == id
+        && getAfter(receiptPath).data.createdBy == request.auth.uid
+        && newData.paidSen == oldData.get('paidSen', 0) + getAfter(receiptPath).data.amountSen;
+    }
+
+    function canConfirmPaidResponse(oldData, newData, id) {
+      return paymentStaff() && isValidResponse(newData)
+        && oldData.status == 'Pending Payment' && newData.status == 'Approved'
+        && newData.diff(oldData).affectedKeys().hasOnly(['status','updatedAt'])
+        && newData.updatedAt == request.time
+        && getAfter(/databases/$(database)/documents/parkingCharges/$(id)).data.paidSen >= getAfter(/databases/$(database)/documents/parkingCharges/$(id)).data.amountSen;
+    }
+
+    function canGuardStatusUpdate(oldData, newData) {
+      return paymentStaff() && isValidResponse(newData)
+        && newData.diff(oldData).affectedKeys().hasOnly(['status','updatedAt'])
+        && newData.updatedAt == request.time
+        && ((oldData.status == 'Pending' && newData.status == 'Checked In')
+          || (oldData.status == 'Approved' && newData.status == 'Checked In')
+          || (oldData.status == 'Checked In' && newData.status == 'Checked Out'));
     }
     match /parkingReceipts/{id} {
       allow read: if paymentStaff();

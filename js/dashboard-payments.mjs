@@ -3,14 +3,12 @@ import {onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/9.23.0/fire
 import {createPaymentStore} from './payment-store.mjs';
 import {parseRinggit} from './parking-payments.mjs';
 
-// Explicit opt-in until production rules and staff claims have been approved.
-if (new URLSearchParams(location.search).get('payments') === '1' &&
-    new URLSearchParams(location.search).get('preview') !== '1') {
-  const host = document.getElementById('pageUnitSummary');
+if (new URLSearchParams(location.search).get('preview') !== '1') {
+  const host = document.getElementById('pageSummary');
   const panel = document.createElement('section');
   panel.className = 'card';
-  panel.innerHTML = `<h3>Rekod Pembayaran</h3>
-    <p>Mod persediaan — caj dimasukkan oleh admin selepas semakan. Bukan kiraan SOP automatik.</p>
+  panel.innerHTML = `<h3>Pengesahan Bayaran Parkir</h3>
+    <p>Admin dan pengawal boleh merekod bayaran. Pelarasan caj serta pembatalan kekal untuk admin sahaja.</p>
     <p data-role-note></p>
     <form data-load><label>ID pendaftaran <input name="registration" required autocomplete="off"></label> <button>Muat rekod</button></form>
     <p data-summary role="status" aria-live="polite">Pilih pendaftaran untuk menyemak caj dan bayaran.</p>

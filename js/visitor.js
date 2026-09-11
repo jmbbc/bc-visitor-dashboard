@@ -1368,6 +1368,7 @@ async function createResponseWithDedupe(payload){
           calculatedAt: serverTimestamp()
         };
         docPayload.parkingReviewRequired = false;
+        if (parkingDecision.totalSen > 0) docPayload.status = 'Pending Payment';
       } else if (parkingDecision?.status === 'requires_review') {
         docPayload.parkingReviewRequired = true;
         docPayload.parkingReviewReason = parkingDecision.reason || 'history_requires_review';
@@ -1375,6 +1376,16 @@ async function createResponseWithDedupe(payload){
 
       if (!amended) {
         tx.set(targetRespRef, docPayload);
+        if (parkingDecision?.status === 'quoted' && parkingDecision.totalSen > 0) {
+          tx.set(doc(window.__FIRESTORE, 'parkingCharges', targetRespId), {
+            registrationId: targetRespId,
+            amountSen: parkingDecision.totalSen,
+            paidSen: 0,
+            paymentStatus: 'unconfirmed',
+            createdBy: 'visitor-form',
+            createdAt: serverTimestamp()
+          });
+        }
       } else {
         const existingRespSnap = await tx.get(targetRespRef);
         if (!existingRespSnap.exists()) {
