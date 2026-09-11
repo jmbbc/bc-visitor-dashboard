@@ -215,6 +215,7 @@ service cloud.firestore {
           'vehicleRowsDetailed',
           'subCategoryHelp','status','createdAt','updatedAt',
           'amendToken',
+          'parkingQuote','parkingReviewRequired','parkingReviewReason',
           // unit snapshot fields
           'unitCategory','unitArrears','unitArrearsAmount','unitLastUpdatedAt'
         ])
@@ -241,6 +242,10 @@ service cloud.firestore {
         && (data.createdAt is timestamp)
         && (data.updatedAt is timestamp)
         && (data.amendToken is string || !('amendToken' in data))
+        && (data.parkingQuote is map || !('parkingQuote' in data))
+        && (!('parkingQuote' in data) || isValidParkingQuote(data.parkingQuote))
+        && (data.parkingReviewRequired is bool || !('parkingReviewRequired' in data))
+        && (data.parkingReviewReason is string || !('parkingReviewReason' in data))
         // unit snapshot optional types
         && (data.unitCategory is string || !('unitCategory' in data))
         && (data.unitArrears is bool || !('unitArrears' in data))
@@ -258,6 +263,15 @@ service cloud.firestore {
         && (data.etaDate is string)
         && (data.createdAt is timestamp)
         && (data.amendToken is string || !('amendToken' in data));
+    }
+
+    function isValidParkingQuote(data) {
+      return data.keys().hasOnly(['policyVersion','mainTotalSen','mainStartDay','mainEndDay','calculatedAt'])
+        && data.policyVersion is string
+        && data.mainTotalSen is int && data.mainTotalSen >= 0
+        && data.mainStartDay is int && data.mainStartDay >= 1
+        && data.mainEndDay is int && data.mainEndDay >= data.mainStartDay
+        && data.calculatedAt is timestamp;
     }
 
     function isValidOutstandingSnapshot(data, snapshotId) {
@@ -282,7 +296,7 @@ service cloud.firestore {
 
     function isValidOvernightLock(data, lockId) {
       return data is map
-        && data.keys().hasOnly(['unit','startDate','endDate','category','stayOver','responseId','updatedAt','amendToken'])
+        && data.keys().hasOnly(['unit','startDate','endDate','category','stayOver','responseId','updatedAt','amendToken','parkingCategory','cycleStart','mainUsageDays','lastMainEnd','lastAnyEnd','parkingPolicyVersion','parkingReviewRequired','parkingStateMigratedAt'])
         && (data.unit is string)
         && (data.startDate is timestamp)
         && (data.endDate is timestamp)
@@ -291,6 +305,21 @@ service cloud.firestore {
         && (data.responseId is string)
         && (data.updatedAt is timestamp)
         && (data.amendToken is string || !('amendToken' in data))
+        && (data.parkingCategory is int || !('parkingCategory' in data))
+        && (data.cycleStart is timestamp || !('cycleStart' in data))
+        && (data.mainUsageDays is int || !('mainUsageDays' in data))
+        && (data.lastMainEnd is timestamp || !('lastMainEnd' in data))
+        && (data.lastAnyEnd is timestamp || !('lastAnyEnd' in data))
+        && (data.parkingPolicyVersion is string || !('parkingPolicyVersion' in data))
+        && (data.parkingReviewRequired is bool || !('parkingReviewRequired' in data))
+        && (data.parkingStateMigratedAt is timestamp || !('parkingStateMigratedAt' in data))
+        && (!('mainUsageDays' in data) || data.mainUsageDays >= 0)
+        && (!('parkingCategory' in data) || data.parkingCategory in [1,2,3])
+        && (!('lastAnyEnd' in data) || data.lastAnyEnd >= data.endDate)
+        && (!('mainUsageDays' in data) || !exists(/databases/$(database)/documents/overnightLocks/$(lockId))
+          || !('mainUsageDays' in resource.data)
+          || data.mainUsageDays >= resource.data.mainUsageDays
+          || (('lastAnyEnd' in resource.data) && data.startDate >= resource.data.lastAnyEnd + duration.value(4, 'd')))
         && (data.category == 'Pelawat')
         && (data.stayOver in ['Yes', 'No'])
         && (lockId == ('unit-' + data.unit))

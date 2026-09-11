@@ -2,6 +2,7 @@
 import {
   collection, serverTimestamp, Timestamp, doc, setDoc, deleteDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+import {quoteFromUnitState} from './unit-cooldown.mjs';
 
 /* ---------- full units array (from your List.csv) ---------- */
 const units = [
@@ -412,6 +413,15 @@ function formatAmount(amount){
 
 // Inline payment summary renderer (replaces popup)
 let paymentSummaryRequestId = 0;
+let currentUnitParkingState = null;
+
+function dateKeyForPolicy(value){ return value ? clientIsoDateOnlyKey(value) : ''; }
+function parkingStateFromLock(unit, lock){
+  if(!lock) return null;
+  if(!Number.isInteger(lock.mainUsageDays)) return {legacyMissingUsage:true};
+  const key=(value)=>value?.toDate?dateKeyForPolicy(value.toDate()):dateKeyForPolicy(value instanceof Date?value:new Date(value));
+  return {unitId:unit,category:Number(lock.parkingCategory),cycleStart:key(lock.cycleStart),mainUsageDays:lock.mainUsageDays,lastMainEnd:key(lock.lastMainEnd||lock.endDate),lastAnyEnd:key(lock.lastAnyEnd||lock.endDate)};
+}
 
 function renderPaymentUpdateNotice(lastUpdatedAt){
   if (!lastUpdatedAt) return '';
@@ -540,7 +550,7 @@ function resetPaymentSummary(msg){
   summary.innerHTML = msg || '<div class="muted-small">Pilih unit dan tarikh untuk melihat status tunggakan dan jumlah caj (jika ada).</div>';
 }
 
-function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category, stayOver = 'No', vehicleCount = 0, additionalVehicleEntries = [] }) {
+function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, etaDate, etdDate, category, stayOver = 'No', vehicleCount = 0, additionalVehicleEntries = [] }) {
   const summary = document.getElementById('paymentSummary');
   if (!summary) return;
   const hasSnapshot = !!unitSnapshot;
@@ -596,6 +606,25 @@ function renderChargesSummary({ unit, unitSnapshot, etaDate, etdDate, category, 
 
   if (!hasSnapshot) {
     summary.innerHTML = '<div class="pay-alert">Memuat maklumat tunggakan unit...</div>';
+    return;
+  }
+
+  if(isPelawatBermalam && etaDate && etdDate && arrearsCat){
+    const dayMs=24*60*60*1000;
+    const extraVehicleAmount=additionalVehicleEntries.reduce((sum,item)=>{
+      const s=item.startDate||etaDate,e=item.endDate||s;
+      return sum+(Math.floor((e-s)/dayMs)+1)*additionalRate;
+    },0);
+    const lastAny=additionalVehicleEntries.reduce((latest,item)=>{
+      const end=item.endDate||item.startDate; return end&&end>latest?end:latest;
+    },etdDate);
+    const quote=quoteFromUnitState({unitId:unit,category:arrearsCat,state:unitParkingState,start:dateKeyForPolicy(etaDate),end:dateKeyForPolicy(etdDate),lastAnyEnd:dateKeyForPolicy(lastAny)});
+    if(quote.status!=='quoted'){
+      summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),'<div class="pay-alert">Sejarah unit memerlukan semakan admin. Permohonan boleh dihantar, tetapi kelayakan percuma dan caj tidak dianggap muktamad.</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
+      return;
+    }
+    const total=(quote.totalSen/100)+extraVehicleAmount;
+    summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),'<div class="pay-grid">',infoRow('Jumlah tunggakan',arrearsAmountDisplay),infoRow('Kiraan kenderaan utama',`Hari ${quote.lines[0].day}–${quote.lines.at(-1).day} kitaran unit`),infoRow('Kenderaan tambahan',`RM ${extraVehicleAmount.toFixed(2)}`),'</div>','<div class="pay-total-wrap">',`<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${total.toFixed(2)}</strong></div>`,renderPaymentCollectionInfo(total),`<ul class="arrears-payment-list pay-daily-list">${quote.lines.map(line=>`<li>${line.date} (Hari ${line.day}) : <strong>${line.amountSen?`RM ${(line.amountSen/100).toFixed(2)}`:'Percuma'}</strong></li>`).join('')}</ul>`,'</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
     return;
   }
 
@@ -924,31 +953,33 @@ async function updatePaymentSummary(){
   let etdDate = etdEl?.value ? dateFromInputDateOnly(etdEl.value) : null;
   if (category === 'Pelawat' && stayOver !== 'Yes') etdDate = etaDate;
 
-  if (!unitVal) { resetPaymentSummary(); currentUnitId = ''; currentUnitSnapshot = null; return; }
+  if (!unitVal) { resetPaymentSummary(); currentUnitId = ''; currentUnitSnapshot = null; currentUnitParkingState = null; return; }
   if (!units.includes(unitVal)) { renderChargesSummary({ unit: unitVal, unitSnapshot: null, etaDate, etdDate, category, stayOver, vehicleCount, additionalVehicleEntries }); return; }
 
   const reqId = ++paymentSummaryRequestId;
   if (currentUnitId !== unitVal) {
     summary.innerHTML = '<div class="small">Memuat maklumat unit...</div>';
     try {
-      const snap = await (async () => {
+      const snapshots = await (async () => {
         if (!window.__FIRESTORE) return null;
         const unitRef = doc(window.__FIRESTORE, 'units', unitVal);
-        const udoc = await getDoc(unitRef);
-        return (udoc && udoc.exists()) ? udoc.data() : null;
+        const lockRef = doc(window.__FIRESTORE, 'overnightLocks', `unit-${unitVal.replace(/\s+/g,'')}`);
+        return Promise.all([getDoc(unitRef),getDoc(lockRef)]);
       })();
       if (reqId !== paymentSummaryRequestId) return; // stale
       currentUnitId = unitVal;
-      currentUnitSnapshot = snap;
+      currentUnitSnapshot = snapshots?.[0]?.exists() ? snapshots[0].data() : null;
+      currentUnitParkingState = parkingStateFromLock(unitVal,snapshots?.[1]?.exists()?snapshots[1].data():null);
     } catch (e) {
       if (reqId !== paymentSummaryRequestId) return;
       console.warn('Gagal memuat unit snapshot', e);
       currentUnitSnapshot = null;
+      currentUnitParkingState = null;
     }
   }
 
   if (reqId !== paymentSummaryRequestId) return;
-  renderChargesSummary({ unit: unitVal, unitSnapshot: currentUnitSnapshot, etaDate, etdDate, category, stayOver, vehicleCount, additionalVehicleEntries });
+  renderChargesSummary({ unit: unitVal, unitSnapshot: currentUnitSnapshot, unitParkingState: currentUnitParkingState, etaDate, etdDate, category, stayOver, vehicleCount, additionalVehicleEntries });
 }
 
 function showUnitNoticeModal({ category, amount, eta, etd, visitorCategory, lastUpdatedAt }){
@@ -1196,7 +1227,7 @@ async function createResponseWithDedupe(payload){
   const amendToken = payload && payload.amendToken ? String(payload.amendToken) : getOrCreateAmendToken(hostUnitId, dateKey);
   const fallbackAmendKey = `fallbackResponseId:${hostUnitId}:${dateKey}:${amendToken}`;
 
-  if (dedupeTransactionUnavailable) {
+  if (dedupeTransactionUnavailable && !(category === 'Pelawat' && stayOver === 'Yes')) {
     try {
       return await writeDirectFallback();
     } catch (fallbackErr) {
@@ -1225,6 +1256,7 @@ async function createResponseWithDedupe(payload){
     await runTransaction(window.__FIRESTORE, async (tx) => {
       let targetRespId = responseId;
       let targetRespRef = respRef;
+      let parkingDecision = null;
 
       const dedupeSnap = await tx.get(dedupeRef);
       if (dedupeSnap.exists()) {
@@ -1249,8 +1281,9 @@ async function createResponseWithDedupe(payload){
 
       if (enforcePelawatLock && etaStart && etaEnd) {
         const lockSnap = await tx.get(lockRef);
-        if (lockSnap.exists()) {
-          const lock = lockSnap.data() || {};
+        const lockData = lockSnap.exists() ? (lockSnap.data() || {}) : null;
+        if (lockData) {
+          const lock = lockData;
           const lockStart = _toDateOnly(lock.startDate && lock.startDate.toDate ? lock.startDate.toDate() : lock.startDate);
           const lockEnd = _toDateOnly(lock.endDate && lock.endDate.toDate ? lock.endDate.toDate() : lock.endDate);
           if (lockStart && lockEnd) {
@@ -1270,7 +1303,25 @@ async function createResponseWithDedupe(payload){
           }
         }
 
-        tx.set(lockRef, {
+        if (!amended && stayOver === 'Yes') {
+          const arrearsCategory = computeArrearsCategory(Number(payload.unitArrearsAmount));
+          if (arrearsCategory) {
+            const lastAnyDate = (payload.vehicleRowsDetailed || []).reduce((latest,row) => {
+              const candidate = row?.endDate ? dateFromInputDateOnly(row.endDate) : null;
+              return candidate && candidate > latest ? candidate : latest;
+            }, etaEnd);
+            parkingDecision = quoteFromUnitState({
+              unitId: hostUnitId,
+              category: arrearsCategory,
+              state: parkingStateFromLock(hostUnitId, lockData),
+              start: clientIsoDateOnlyKey(etaStart),
+              end: clientIsoDateOnlyKey(etaEnd),
+              lastAnyEnd: clientIsoDateOnlyKey(lastAnyDate)
+            });
+          }
+        }
+
+        const nextLock = {
           unit: hostUnitId,
           startDate: Timestamp.fromDate(etaStart),
           endDate: Timestamp.fromDate(etaEnd),
@@ -1279,7 +1330,18 @@ async function createResponseWithDedupe(payload){
           responseId: targetRespId,
           amendToken,
           updatedAt: serverTimestamp()
-        }, { merge: true });
+        };
+        if (parkingDecision?.status === 'quoted') Object.assign(nextLock, {
+          parkingCategory: parkingDecision.nextState.category,
+          cycleStart: Timestamp.fromDate(dateFromInputDateOnly(parkingDecision.nextState.cycleStart)),
+          mainUsageDays: parkingDecision.nextState.mainUsageDays,
+          lastMainEnd: Timestamp.fromDate(dateFromInputDateOnly(parkingDecision.nextState.lastMainEnd)),
+          lastAnyEnd: Timestamp.fromDate(dateFromInputDateOnly(parkingDecision.nextState.lastAnyEnd)),
+          parkingPolicyVersion: parkingDecision.policyVersion,
+          parkingReviewRequired: false
+        });
+        else if (parkingDecision?.status === 'requires_review') nextLock.parkingReviewRequired = true;
+        tx.set(lockRef, nextLock, { merge: true });
       }
 
       tx.set(dedupeRef, {
@@ -1297,6 +1359,19 @@ async function createResponseWithDedupe(payload){
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      if (parkingDecision?.status === 'quoted') {
+        docPayload.parkingQuote = {
+          policyVersion: parkingDecision.policyVersion,
+          mainTotalSen: parkingDecision.totalSen,
+          mainStartDay: parkingDecision.lines[0].day,
+          mainEndDay: parkingDecision.lines.at(-1).day,
+          calculatedAt: serverTimestamp()
+        };
+        docPayload.parkingReviewRequired = false;
+      } else if (parkingDecision?.status === 'requires_review') {
+        docPayload.parkingReviewRequired = true;
+        docPayload.parkingReviewReason = parkingDecision.reason || 'history_requires_review';
+      }
 
       if (!amended) {
         tx.set(targetRespRef, docPayload);
@@ -1365,6 +1440,11 @@ async function createResponseWithDedupe(payload){
     // Backward-compatible safety net: if new transaction paths are denied by old rules,
     // still allow a direct response write so users can submit while rules are being deployed.
     if (code.toLowerCase().includes('permission') || msg.includes('permission-denied')) {
+      if (category === 'Pelawat' && stayOver === 'Yes') {
+        const e = new Error('cooldown_state_write_required');
+        e.code = 'COOLDOWN_STATE_REQUIRED';
+        throw e;
+      }
       dedupeTransactionUnavailable = true;
       try { localStorage.setItem('visitor:dedupeTxUnavailable', '1'); } catch (e) { /* ignore */ }
       if (Array.isArray(payload.vehicleRowsDetailed) && payload.vehicleRowsDetailed.length) {
@@ -3686,7 +3766,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const rowsDetailed = Array.from(document.querySelectorAll('#vehicleList .vehicle-row')).map((row) => ({
           plate: normalizeVehicleInput(row.querySelector('.vehicle-input')?.value || ''),
           visitorName: (row.querySelector('.vehicle-visitor-name-input')?.value || '').trim(),
-          visitorPhone: normalizePhoneInput(row.querySelector('.vehicle-visitor-phone-input')?.value || '')
+          visitorPhone: normalizePhoneInput(row.querySelector('.vehicle-visitor-phone-input')?.value || ''),
+          startDate: row.querySelector('.vehicle-extra-start')?.value || etaVal || '',
+          endDate: row.querySelector('.vehicle-extra-end')?.value || etdVal || etaVal || ''
         })).filter((row) => row.plate);
         const fromSingle = (document.getElementById('vehicleNo')?.value || '').trim().toUpperCase();
         const mainVehicle = fromSingle || (fromList[0] || '');
@@ -3697,7 +3779,9 @@ document.addEventListener('DOMContentLoaded', () => {
           detailsMap.set(mainVehicle, {
             plate: mainVehicle,
             visitorName: visitorName || '',
-            visitorPhone: normalizePhoneInput(visitorPhone || '')
+            visitorPhone: normalizePhoneInput(visitorPhone || ''),
+            startDate: etaVal || '',
+            endDate: etdVal || etaVal || ''
           });
         }
         rowsDetailed.forEach((row) => {
@@ -3705,7 +3789,9 @@ document.addEventListener('DOMContentLoaded', () => {
           detailsMap.set(row.plate, {
             plate: row.plate,
             visitorName: isPelawatKhas ? (row.visitorName || '') : (row.visitorName || visitorName || ''),
-            visitorPhone: isPelawatKhas ? (row.visitorPhone || '') : (row.visitorPhone || normalizePhoneInput(visitorPhone || ''))
+            visitorPhone: isPelawatKhas ? (row.visitorPhone || '') : (row.visitorPhone || normalizePhoneInput(visitorPhone || '')),
+            startDate: row.startDate,
+            endDate: row.endDate
           });
         });
         vehicleRowsDetailed = vehicleNumbers.map((plate) => {
@@ -3714,7 +3800,9 @@ document.addEventListener('DOMContentLoaded', () => {
           return {
             plate,
             visitorName: isPelawatKhas ? '' : (visitorName || ''),
-            visitorPhone: isPelawatKhas ? '' : normalizePhoneInput(visitorPhone || '')
+            visitorPhone: isPelawatKhas ? '' : normalizePhoneInput(visitorPhone || ''),
+            startDate: etaVal || '',
+            endDate: etdVal || etaVal || ''
           };
         });
         if (category === 'Pelawat' && vehicleNumbers.length > 3) {
@@ -3729,7 +3817,9 @@ document.addEventListener('DOMContentLoaded', () => {
           vehicleRowsDetailed = [{
             plate: vehicleNo,
             visitorName: visitorName || '',
-            visitorPhone: normalizePhoneInput(visitorPhone || '')
+            visitorPhone: normalizePhoneInput(visitorPhone || ''),
+            startDate: etaVal || '',
+            endDate: etdVal || etaVal || ''
           }];
         }
       }
