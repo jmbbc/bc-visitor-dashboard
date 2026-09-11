@@ -1,5 +1,6 @@
 import {collection,doc,getDocs,limit,query,runTransaction,serverTimestamp,Timestamp} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 import {onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
+import {reconcileReviewWithLock} from './category-review-reconcile.mjs?v=20260911-1';
 
 const panel=document.getElementById('parkingReviewAdminPanel');
 if(panel&&window.__AUTH&&window.__FIRESTORE){
@@ -7,6 +8,12 @@ if(panel&&window.__AUTH&&window.__FIRESTORE){
   let rows=[],adminUser=null;
   const dateValue=value=>value?.toDate?value.toDate().toISOString().slice(0,10):'';
   const asTimestamp=value=>Timestamp.fromDate(new Date(`${value}T00:00:00Z`));
+  const malaysiaDateValue=value=>{
+    const date=value?.toDate?value.toDate():null;if(!date)return '';
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kuala_Lumpur',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+    const get=type=>parts.find(part=>part.type===type)?.value||'';
+    return `${get('year')}-${get('month')}-${get('day')}`;
+  };
   const reasonLabel=value=>({category_transition:'Kategori berubah dalam kitaran aktif',missing_category:'Kategori asal tidak lengkap',cycle_over_30_days:'Kitaran lama melebihi 30 hari'}[value]||value);
   const safe=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   function render(){
@@ -26,8 +33,8 @@ if(panel&&window.__AUTH&&window.__FIRESTORE){
     event.preventDefault();const form=event.currentTarget,button=form.querySelector('button'),data=Object.fromEntries(new FormData(form)),category=Number(data.category),days=Number(data.days);
     if(!Number.isInteger(days)||days<0)return;button.disabled=true;message.textContent=`Menyimpan keputusan ${row.unitId}…`;
     try{const queueRef=doc(window.__FIRESTORE,'parkingReviewQueue',row.unitId),lockRef=doc(window.__FIRESTORE,'overnightLocks',`unit-${row.unitId}`);
-      await runTransaction(window.__FIRESTORE,async tx=>{const queueSnap=await tx.get(queueRef),lockSnap=await tx.get(lockRef);if(!queueSnap.exists()||queueSnap.data().status!=='pending')throw new Error('Unit ini telah disemak. Muat semula senarai.');const decision={parkingCategory:category,cycleStart:asTimestamp(data.cycleStart),mainUsageDays:days,lastMainEnd:asTimestamp(data.lastMainEnd),lastAnyEnd:asTimestamp(data.lastAnyEnd),parkingPolicyVersion:'2026-09-08',parkingReviewRequired:false,parkingReviewedAt:serverTimestamp(),parkingReviewedBy:adminUser.uid};if(lockSnap.exists())tx.update(lockRef,decision);else tx.set(lockRef,{unit:row.unitId,startDate:decision.cycleStart,endDate:decision.lastAnyEnd,category:'Pelawat',stayOver:'Yes',responseId:`admin-review-${row.unitId}`,updatedAt:serverTimestamp(),...decision});tx.update(queueRef,{status:'resolved',finalCategory:category,finalMainUsageDays:days,finalCycleStart:decision.cycleStart,finalLastMainEnd:decision.lastMainEnd,finalLastAnyEnd:decision.lastAnyEnd,resolutionReason:data.resolutionReason.trim(),resolvedBy:adminUser.uid,resolvedByEmail:adminUser.email||'',resolvedAt:serverTimestamp()});});await load();
-    }catch(error){message.textContent=error.message||'Keputusan tidak dapat disimpan.';button.disabled=false;}
+      await runTransaction(window.__FIRESTORE,async tx=>{const queueSnap=await tx.get(queueRef),lockSnap=await tx.get(lockRef);if(!queueSnap.exists()||queueSnap.data().status!=='pending')throw new Error('Unit ini telah disemak. Muat semula senarai.');if(lockSnap.exists()){const lock=lockSnap.data()||{},rebased=reconcileReviewWithLock({cycleStart:data.cycleStart,mainUsageDays:days,lastMainEnd:data.lastMainEnd,lastAnyEnd:data.lastAnyEnd},{stayOver:lock.stayOver,startDate:malaysiaDateValue(lock.startDate),endDate:malaysiaDateValue(lock.endDate),lastAnyEnd:malaysiaDateValue(lock.lastAnyEnd)});if(rebased.changed){const stale=new Error('Pendaftaran baharu ditemui. Nilai telah dikemas kini—semak dan tekan Simpan sekali lagi.');stale.code='STALE_REVIEW';stale.rebased=rebased;throw stale;}}const decision={parkingCategory:category,cycleStart:asTimestamp(data.cycleStart),mainUsageDays:days,lastMainEnd:asTimestamp(data.lastMainEnd),lastAnyEnd:asTimestamp(data.lastAnyEnd),parkingPolicyVersion:'2026-09-08',parkingReviewRequired:false,parkingReviewedAt:serverTimestamp(),parkingReviewedBy:adminUser.uid};if(lockSnap.exists())tx.update(lockRef,decision);else tx.set(lockRef,{unit:row.unitId,startDate:decision.cycleStart,endDate:decision.lastAnyEnd,category:'Pelawat',stayOver:'Yes',responseId:`admin-review-${row.unitId}`,updatedAt:serverTimestamp(),...decision});tx.update(queueRef,{status:'resolved',finalCategory:category,finalMainUsageDays:days,finalCycleStart:decision.cycleStart,finalLastMainEnd:decision.lastMainEnd,finalLastAnyEnd:decision.lastAnyEnd,resolutionReason:data.resolutionReason.trim(),resolvedBy:adminUser.uid,resolvedByEmail:adminUser.email||'',resolvedAt:serverTimestamp()});});await load();
+    }catch(error){if(error.code==='STALE_REVIEW'&&error.rebased){form.cycleStart.value=error.rebased.cycleStart;form.days.value=String(error.rebased.mainUsageDays);form.lastMainEnd.value=error.rebased.lastMainEnd;form.lastAnyEnd.value=error.rebased.lastAnyEnd;}message.textContent=error.message||'Keputusan tidak dapat disimpan.';button.disabled=false;}
   }
   async function load(){if(!adminUser)return;message.textContent='Memuatkan senarai semakan…';try{const snap=await getDocs(query(collection(window.__FIRESTORE,'parkingReviewQueue'),limit(200)));rows=snap.docs.map(d=>({unitId:d.id,...d.data()})).sort((a,b)=>a.unitId.localeCompare(b.unitId));render();}catch(error){rows=[];count.textContent='—';list.replaceChildren();message.textContent=error.code==='permission-denied'?'Akses ditolak. Log masuk semula menggunakan akaun admin.':'Senarai semakan tidak dapat dimuatkan.';}}
   search.addEventListener('input',render);status.addEventListener('change',render);document.getElementById('parkingReviewRefresh').addEventListener('click',load);
