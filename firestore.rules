@@ -331,7 +331,9 @@ service cloud.firestore {
         && (data.parkingReviewedBy is string || !('parkingReviewedBy' in data))
         && (!('mainUsageDays' in data) || data.mainUsageDays >= 0)
         && (!('parkingCategory' in data) || data.parkingCategory in [1,2,3])
-        && (!('lastAnyEnd' in data) || data.lastAnyEnd >= data.endDate)
+        // A newer non-overnight Pelawat lock must not invalidate an older
+        // overnight cooldown state confirmed by an admin.
+        && (!('lastAnyEnd' in data) || data.stayOver != 'Yes' || data.lastAnyEnd >= data.endDate)
         && (isAdmin() || !('mainUsageDays' in data) || !exists(/databases/$(database)/documents/overnightLocks/$(lockId))
           || !('mainUsageDays' in resource.data)
           || data.mainUsageDays >= resource.data.mainUsageDays

@@ -14,3 +14,8 @@ test('direct page request and click are both guarded by admin claim',()=>{
   assert.match(source,/if \(!DASHBOARD_PREVIEW_MODE && !dashboardHasAdminClaim\)/);
   assert.match(source,/if \(key === 'unitsummary' && !DASHBOARD_PREVIEW_MODE && !dashboardHasAdminClaim\)/);
 });
+
+test('non-overnight locks do not invalidate an admin-confirmed cooldown date',()=>{
+  const rules=readFileSync(new URL('../firestore.rules',import.meta.url),'utf8');
+  assert.match(rules,/data\.stayOver != 'Yes' \|\| data\.lastAnyEnd >= data\.endDate/);
+});
