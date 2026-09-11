@@ -14,6 +14,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
 const DASHBOARD_PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
+let dashboardHasAdminClaim = false;
 
 /* ---------- helpers ---------- */
 function formatDateOnly(ts){
@@ -680,6 +681,20 @@ if (DASHBOARD_PREVIEW_MODE) {
   }, 0);
 }
 
+function applyAdminPageAccess(isAdminClaim){
+  dashboardHasAdminClaim = isAdminClaim === true;
+  if (navUnitSummary) {
+    navUnitSummary.hidden = !dashboardHasAdminClaim;
+    navUnitSummary.disabled = !dashboardHasAdminClaim;
+    navUnitSummary.setAttribute('aria-hidden', dashboardHasAdminClaim ? 'false' : 'true');
+  }
+  const page = document.getElementById('pageUnitSummary');
+  if (!dashboardHasAdminClaim && page) page.style.display = 'none';
+  if (!dashboardHasAdminClaim && document.body.dataset.dashboardPage === 'unitsummary') {
+    showPage('summary');
+  }
+}
+
 function filterRowsBySearch(rows, term){
   try {
     const q = (term || '').trim().toLowerCase();
@@ -1247,6 +1262,10 @@ logoutBtn.addEventListener('click', async ()=> {
 onAuthStateChanged(window.__AUTH, user => {
   console.info('dashboard: onAuthStateChanged ->', user ? (user.email || user.uid) : 'signed out');
   if (user && !DASHBOARD_PREVIEW_MODE) {
+    // Fail closed while the token is being checked. A prior admin session must
+    // never leave the data-management navigation visible to the next account.
+    applyAdminPageAccess(false);
+    setAdminLoggedIn(false);
     loginBox.style.display = 'none';
     dashboardArea.style.display = 'block';
     who.textContent = user.email || user.uid;
@@ -1258,13 +1277,14 @@ onAuthStateChanged(window.__AUTH, user => {
     // Check for custom claim 'admin' and enable admin controls automatically
     try {
       readAdminClaim(user, false).then(isAdminClaim => {
+        applyAdminPageAccess(isAdminClaim);
         if (isAdminClaim) {
           setAdminLoggedIn(true);
           try { const c = document.getElementById('adminControls'); if (c) c.style.display = 'block'; } catch(e){}
           try { const openBtn = document.getElementById('adminOpenLoginBtn'); if (openBtn) openBtn.style.display = 'none'; } catch(e){}
           try { const m = document.getElementById('adminLoginMsg'); if (m) m.textContent = 'Log masuk sebagai admin (claim).'; } catch(e){}
         }
-      }).catch(()=>{});
+      }).catch(()=>{ applyAdminPageAccess(false); });
     } catch(e) { /* ignore */ }
 
 
@@ -1313,6 +1333,8 @@ onAuthStateChanged(window.__AUTH, user => {
     loadTodayList();
     if (ENABLE_AUTO_REFRESH) startAutoRefresh();
   } else if (!DASHBOARD_PREVIEW_MODE) {
+    applyAdminPageAccess(false);
+    setAdminLoggedIn(false);
     loginBox.style.display = 'block';
     dashboardArea.style.display = 'none';
     logoutBtn.style.display = 'none';
@@ -1337,6 +1359,7 @@ if (refreshAdminClaimBtn) {
       return;
     }
     const isAdminClaim = await readAdminClaim(user, true);
+    applyAdminPageAccess(isAdminClaim);
     if (isAdminClaim) toast('Claim admin dikemas kini: Ya', true, { duration: 2500 });
     else toast('Claim admin semasa: Tidak', false, { duration: 2500 });
   });
@@ -2176,7 +2199,15 @@ if (parkingSearchInput) {
 if (navSummary) navSummary.addEventListener('click', ()=> { showPage('summary'); });
 if (navUnitArrears) navUnitArrears.addEventListener('click', ()=> { try { setSelectedNav(navUnitArrears); } catch(e){}; showPage('unitarrears'); });
 if (navCheckedIn) navCheckedIn.addEventListener('click', ()=> { showPage('checkedin'); });
-if (navUnitSummary) navUnitSummary.addEventListener('click', ()=> { try { setSelectedNav(navUnitSummary); } catch(e){}; showPage('unitsummary'); });
+if (navUnitSummary) navUnitSummary.addEventListener('click', ()=> {
+  if (!DASHBOARD_PREVIEW_MODE && !dashboardHasAdminClaim) {
+    showPage('summary');
+    toast('Pengurusan Data hanya boleh diakses oleh admin.', false);
+    return;
+  }
+  try { setSelectedNav(navUnitSummary); } catch(e){}
+  showPage('unitsummary');
+});
 if (navUnitAdmin) navUnitAdmin.addEventListener('click', ()=> { try { setSelectedNav(navUnitAdmin); } catch(e){}; showPage('unitadmin'); });
 if (navWater) navWater.addEventListener('click', ()=> { try { setSelectedNav(navWater); } catch(e){}; showPage('water'); });
 
@@ -3770,6 +3801,9 @@ document.getElementById('saveEditBtn').addEventListener('click', async (ev) => {
 
 /* ---------- page switching ---------- */
 function showPage(key){
+  if (key === 'unitsummary' && !DASHBOARD_PREVIEW_MODE && !dashboardHasAdminClaim) {
+    key = 'summary';
+  }
   document.body.dataset.dashboardPage = key;
   if (key === 'summary') {
     document.getElementById('pageSummary').style.display = '';
