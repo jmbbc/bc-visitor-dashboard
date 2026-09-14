@@ -1304,6 +1304,8 @@ async function createResponseWithDedupe(payload){
       let targetRespId = responseId;
       let targetRespRef = respRef;
       let parkingDecision = null;
+      // Retain the snapshot for the response's cancellation/restore record.
+      let lockData = null;
 
       const dedupeSnap = await tx.get(dedupeRef);
       if (dedupeSnap.exists()) {
@@ -1328,7 +1330,7 @@ async function createResponseWithDedupe(payload){
 
       if (enforcePelawatLock && etaStart && etaEnd) {
         const lockSnap = await tx.get(lockRef);
-        const lockData = lockSnap.exists() ? (lockSnap.data() || {}) : null;
+        lockData = lockSnap.exists() ? (lockSnap.data() || {}) : null;
         if (lockData) {
           const lock = lockData;
           const lockStart = _toDateOnly(lock.startDate && lock.startDate.toDate ? lock.startDate.toDate() : lock.startDate);
