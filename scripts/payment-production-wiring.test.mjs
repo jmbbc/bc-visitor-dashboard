@@ -4,6 +4,13 @@ const payments=readFileSync(new URL('../js/payment-store.mjs',import.meta.url),'
 const dashboard=readFileSync(new URL('../js/dashboard.js',import.meta.url),'utf8');
 const dashboardPayments=readFileSync(new URL('../js/dashboard-payments.mjs',import.meta.url),'utf8');
 const rules=readFileSync(new URL('../firestore.rules',import.meta.url),'utf8');
+
+test('rules permit only a verified category 3 to 1 counter reset',()=>{
+  assert.match(rules,/resource\.data\.parkingCategory == 3/);
+  assert.match(rules,/data\.parkingCategory == 1/);
+  assert.match(rules,/data\.mainUsageDays >= 1 && data\.mainUsageDays <= 3/);
+  assert.match(rules,/get\(unitPath\)\.data\.arrearsAmount <= 1/);
+});
 test('charged cooldown submission is pending payment and creates one linked charge',()=>{assert.match(visitor,/docPayload\.status = 'Pending Payment'/);assert.match(visitor,/parkingCharges', targetRespId/);assert.match(visitor,/paidSen: 0/);});
 test('staff receipt updates cumulative payment and approves only once fully paid',()=>{assert.match(payments,/paidSen>=chargeData\.amountSen/);assert.match(payments,/status:'Approved'/);assert.match(rules,/oldData\.status == 'Pending Payment' && newData\.status == 'Approved'/);});
 test('guard operational transitions cannot bypass pending payment',()=>{assert.match(rules,/oldData\.status == 'Approved' && newData\.status == 'Checked In'/);assert.doesNotMatch(rules,/oldData\.status == 'Pending Payment' && newData\.status == 'Checked In'/);});

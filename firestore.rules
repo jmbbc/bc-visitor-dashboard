@@ -409,11 +409,25 @@ service cloud.firestore {
         && (isAdmin() || !('mainUsageDays' in data) || !exists(/databases/$(database)/documents/overnightLocks/$(lockId))
           || !('mainUsageDays' in resource.data)
           || data.mainUsageDays >= resource.data.mainUsageDays
+          || isVerifiedCategoryThreeToOneReset(data)
           || (('lastAnyEnd' in resource.data) && data.startDate >= resource.data.lastAnyEnd + duration.value(4, 'd')))
         && (data.category == 'Pelawat')
         && (data.stayOver in ['Yes', 'No'])
         && (lockId == ('unit-' + data.unit))
         && (data.startDate <= data.endDate);
+    }
+
+    // Category 3 has no free-day counter. When the authoritative unit balance
+    // moves into Category 1, the visitor form may start days 1-3 immediately.
+    function isVerifiedCategoryThreeToOneReset(data) {
+      let unitPath = /databases/$(database)/documents/units/$(data.unit);
+      return resource.data.parkingCategory == 3
+        && data.parkingCategory == 1
+        && data.mainUsageDays >= 1 && data.mainUsageDays <= 3
+        && data.cycleStart == data.startDate
+        && exists(unitPath)
+        && get(unitPath).data.arrearsAmount is number
+        && get(unitPath).data.arrearsAmount <= 1;
     }
 
     function isValidParkingReview(data, unitId) {
