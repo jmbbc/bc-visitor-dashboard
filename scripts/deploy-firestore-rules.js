@@ -21,6 +21,10 @@ async function request(url,options){
 (async()=>{
   const content=fs.readFileSync(path.resolve('firestore.rules'),'utf8');
   const ruleset=await request(`https://firebaserules.googleapis.com/v1/projects/${projectId}/rulesets`,{method:'POST',body:JSON.stringify({source:{files:[{name:'firestore.rules',content}]}})});
+  if(process.argv.includes('--validate-only')){
+    console.log(JSON.stringify({projectId,ruleset:ruleset.name,validated:true},null,2));
+    return;
+  }
   const releaseName=`projects/${projectId}/releases/cloud.firestore`;
   const release=await request(`https://firebaserules.googleapis.com/v1/${releaseName}`,{method:'PATCH',body:JSON.stringify({release:{name:releaseName,rulesetName:ruleset.name},updateMask:'ruleset_name'})});
   console.log(JSON.stringify({projectId,ruleset:ruleset.name,release:release.name},null,2));

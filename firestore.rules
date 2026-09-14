@@ -48,7 +48,8 @@ service cloud.firestore {
 
     // Visitor form responses: allow public create with strict validation
     match /responses/{respId} {
-      allow create: if isValidResponse(request.resource.data);
+      allow create: if isValidResponse(request.resource.data)
+        && validSubmittedPriorState(request.resource.data);
       allow update: if (isAdmin() && isValidResponse(request.resource.data))
         || canConfirmPaidResponse(resource.data, request.resource.data, respId)
         || canGuardStatusUpdate(resource.data, request.resource.data)
@@ -270,7 +271,7 @@ service cloud.firestore {
           'vehicleRowsDetailed',
           'subCategoryHelp','status','createdAt','updatedAt',
           'amendToken',
-          'parkingQuote','parkingReviewRequired','parkingReviewReason',
+          'parkingQuote','parkingReviewRequired','parkingReviewReason','parkingPriorState',
           // unit snapshot fields
           'unitCategory','unitArrears','unitArrearsAmount','unitLastUpdatedAt'
         ])
@@ -301,6 +302,8 @@ service cloud.firestore {
         && (!('parkingQuote' in data) || isValidParkingQuote(data.parkingQuote))
         && (data.parkingReviewRequired is bool || !('parkingReviewRequired' in data))
         && (data.parkingReviewReason is string || !('parkingReviewReason' in data))
+        && (data.parkingPriorState is map || !('parkingPriorState' in data))
+        && (!('parkingPriorState' in data) || isValidParkingPriorState(data.parkingPriorState))
         // unit snapshot optional types
         && (data.unitCategory is string || !('unitCategory' in data))
         && (data.unitArrears is bool || !('unitArrears' in data))
@@ -327,6 +330,32 @@ service cloud.firestore {
         && data.mainStartDay is int && data.mainStartDay >= 1
         && data.mainEndDay is int && data.mainEndDay >= data.mainStartDay
         && data.calculatedAt is timestamp;
+    }
+
+    function isValidParkingPriorState(data) {
+      return data.keys().hasOnly(['exists','category','cycleStart','mainUsageDays','lastMainEnd','lastAnyEnd','policyVersion'])
+        && data.exists is bool
+        && (data.exists == false || (data.category in [1,2,3]
+          && data.cycleStart is timestamp
+          && data.mainUsageDays is int && data.mainUsageDays >= 0
+          && data.lastMainEnd is timestamp && data.lastAnyEnd is timestamp
+          && data.policyVersion is string));
+    }
+
+    function validSubmittedPriorState(data) {
+      let lockId = 'unit-' + data.hostUnit;
+      let lockPath = /databases/$(database)/documents/overnightLocks/$(lockId);
+      return !('parkingPriorState' in data)
+        || (data.category == 'Pelawat' && data.stayOver == 'Yes'
+          && ((!exists(lockPath) && data.parkingPriorState.exists == false)
+            || (exists(lockPath) && !get(lockPath).data.keys().hasAll(['parkingCategory','cycleStart','mainUsageDays','endDate']) && data.parkingPriorState.exists == false)
+            || (exists(lockPath) && get(lockPath).data.keys().hasAll(['parkingCategory','cycleStart','mainUsageDays','endDate'])
+              && data.parkingPriorState.exists == true
+              && data.parkingPriorState.category == get(lockPath).data.parkingCategory
+              && data.parkingPriorState.cycleStart == get(lockPath).data.cycleStart
+              && data.parkingPriorState.mainUsageDays == get(lockPath).data.mainUsageDays
+              && data.parkingPriorState.lastMainEnd == get(lockPath).data.get('lastMainEnd', get(lockPath).data.endDate)
+              && data.parkingPriorState.lastAnyEnd == get(lockPath).data.get('lastAnyEnd', get(lockPath).data.endDate))));
     }
 
     function isValidOutstandingSnapshot(data, snapshotId) {

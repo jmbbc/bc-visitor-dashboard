@@ -18,18 +18,31 @@ export function createPaymentStore({db, auth, sdk}) {
     return user.uid;
   }
   return {
-    async createCharge({registrationId, amountSen}) {
+    async createCharge({registrationId, amountSen, finalCategory = null, reason = ''}) {
       const by = await staff(true);
       const id = identifier(registrationId);
       money(amountSen);
+      if(finalCategory!==null&&![1,2,3].includes(Number(finalCategory)))throw new Error('Kategori akhir tidak sah.');
+      if(typeof reason!=='string'||reason.trim().length<3||reason.trim().length>500)throw new Error('Isi sebab keputusan admin (3–500 aksara).');
       const ref = doc(db, 'parkingCharges', id);
       return runTransaction(db, async tx => {
+        const responseRef=doc(db,'responses',id);
+        const response=await tx.get(responseRef);
+        if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
         const existing = await tx.get(ref);
+        const old=response.data(),lockRef=doc(db,'overnightLocks',`unit-${old.hostUnit}`),lock=await tx.get(lockRef);
         if (existing.exists()) {
           if (existing.data().amountSen !== amountSen) throw new Error('Caj sudah wujud dengan amaun berbeza.');
           return id;
         }
         tx.set(ref, {registrationId:id, amountSen, paidSen:0, paymentStatus:amountSen?'unconfirmed':'no_charge', createdBy:by, createdAt:serverTimestamp()});
+        const quote=old.parkingQuote||null;
+        const responseUpdate={status:amountSen?'Pending Payment':'Approved',parkingReviewRequired:false,updatedAt:serverTimestamp()};
+        if(quote)responseUpdate.parkingQuote={...quote,mainTotalSen:amountSen,calculatedAt:serverTimestamp()};
+        tx.update(responseRef,responseUpdate);
+        if(lock.exists()&&lock.data().responseId===id)tx.update(lockRef,{parkingReviewRequired:false,parkingReviewedAt:serverTimestamp(),parkingReviewedBy:by});
+        const auditRef=doc(collection(db,'audit'));
+        tx.set(auditRef,{ts:serverTimestamp(),userId:by,rowId:id,field:'parking_charge_review',old:JSON.stringify({status:old.status,parkingReviewRequired:old.parkingReviewRequired,amountSen:quote?.mainTotalSen??null}),new:JSON.stringify({status:responseUpdate.status,finalCategory:Number(finalCategory)||null,amountSen}),actionId:auditRef.id,notes:reason.trim()});
         return id;
       });
     },
@@ -58,17 +71,27 @@ export function createPaymentStore({db, auth, sdk}) {
         return id;
       });
     },
-    async adjustCharge({registrationId, amountSen, expectedAmountSen, reason}) {
+    async adjustCharge({registrationId, amountSen, expectedAmountSen, finalCategory = null, reason}) {
       const by = await staff(true);
-      const ref = doc(db, 'parkingCharges', identifier(registrationId));
+      const id=identifier(registrationId),ref = doc(db, 'parkingCharges', id);
       money(amountSen);
+      if(finalCategory!==null&&![1,2,3].includes(Number(finalCategory)))throw new Error('Kategori akhir tidak sah.');
       if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 500) throw new Error('Isi sebab pelarasan (maksimum 500 aksara).');
       const event = doc(collection(ref, 'changes'));
       return runTransaction(db, async tx => {
         const old = await tx.get(ref);
+        const responseRef=doc(db,'responses',id),response=await tx.get(responseRef);
+        const responseData=response.exists()?response.data():{},lockRef=doc(db,'overnightLocks',`unit-${responseData.hostUnit||''}`),lock=await tx.get(lockRef);
         if (!old.exists() || old.data().amountSen !== expectedAmountSen) throw new Error('Caj telah berubah. Muat semula sebelum pelarasan.');
+        if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
         tx.set(event, {beforeSen:old.data().amountSen, afterSen:amountSen, reason:reason.trim(), by, at:serverTimestamp()});
         tx.update(ref, {amountSen, lastChangeId:event.id});
+        const responseUpdate={parkingReviewRequired:false,updatedAt:serverTimestamp()};
+        if(responseData.parkingQuote)responseUpdate.parkingQuote={...responseData.parkingQuote,mainTotalSen:amountSen,calculatedAt:serverTimestamp()};
+        tx.update(responseRef,responseUpdate);
+        if(lock.exists()&&lock.data().responseId===id)tx.update(lockRef,{parkingReviewRequired:false,parkingReviewedAt:serverTimestamp(),parkingReviewedBy:by});
+        const auditRef=doc(collection(db,'audit'));
+        tx.set(auditRef,{ts:serverTimestamp(),userId:by,rowId:id,field:'parking_category_charge_adjustment',old:JSON.stringify({category:null,amountSen:old.data().amountSen}),new:JSON.stringify({category:Number(finalCategory)||null,amountSen}),actionId:auditRef.id,notes:reason.trim()});
       });
     },
     async allocateReceipt({reference, allocations, reason, expectedAllocations}) {
@@ -103,11 +126,47 @@ export function createPaymentStore({db, auth, sdk}) {
         tx.update(ref, {state:'voided', voidReason:reason.trim(), voidBy:by, voidAt:serverTimestamp()});
       });
     },
+    async cancelBeforeEntry({registrationId, reason}) {
+      const by=await staff(true),id=identifier(registrationId);
+      if(typeof reason!=='string'||reason.trim().length<3||reason.trim().length>500)throw new Error('Isi sebab pembatalan (3–500 aksara).');
+      const responseRef=doc(db,'responses',id);
+      return runTransaction(db,async tx=>{
+        const response=await tx.get(responseRef);
+        if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
+        const old=response.data(),eta=old.eta?.toDate?old.eta.toDate():null;
+        if(!eta||eta.getTime()<=Date.now())throw new Error('Pembatalan ini hanya untuk pendaftaran yang belum bermula.');
+        if(['Checked In','Checked Out','Cancelled Before Entry'].includes(old.status))throw new Error('Status pendaftaran tidak membenarkan pembatalan awal.');
+        const lockRef=doc(db,'overnightLocks',`unit-${old.hostUnit}`),lock=await tx.get(lockRef);
+        const chargeRef=doc(db,'parkingCharges',id),charge=await tx.get(chargeRef);
+        if(charge.exists()&&Number(charge.data().paidSen||0)>0)throw new Error('Bayaran sudah diterima. Selesaikan pelarasan atau pemulangan bayaran sebelum membatalkan pendaftaran.');
+        if(lock.exists()&&lock.data().responseId===id){
+          const prior=old.parkingPriorState;
+          const restored={unit:old.hostUnit,startDate:serverTimestamp(),endDate:serverTimestamp(),category:'Pelawat',stayOver:'No',responseId:id,updatedAt:serverTimestamp(),amendToken:old.amendToken||''};
+          if(prior?.exists===true)Object.assign(restored,{parkingCategory:prior.category,cycleStart:prior.cycleStart,mainUsageDays:prior.mainUsageDays,lastMainEnd:prior.lastMainEnd,lastAnyEnd:prior.lastAnyEnd,parkingPolicyVersion:prior.policyVersion,parkingReviewRequired:false});
+          else if(!prior)restored.parkingReviewRequired=true;
+          tx.set(lockRef,restored);
+        }
+        tx.update(responseRef,{status:'Cancelled Before Entry',parkingReviewRequired:old.parkingPriorState?false:true,updatedAt:serverTimestamp()});
+        if(charge.exists()&&charge.data().amountSen!==0){
+          const changeRef=doc(collection(chargeRef,'changes'));
+          tx.set(changeRef,{beforeSen:charge.data().amountSen,afterSen:0,reason:`Pembatalan sebelum masuk: ${reason.trim()}`,by,at:serverTimestamp()});
+          tx.update(chargeRef,{amountSen:0,lastChangeId:changeRef.id});
+        }
+        const auditRef=doc(collection(db,'audit'));
+        tx.set(auditRef,{ts:serverTimestamp(),userId:by,rowId:id,field:'cancel_before_entry',old:String(old.status||''),new:'Cancelled Before Entry',actionId:auditRef.id,notes:reason.trim()});
+        return id;
+      });
+    },
     async readRegistration(registrationId) {
       await staff();
       const id = identifier(registrationId);
-      const charge = await getDoc(doc(db, 'parkingCharges', id));
-      if (!charge.exists()) return null;
+      const [charge,response]=await Promise.all([getDoc(doc(db,'parkingCharges',id)),getDoc(doc(db,'responses',id))]);
+      if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
+      const responseData=response.data();
+      const unit=responseData.hostUnit?await getDoc(doc(db,'units',responseData.hostUnit)):null;
+      const arrears=unit?.exists()?Number(unit.data().arrearsAmount):null;
+      const currentCategory=Number.isFinite(arrears)?(arrears<=1?1:arrears<=400?2:3):null;
+      if (!charge.exists()) return {charge:null,response:responseData,currentCategory,receipts:[],paidSen:0,balanceSen:0,overpaidSen:0,status:'no_charge_record'};
       const results = await Promise.all([
         getDocs(query(collection(db, 'parkingReceipts'), where('chargeId','==',id), limit(2001))),
         getDocs(query(collection(db, 'parkingReceipts'), where('relatedChargeIds','array-contains',id), limit(2001)))
@@ -119,7 +178,7 @@ export function createPaymentStore({db, auth, sdk}) {
       const paidSen = records.filter(r => r.state === 'active').reduce((sum,r) => sum +
         (r.allocations || [{chargeId:r.chargeId,amountSen:r.amountSen}]).filter(a => a.chargeId === id).reduce((n,a) => n+a.amountSen,0), 0);
       const amountSen = charge.data().amountSen;
-      return {charge:charge.data(), receipts:records, paidSen,
+      return {charge:charge.data(),response:responseData,currentCategory,receipts:records, paidSen,
         balanceSen:Math.max(0, amountSen-paidSen), overpaidSen:Math.max(0, paidSen-amountSen),
         status:paidSen>amountSen?'overpaid':amountSen===0?'no_charge':paidSen===amountSen?'paid':paidSen>0?'partial':'unconfirmed'};
     }

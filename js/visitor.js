@@ -418,9 +418,15 @@ let currentUnitParkingState = null;
 function dateKeyForPolicy(value){ return value ? clientIsoDateOnlyKey(value) : ''; }
 function parkingStateFromLock(unit, lock){
   if(!lock) return null;
-  if(!Number.isInteger(lock.mainUsageDays)) return {legacyMissingUsage:true};
+  if(!Number.isInteger(lock.mainUsageDays)||![1,2,3].includes(Number(lock.parkingCategory))||!lock.cycleStart||!(lock.lastAnyEnd||lock.endDate)) return {legacyMissingUsage:true};
   const key=(value)=>value?.toDate?dateKeyForPolicy(value.toDate()):dateKeyForPolicy(value instanceof Date?value:new Date(value));
   return {unitId:unit,category:Number(lock.parkingCategory),cycleStart:key(lock.cycleStart),mainUsageDays:lock.mainUsageDays,lastMainEnd:key(lock.lastMainEnd||lock.endDate),lastAnyEnd:key(lock.lastAnyEnd||lock.endDate)};
+}
+
+function parkingPriorStateFromLock(unit, lock){
+  const state=parkingStateFromLock(unit,lock);
+  if(!state||state.legacyMissingUsage===true||!lock?.cycleStart||!(lock.lastMainEnd||lock.endDate)||!(lock.lastAnyEnd||lock.endDate))return {exists:false};
+  return {exists:true,category:state.category,cycleStart:lock.cycleStart,mainUsageDays:state.mainUsageDays,lastMainEnd:lock.lastMainEnd||lock.endDate,lastAnyEnd:lock.lastAnyEnd||lock.endDate,policyVersion:String(lock.parkingPolicyVersion||'2026-09-08')};
 }
 
 function renderPaymentUpdateNotice(lastUpdatedAt){
@@ -1362,6 +1368,9 @@ async function createResponseWithDedupe(payload){
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      if (!amended && enforcePelawatLock && stayOver === 'Yes') {
+        docPayload.parkingPriorState = parkingPriorStateFromLock(hostUnitId, lockData);
+      }
       if (parkingDecision?.status === 'quoted') {
         docPayload.parkingQuote = {
           policyVersion: parkingDecision.policyVersion,
@@ -1375,6 +1384,15 @@ async function createResponseWithDedupe(payload){
       } else if (parkingDecision?.status === 'requires_review') {
         docPayload.parkingReviewRequired = true;
         docPayload.parkingReviewReason = parkingDecision.reason || 'history_requires_review';
+        if (Number.isSafeInteger(parkingDecision.totalSen) && parkingDecision.totalSen >= 0 && parkingDecision.lines?.length) {
+          docPayload.parkingQuote = {
+            policyVersion: parkingDecision.policyVersion,
+            mainTotalSen: parkingDecision.totalSen,
+            mainStartDay: parkingDecision.lines[0].day,
+            mainEndDay: parkingDecision.lines.at(-1).day,
+            calculatedAt: serverTimestamp()
+          };
+        }
       }
 
       if (!amended) {

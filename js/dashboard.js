@@ -2794,9 +2794,14 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       ? Number(r.parkingQuote.mainTotalSen)
       : null;
     const hasParkingCharge = Number.isFinite(quotedMainSen) && quotedMainSen > 0;
+    const originalArrears=Number(r.unitArrearsAmount);
+    const originalParkingCategory=Number.isFinite(originalArrears)?computeArrearsCategory(originalArrears):null;
+    const currentParkingCategory=Number.isFinite(amount)?computeArrearsCategory(amount):null;
+    const etaForCategoryReview=toJsDateSafe(r.eta);
+    const categoryChangedBeforeEntry=!!(originalParkingCategory&&currentParkingCategory&&originalParkingCategory!==currentParkingCategory&&etaForCategoryReview&&etaForCategoryReview.getTime()>Date.now());
     let paymentStatusLabel = '—';
     let paymentStatusClass = 'payment-status-none';
-    if (r.parkingReviewRequired === true) {
+    if (r.parkingReviewRequired === true || categoryChangedBeforeEntry) {
       paymentStatusLabel = 'Perlu semakan';
       paymentStatusClass = 'payment-status-review';
     } else if (r.status === 'Pending Payment') {
@@ -2830,8 +2835,8 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
         <div class="actions">
           <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
           <button class="btn btn-ghost" data-action="edit" data-id="${r.id}" title="Edit tarikh / status">✏️ Edit</button>
-          <button class="btn" data-action="in" data-id="${r.id}">Check In</button>
-          <button class="btn btn-ghost" data-action="out" data-id="${r.id}">Check Out</button>
+          <button class="btn" data-action="in" data-id="${r.id}" ${['Pending Payment','Cancelled Before Entry','Checked Out'].includes(r.status)?'disabled':''}>Check In</button>
+          <button class="btn btn-ghost" data-action="out" data-id="${r.id}" ${r.status!=='Checked In'?'disabled':''}>Check Out</button>
         </div>
       </td>
     `;
