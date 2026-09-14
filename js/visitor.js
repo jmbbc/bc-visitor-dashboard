@@ -2,7 +2,7 @@
 import {
   collection, serverTimestamp, Timestamp, doc, setDoc, deleteDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-import {quoteFromUnitState} from './unit-cooldown.mjs';
+import {quoteFromUnitState} from './unit-cooldown.mjs?v=20260914-1';
 
 /* ---------- full units array (from your List.csv) ---------- */
 const units = [

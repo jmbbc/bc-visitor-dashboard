@@ -25,13 +25,22 @@ export function quoteFromUnitState({unitId, category, state = null, start, end, 
   let priorDays=0, cycleStart=start,categoryOneTransitionException=false;
   if(state) {
     if(state.unitId!==unit || !Number.isInteger(state.mainUsageDays) || state.mainUsageDays<0 || !state.lastAnyEnd) throw new Error('Ringkasan unit tidak sah.');
+    // A zero-day compact state is an explicit entitlement reset. Keep the
+    // historical end dates for audit, but do not let them re-apply cooldown.
+    if(state.category===category&&state.mainUsageDays===0) state=null;
+  }
+  if(state) {
     const nextFree=new Date(`${state.lastAnyEnd}T00:00:00Z`); nextFree.setUTCDate(nextFree.getUTCDate()+4);
     const nextFreeKey=nextFree.toISOString().slice(0,10);
     if(start<=state.lastAnyEnd) return {status:'requires_review',reason:'overlapping_or_out_of_order',totalSen:null};
     if(start<nextFreeKey){
       categoryOneTransitionException=category===1&&[2,3].includes(state.category);
       if(state.category!==category&&!categoryOneTransitionException)return {status:'requires_review',reason:'category_transition',totalSen:null};
-      priorDays=state.mainUsageDays;cycleStart=state.cycleStart;
+      // Category 3 has no free entitlement. Moving from category 3 to 1
+      // starts a fresh category-1 entitlement immediately. Category 2 to 1
+      // keeps the same counter, but benefits from category 1's three free days.
+      if(category===1&&state.category===3){priorDays=0;cycleStart=start;}
+      else {priorDays=state.mainUsageDays;cycleStart=state.cycleStart;}
     }
   }
   const grandfatheredCategoryOne=category===1&&state?.category===1&&state.mainUsageDays>30;
