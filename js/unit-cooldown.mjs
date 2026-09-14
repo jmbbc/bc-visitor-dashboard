@@ -22,16 +22,20 @@ export function quoteFromUnitState({unitId, category, state = null, start, end, 
       nextState:{unitId:unit,category:3,cycleStart:state?.category===3&&state.cycleStart?state.cycleStart:start,mainUsageDays:priorDays+requested.length,lastMainEnd:end,lastAnyEnd:anyEnd,policyVersion:POLICY_VERSION}};
   }
   if(state?.legacyMissingUsage === true) return {status:'requires_review',reason:'legacy_history_not_migrated',totalSen:null};
-  let priorDays=0, cycleStart=start;
+  let priorDays=0, cycleStart=start,categoryOneTransitionException=false;
   if(state) {
     if(state.unitId!==unit || !Number.isInteger(state.mainUsageDays) || state.mainUsageDays<0 || !state.lastAnyEnd) throw new Error('Ringkasan unit tidak sah.');
-    if(state.category!==category) return {status:'requires_review',reason:'category_transition',totalSen:null};
     const nextFree=new Date(`${state.lastAnyEnd}T00:00:00Z`); nextFree.setUTCDate(nextFree.getUTCDate()+4);
     const nextFreeKey=nextFree.toISOString().slice(0,10);
     if(start<=state.lastAnyEnd) return {status:'requires_review',reason:'overlapping_or_out_of_order',totalSen:null};
-    if(category!==3 && start<nextFreeKey){ priorDays=state.mainUsageDays; cycleStart=state.cycleStart; }
+    if(start<nextFreeKey){
+      categoryOneTransitionException=category===1&&[2,3].includes(state.category);
+      if(state.category!==category&&!categoryOneTransitionException)return {status:'requires_review',reason:'category_transition',totalSen:null};
+      priorDays=state.mainUsageDays;cycleStart=state.cycleStart;
+    }
   }
-  if(category!==3 && priorDays+requested.length>30) return {status:'requires_review',reason:'cycle_limit_exceeded',totalSen:null};
+  const grandfatheredCategoryOne=category===1&&state?.category===1&&state.mainUsageDays>30;
+  if(category!==3&&!categoryOneTransitionException&&!grandfatheredCategoryOne&&priorDays+requested.length>30) return {status:'requires_review',reason:'cycle_limit_exceeded',totalSen:null};
   const lines=requested.map((date,index)=>({date,day:priorDays+index+1,amountSen:dailyRateSen(category,priorDays+index+1,'main')}));
   const anyEnd=lastAnyEnd<end?end:lastAnyEnd;
   return {status:'quoted',policyVersion:POLICY_VERSION,unitId:unit,lines,totalSen:lines.reduce((sum,line)=>sum+line.amountSen,0),

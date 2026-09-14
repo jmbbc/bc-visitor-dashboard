@@ -50,11 +50,12 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     const selectedCategory=result.currentCategory||originalCategory||1;
     find('[data-create] select[name="category"]').value=String(selectedCategory);
     find('[data-adjust] select[name="category"]').value=String(selectedCategory);
-    const categoryNote=originalCategory&&result.currentCategory&&originalCategory!==result.currentCategory?` • Kategori berubah sebelum masuk: asal ${originalCategory}, semasa ${result.currentCategory}.`:'';
+    const categoryNeedsReview=originalCategory&&result.currentCategory&&originalCategory!==result.currentCategory&&result.currentCategory!==1;
+    const categoryNote=originalCategory&&result.currentCategory&&originalCategory!==result.currentCategory?` • Kategori berubah sebelum masuk: asal ${originalCategory}, semasa ${result.currentCategory}.${result.currentCategory===1?' Peralihan ke Kategori 1 diterima secara automatik.':''}`:'';
     if(!hasCharge){
       const create=find('[data-create]');
       create.amount.value=Number.isSafeInteger(quote.mainTotalSen)?rm(quote.mainTotalSen):'';
-      tell(`Belum ada caj rasmi.${Number.isSafeInteger(quote.mainTotalSen)?` Anggaran borang RM${rm(quote.mainTotalSen)}.`:''}${categoryNote}${categoryNote?' Semak kelayakan unit sebelum memuktamadkan.':''}`);
+      tell(`Belum ada caj rasmi.${Number.isSafeInteger(quote.mainTotalSen)?` Anggaran borang RM${rm(quote.mainTotalSen)}.`:''}${categoryNote}${categoryNeedsReview?' Semak kelayakan unit sebelum memuktamadkan.':''}`);
       return;
     }
     find('[data-adjust] input[name="amount"]').value=rm(result.charge.amountSen);

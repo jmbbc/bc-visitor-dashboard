@@ -51,3 +51,20 @@ test('category 3 still sends overlapping dates for review',()=>{
   assert.equal(result.lines.length,2);
   assert.equal(result.status,'requires_review');assert.equal(result.reason,'overlapping_or_out_of_order');
 });
+
+test('category 2 or 3 transition to category 1 continues automatically before cooldown',()=>{
+  for(const oldCategory of [2,3]){
+    const result=quoteFromUnitState({unitId:'B2-15-9',category:1,state:{unitId:'B2-15-9',category:oldCategory,cycleStart:'2026-07-03',mainUsageDays:69,lastAnyEnd:'2026-09-12'},start:'2026-09-14',end:'2026-09-14'});
+    assert.equal(result.status,'quoted');assert.equal(result.lines[0].day,70);assert.equal(result.totalSen,2000);
+  }
+});
+
+test('grandfathered category 1 over 30 days continues without admin review',()=>{
+  const result=quoteFromUnitState({unitId:'B2-15-9',category:1,state:{unitId:'B2-15-9',category:1,cycleStart:'2026-07-03',mainUsageDays:69,lastAnyEnd:'2026-09-12'},start:'2026-09-14',end:'2026-09-14'});
+  assert.equal(result.status,'quoted');assert.equal(result.lines[0].day,70);assert.equal(result.totalSen,2000);
+});
+
+test('completed cooldown resets a category transition to fresh category 1 entitlement',()=>{
+  const result=quoteFromUnitState({unitId:'B2-15-9',category:1,state:{unitId:'B2-15-9',category:3,cycleStart:'2026-07-03',mainUsageDays:69,lastAnyEnd:'2026-09-12'},start:'2026-09-16',end:'2026-09-18'});
+  assert.equal(result.status,'quoted');assert.equal(result.totalSen,0);assert.equal(result.lines[0].day,1);
+});

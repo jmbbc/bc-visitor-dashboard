@@ -2798,7 +2798,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     const originalParkingCategory=Number.isFinite(originalArrears)?computeArrearsCategory(originalArrears):null;
     const currentParkingCategory=Number.isFinite(amount)?computeArrearsCategory(amount):null;
     const etaForCategoryReview=toJsDateSafe(r.eta);
-    const categoryChangedBeforeEntry=!!(originalParkingCategory&&currentParkingCategory&&originalParkingCategory!==currentParkingCategory&&etaForCategoryReview&&etaForCategoryReview.getTime()>Date.now());
+    const categoryChangedBeforeEntry=!!(originalParkingCategory&&currentParkingCategory&&originalParkingCategory!==currentParkingCategory&&currentParkingCategory!==1&&etaForCategoryReview&&etaForCategoryReview.getTime()>Date.now());
     let paymentStatusLabel = '—';
     let paymentStatusClass = 'payment-status-none';
     if (r.parkingReviewRequired === true || categoryChangedBeforeEntry) {
