@@ -345,6 +345,37 @@ function showStatus(msg, ok=true){
   toast(msg, ok);
 }
 
+function showSubmissionErrorSupport(code, message){
+  const statusEl=document.getElementById('statusMsg');
+  if(!statusEl)return;
+  const unit=String(document.getElementById('hostUnit')?.value||'-').trim().toUpperCase()||'-';
+  const eta=String(document.getElementById('eta')?.value||'-');
+  const etd=String(document.getElementById('etd')?.value||'-');
+  const report=[
+    'LAPORAN RALAT BORANG PELAWAT', `Kod rujukan: ${code}`, `Unit: ${unit}`,
+    `Tarikh masuk: ${eta}`, `Tarikh keluar: ${etd}`,
+    `Masa kejadian: ${new Date().toLocaleString('ms-MY')}`, `Keterangan: ${message}`
+  ].join('\n');
+  const card=document.createElement('section');
+  card.className='submission-error-card';card.setAttribute('aria-label','Maklumat bantuan ralat');
+  const title=document.createElement('strong');title.textContent='Pendaftaran belum berjaya';
+  const detail=document.createElement('p');detail.textContent=`Kod rujukan: ${code}. Salin atau hantar maklumat ini kepada pentadbir.`;
+  const actions=document.createElement('div');actions.className='submission-error-actions';
+  const copy=document.createElement('button');
+  copy.type='button';copy.className='btn-ghost submission-error-copy';copy.textContent='Salin Maklumat Ralat';
+  copy.addEventListener('click',async()=>{
+    try{
+      if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(report);
+      else {const area=document.createElement('textarea');area.value=report;area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();}
+      copy.textContent='Berjaya Disalin';
+    }catch(_error){copy.textContent='Tidak Dapat Disalin';}
+  });
+  const whatsapp=document.createElement('button');
+  whatsapp.type='button';whatsapp.className='btn submission-error-whatsapp';whatsapp.textContent='Hantar melalui WhatsApp';
+  whatsapp.addEventListener('click',()=>window.open(`https://wa.me/?text=${encodeURIComponent(report)}`,'_blank','noopener,noreferrer'));
+  actions.append(copy,whatsapp);card.append(title,detail,actions);statusEl.appendChild(card);
+}
+
 function validatePhone(phone){
   if (!phone) return true;
   const p = phone.replace(/\s+/g,'').replace(/[^0-9+]/g,'');
@@ -4034,15 +4065,21 @@ document.addEventListener('DOMContentLoaded', () => {
             showStatus('Unit ini dalam tempoh bertenang. Sila cuba semula kemudian atau hubungi pentadbir.', false);
           }
         } else if (err && String(err.code || '').toLowerCase().includes('resource-exhausted')) {
-          showStatus('Pendaftaran tidak dapat disimpan kerana kuota pangkalan data telah penuh. Sila cuba semula selepas kuota harian diperbaharui. Kod rujukan: VF-QUOTA.', false, { duration: 20000 });
+          const message='Pendaftaran tidak dapat disimpan kerana kuota pangkalan data telah penuh. Sila cuba semula selepas kuota harian diperbaharui.';
+          showStatus(`${message} Kod rujukan: VF-QUOTA.`, false, { duration: 20000 });
+          showSubmissionErrorSupport('VF-QUOTA',message);
         } else if (err && (String(err.code || '').toLowerCase().includes('permission') || String(err.code || '').toLowerCase().includes('internal') || String(err.code || '').toLowerCase().includes('fallback') || String(err).toLowerCase().includes('fallback'))) {
           // permission or internal server errors — provide a clearer action for the user
           console.warn('Server / fallback error during submission:', err);
           const code = String(err.code || '').toLowerCase().includes('permission') ? 'VF-PERM' : 'VF-SERVER';
-          showStatus(`Gagal hantar — masalah pelayan atau kebenaran. Sila hubungi pentadbir dan berikan kod rujukan: ${code}.`, false, { duration: 20000 });
+          const message='Gagal hantar — masalah pelayan atau kebenaran.';
+          showStatus(`${message} Sila hubungi pentadbir dan berikan kod rujukan: ${code}.`, false, { duration: 20000 });
+          showSubmissionErrorSupport(code,message);
         } else {
           const rawCode = String(err?.code || 'UNKNOWN').replace(/^firestore\//i, '').toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 24) || 'UNKNOWN';
-          showStatus(`Gagal hantar. Sila cuba lagi atau hubungi pentadbir. Kod rujukan: VF-${rawCode}.`, false, { duration: 20000 });
+          const code=`VF-${rawCode}`,message='Gagal hantar. Sila cuba lagi atau hubungi pentadbir.';
+          showStatus(`${message} Kod rujukan: ${code}.`, false, { duration: 20000 });
+          showSubmissionErrorSupport(code,message);
         }
       } finally {
         // always re-enable submit btn after attempt
