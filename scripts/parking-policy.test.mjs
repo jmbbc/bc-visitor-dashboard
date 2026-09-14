@@ -31,9 +31,12 @@ test('overlap is not billed twice and remaining free days survive a gap', () => 
   assert.equal(q.cycleDays,5); assert.equal(q.totalSen,1000); assert.equal(q.lines[0].amountSen,0);
   assert.equal(quoteSameCategory({cat:1,start:'2026-09-03',end:'2026-09-04',priorDates:['2026-09-01']}).totalSen,0);
 });
-test('cycle cap, per-application cap and explicit exception', () => {
+test('main usage counter continues beyond day 30 while each application remains capped', () => {
   const args={cat:1,start:'2026-10-01',end:'2026-10-01',priorDates:datesInclusive('2026-09-01','2026-09-30')};
-  assert.throws(() => quoteSameCategory(args));
+  const continued=quoteSameCategory(args);
+  assert.equal(continued.cycleDays,31);
+  assert.equal(continued.lines[0].day,31);
+  assert.equal(continued.totalSen,2000);
   assert.equal(quoteSameCategory({...args,category3Exception:true}).totalSen,2000);
   assert.equal(quoteSameCategory({...args,cat:3}).totalSen,1500);
   assert.throws(() => quoteSameCategory({cat:3,start:'2026-09-01',end:'2026-10-01'}));

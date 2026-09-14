@@ -51,10 +51,10 @@ export function analyseUnitCycles({unitId, cat, allocations}) {
       for(const v of entries) ledger.push({date,...v,mainUsageDay:v.role==='main'?mainDays:null,
         candidateAmountSen:dailyRateSen(cat,v.role==='main'?mainDays:1,v.role)});
     }
-    if(cat!==3 && mainDays>30)issues.push({code:'main_cycle_limit_exceeded',cycleIndex:index});
     return {cycleIndex:index,start:g.start,lastRegisteredEnd:g.end,
       nextEligibleDate:cat===3?null:nextFreeDate([{start:g.start,end:g.end}]),
       mainUsageDays:mainDays,remainingMainDays:cat===3?null:Math.max(0,30-mainDays),
+      overThirtyDays:cat!==3&&mainDays>30,
       remainingFreeDays:Math.max(0,({1:3,2:1,3:0}[cat])-mainDays),
       ledger,totalSen:ledger.reduce((sum,row)=>sum+row.candidateAmountSen,0)};
   });

@@ -43,8 +43,9 @@ export function quoteFromUnitState({unitId, category, state = null, start, end, 
       else {priorDays=state.mainUsageDays;cycleStart=state.cycleStart;}
     }
   }
-  const grandfatheredCategoryOne=category===1&&state?.category===1&&state.mainUsageDays>30;
-  if(category!==3&&!categoryOneTransitionException&&!grandfatheredCategoryOne&&priorDays+requested.length>30) return {status:'requires_review',reason:'cycle_limit_exceeded',totalSen:null};
+  // mainUsageDays is an accounting counter, not a registration quota. It may
+  // continue beyond day 30 until the unit completes its three-day cooldown.
+  // This preserves the paid-day sequence and prevents a new free entitlement.
   const lines=requested.map((date,index)=>({date,day:priorDays+index+1,amountSen:dailyRateSen(category,priorDays+index+1,'main')}));
   const anyEnd=lastAnyEnd<end?end:lastAnyEnd;
   return {status:'quoted',policyVersion:POLICY_VERSION,unitId:unit,lines,totalSen:lines.reduce((sum,line)=>sum+line.amountSen,0),

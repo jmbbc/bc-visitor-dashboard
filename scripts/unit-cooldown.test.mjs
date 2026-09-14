@@ -71,3 +71,11 @@ test('completed cooldown resets a category transition to fresh category 1 entitl
   const result=quoteFromUnitState({unitId:'B2-15-9',category:1,state:{unitId:'B2-15-9',category:3,cycleStart:'2026-07-03',mainUsageDays:69,lastAnyEnd:'2026-09-12'},start:'2026-09-16',end:'2026-09-18'});
   assert.equal(result.status,'quoted');assert.equal(result.totalSen,0);assert.equal(result.lines[0].day,1);
 });
+
+test('category 2 counter beyond day 30 remains payable and does not block registration',()=>{
+  const result=quoteFromUnitState({unitId:'B3-14-7',category:2,state:{unitId:'B3-14-7',category:2,cycleStart:'2026-07-26',mainUsageDays:39,lastAnyEnd:'2026-09-13'},start:'2026-09-14',end:'2026-09-16'});
+  assert.equal(result.status,'quoted');
+  assert.deepEqual(result.lines.map(line=>line.day),[40,41,42]);
+  assert.equal(result.totalSen,20500);
+  assert.equal(result.nextState.mainUsageDays,42);
+});

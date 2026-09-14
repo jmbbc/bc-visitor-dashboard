@@ -20,12 +20,13 @@ test('three full empty days reset cycle, shorter gaps preserve free balance',()=
   const r=analyse([main('r1','2026-09-01','2026-09-01'),main('r2','2026-09-03','2026-09-03'),main('r3','2026-09-07','2026-09-07')]);
   assert.equal(r.cycles.length,2);assert.equal(r.cycles[0].remainingFreeDays,1);assert.equal(r.cycles[1].remainingFreeDays,2);
 });
-test('additional renewals beyond main cap are permitted, main renewal is not',()=>{
+test('main and additional usage counters continue beyond day 30',()=>{
   const rows=[main('m','2026-09-01','2026-09-30'),row('a','car-b','additional','2026-09-01','2026-09-30'),row('b','car-b','additional','2026-10-01','2026-10-30')];
   assert.equal(analyse(rows).status,'calculated_offline');
   assert.equal(analyse(rows).cycles[0].remainingMainDays,0);
   const r=analyse([...rows,main('m2','2026-10-01','2026-10-01')]);
-  assert.equal(r.status,'requires_review');assert.equal(r.cycles[0].totalSen,null);
+  assert.equal(r.status,'calculated_offline');assert.equal(r.cycles[0].mainUsageDays,31);
+  assert.equal(r.cycles[0].overThirtyDays,true);assert.notEqual(r.cycles[0].totalSen,null);
 });
 test('verified cancellation excluded, input order stable and input immutable',()=>{
   const rows=[main('a','2026-09-01','2026-09-01'),main('b','2026-09-02','2026-09-04',{state:'cancelled_before_entry'}),main('c','2026-09-05','2026-09-05')];

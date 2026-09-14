@@ -47,7 +47,6 @@ export function quoteSameCategory({cat, start, end, priorDates = [], role = 'mai
   const prior = new Set(priorDates.map(d => { epoch(d); return d; }));
   if ([...prior].some(d => d > end)) throw new Error('Future history requires review');
   const all = [...new Set([...prior, ...requested])].sort();
-  if (role === 'main' && cat !== 3 && !category3Exception && all.length > 30) throw new Error('Cycle exceeds 30 days');
   const lines = requested.map(date => ({date, day: all.indexOf(date) + 1,
     alreadyRegistered: prior.has(date),
     amountSen: prior.has(date) ? 0 : dailyRateSen(cat, all.indexOf(date) + 1, role)}));
