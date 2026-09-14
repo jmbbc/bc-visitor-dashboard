@@ -26,6 +26,7 @@ test('visitor submission errors expose a phone-friendly reference code', () => {
   assert.match(visitor, /https:\/\/wa\.me\/\?text=/);
   assert.match(visitor, /mockError'\)===\s*'1'/);
   assert.match(visitor, /paparan simulasi sahaja/);
+  assert.ok(!visitor.includes('.at('), 'visitor form must remain compatible with older iPhone Safari');
 });
 
 async function fetchFixtureRows(records, overflow = false) {

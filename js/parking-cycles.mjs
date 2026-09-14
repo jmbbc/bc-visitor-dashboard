@@ -21,7 +21,7 @@ export function analyseUnitCycles({unitId, cat, allocations}) {
   active.sort((a,b)=>a.start.localeCompare(b.start)||a.id.localeCompare(b.id));
   const groups=[];
   for(const a of active){
-    const last=groups.at(-1);
+    const last=groups[groups.length-1];
     if(!last){groups.push({start:a.start,end:a.end,rows:[a]});continue;}
     const next=nextFreeDate([{start:last.start,end:last.end}]);
     if(a.start >= next){
