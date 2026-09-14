@@ -2703,6 +2703,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       <th>Kenderaan</th>
       <th>Kategori</th>
       <th>Status</th>
+      <th>Bayaran</th>
       <th>Aksi</th>
     </tr>`;
   table.appendChild(thead);
@@ -2789,6 +2790,26 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     } catch(e) { /* ignore */ }
     const unitCategoryHtml = `${badge}${paymentHtml}`;
 
+    const quotedMainSen = r.parkingQuote && Number.isFinite(Number(r.parkingQuote.mainTotalSen))
+      ? Number(r.parkingQuote.mainTotalSen)
+      : null;
+    const hasParkingCharge = Number.isFinite(quotedMainSen) && quotedMainSen > 0;
+    let paymentStatusLabel = '—';
+    let paymentStatusClass = 'payment-status-none';
+    if (r.parkingReviewRequired === true) {
+      paymentStatusLabel = 'Perlu semakan';
+      paymentStatusClass = 'payment-status-review';
+    } else if (r.status === 'Pending Payment') {
+      paymentStatusLabel = 'Menunggu bayaran';
+      paymentStatusClass = 'payment-status-pending';
+    } else if (['Approved','Checked In','Checked Out'].includes(r.status) && hasParkingCharge) {
+      paymentStatusLabel = 'Sudah bayar';
+      paymentStatusClass = 'payment-status-paid';
+    } else if (Number.isFinite(quotedMainSen) && quotedMainSen === 0) {
+      paymentStatusLabel = 'Tiada caj';
+      paymentStatusClass = 'payment-status-free';
+    }
+
     const tr = document.createElement('tr');
     if (highlightIds && highlightIds.has(r.id)) tr.classList.add('conflict');
     tr.innerHTML = `
@@ -2804,8 +2825,10 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       <td>${escapeHtml(vehicleDisplay)}</td>
       <td>${categoryPillHtml}</td>
       <td><span class="status-pill ${statusClass}">${escapeHtml(r.status || 'Pending')}</span></td>
+      <td><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span></td>
       <td>
         <div class="actions">
+          <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
           <button class="btn btn-ghost" data-action="edit" data-id="${r.id}" title="Edit tarikh / status">✏️ Edit</button>
           <button class="btn" data-action="in" data-id="${r.id}">Check In</button>
           <button class="btn btn-ghost" data-action="out" data-id="${r.id}">Check Out</button>
@@ -2824,6 +2847,10 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-id');
       const action = btn.getAttribute('data-action');
+      if (action === 'payment') {
+        window.dispatchEvent(new CustomEvent('dashboard:open-payment', { detail: { registrationId: id } }));
+        return;
+      }
       if (action === 'edit') { openEditModalFor(id); return; }
       await doStatusUpdate(id, action === 'in' ? 'Checked In' : 'Checked Out');
     });

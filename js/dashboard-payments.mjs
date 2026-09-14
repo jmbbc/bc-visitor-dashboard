@@ -7,8 +7,9 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
   const host = document.getElementById('pageSummary');
   const panel = document.createElement('section');
   panel.className = 'card';
-  panel.innerHTML = `<h3>Pengesahan Bayaran Parkir</h3>
-    <p>Admin dan pengawal boleh merekod bayaran. Pelarasan caj serta pembatalan kekal untuk admin sahaja.</p>
+  panel.id = 'registrationPaymentPanel';
+  panel.hidden = true;
+  panel.innerHTML = `<div class="payment-panel-head"><div><h3>Pengesahan Bayaran Parkir</h3><p>Admin dan pengawal boleh merekod bayaran. Pelarasan caj serta pembatalan kekal untuk admin sahaja.</p></div><button type="button" class="btn-ghost" data-close aria-label="Tutup panel pembayaran">Tutup</button></div>
     <p data-role-note></p>
     <form data-load><label>ID pendaftaran <input name="registration" required autocomplete="off"></label> <button>Muat rekod</button></form>
     <p data-summary role="status" aria-live="polite">Pilih pendaftaran untuk menyemak caj dan bayaran.</p>
@@ -86,6 +87,15 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     await load(id);
   });
   handle('void',async data=>{const id=registration; await store.voidReceipt({reference:selected.reference,reason:data.reason}); await load(id);});
+  find('[data-close]').addEventListener('click',()=>{panel.hidden=true;});
+  window.addEventListener('dashboard:open-payment',async event=>{
+    const id=String(event.detail?.registrationId || '').trim();
+    panel.hidden=false;
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+    find('[data-load] input[name="registration"]').value=id;
+    if(!allowed){tell('Akaun ini tiada hak pembayaran. Log masuk sebagai admin atau pengawal.');return;}
+    try {await load(id);} catch(error) {tell(error.message || 'Rekod bayaran gagal dimuat.');}
+  });
   onAuthStateChanged(window.__AUTH,async user=>{
     clear(); allowed=false; isAdmin=false;
     try {
