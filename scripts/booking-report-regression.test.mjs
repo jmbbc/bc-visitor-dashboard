@@ -20,13 +20,15 @@ test('advance booking removes input maximum and obsolete submit restriction', ()
 
 test('visitor submission errors expose a phone-friendly reference code', () => {
   assert.match(visitor, /Kod rujukan: VF-QUOTA/);
-  assert.match(visitor, /showSubmissionErrorSupport\('VF-QUOTA',message\)/);
+  assert.match(visitor, /showSubmissionErrorSupport\('VF-QUOTA',message,safeSubmissionErrorDetail\(err\)\)/);
   assert.match(visitor, /Salin Maklumat Ralat/);
   assert.match(visitor, /Hantar melalui WhatsApp/);
   assert.match(visitor, /https:\/\/wa\.me\/\?text=/);
   assert.match(visitor, /mockError'\)===\s*'1'/);
   assert.match(visitor, /paparan simulasi sahaja/);
   assert.ok(!visitor.includes('.at('), 'visitor form must remain compatible with older iPhone Safari');
+  assert.match(visitor, /Butiran teknikal:/);
+  assert.match(visitor, /safeSubmissionErrorDetail\(err\)/);
 });
 
 async function fetchFixtureRows(records, overflow = false) {

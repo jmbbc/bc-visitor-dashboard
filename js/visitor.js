@@ -345,7 +345,13 @@ function showStatus(msg, ok=true){
   toast(msg, ok);
 }
 
-function showSubmissionErrorSupport(code, message){
+function safeSubmissionErrorDetail(error){
+  const raw=String(error?.message||error?.name||'').replace(/[\r\n\t]+/g,' ').trim();
+  if(!raw||raw==='transaction_failed')return 'Tiada butiran tambahan daripada pelayar.';
+  return raw.replace(/[<>`]/g,'').slice(0,180);
+}
+
+function showSubmissionErrorSupport(code, message, technicalDetail=''){
   const statusEl=document.getElementById('statusMsg');
   if(!statusEl)return;
   const unit=String(document.getElementById('hostUnit')?.value||'-').trim().toUpperCase()||'-';
@@ -354,7 +360,8 @@ function showSubmissionErrorSupport(code, message){
   const report=[
     'LAPORAN RALAT BORANG PELAWAT', `Kod rujukan: ${code}`, `Unit: ${unit}`,
     `Tarikh masuk: ${eta}`, `Tarikh keluar: ${etd}`,
-    `Masa kejadian: ${new Date().toLocaleString('ms-MY')}`, `Keterangan: ${message}`
+    `Masa kejadian: ${new Date().toLocaleString('ms-MY')}`, `Keterangan: ${message}`,
+    `Butiran teknikal: ${technicalDetail||'Tiada butiran tambahan daripada pelayar.'}`
   ].join('\n');
   const card=document.createElement('section');
   card.className='submission-error-card';card.setAttribute('aria-label','Maklumat bantuan ralat');
@@ -4067,19 +4074,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (err && String(err.code || '').toLowerCase().includes('resource-exhausted')) {
           const message='Pendaftaran tidak dapat disimpan kerana kuota pangkalan data telah penuh. Sila cuba semula selepas kuota harian diperbaharui.';
           showStatus(`${message} Kod rujukan: VF-QUOTA.`, false, { duration: 20000 });
-          showSubmissionErrorSupport('VF-QUOTA',message);
+          showSubmissionErrorSupport('VF-QUOTA',message,safeSubmissionErrorDetail(err));
         } else if (err && (String(err.code || '').toLowerCase().includes('permission') || String(err.code || '').toLowerCase().includes('internal') || String(err.code || '').toLowerCase().includes('fallback') || String(err).toLowerCase().includes('fallback'))) {
           // permission or internal server errors — provide a clearer action for the user
           console.warn('Server / fallback error during submission:', err);
           const code = String(err.code || '').toLowerCase().includes('permission') ? 'VF-PERM' : 'VF-SERVER';
           const message='Gagal hantar — masalah pelayan atau kebenaran.';
           showStatus(`${message} Sila hubungi pentadbir dan berikan kod rujukan: ${code}.`, false, { duration: 20000 });
-          showSubmissionErrorSupport(code,message);
+          showSubmissionErrorSupport(code,message,safeSubmissionErrorDetail(err));
         } else {
           const rawCode = String(err?.code || 'UNKNOWN').replace(/^firestore\//i, '').toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 24) || 'UNKNOWN';
           const code=`VF-${rawCode}`,message='Gagal hantar. Sila cuba lagi atau hubungi pentadbir.';
           showStatus(`${message} Kod rujukan: ${code}.`, false, { duration: 20000 });
-          showSubmissionErrorSupport(code,message);
+          showSubmissionErrorSupport(code,message,safeSubmissionErrorDetail(err));
         }
       } finally {
         // always re-enable submit btn after attempt
@@ -4148,7 +4155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(input)input.value=unitPreview;
         const message='Gagal hantar — masalah pelayan atau kebenaran. Ini ialah paparan simulasi sahaja.';
         showStatus(`${message} Kod rujukan: VF-PERM.`,false);
-        showSubmissionErrorSupport('VF-PERM',message);
+        showSubmissionErrorSupport('VF-PERM',message,'Missing or insufficient permissions.');
         document.getElementById('statusMsg')?.scrollIntoView({behavior:'smooth',block:'center'});
       }
     } catch(_previewError) {}
