@@ -619,12 +619,15 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
       const end=item.endDate||item.startDate; return end&&end>latest?end:latest;
     },etdDate);
     const quote=quoteFromUnitState({unitId:unit,category:arrearsCat,state:unitParkingState,start:dateKeyForPolicy(etaDate),end:dateKeyForPolicy(etdDate),lastAnyEnd:dateKeyForPolicy(lastAny)});
-    if(quote.status!=='quoted'){
+    if(quote.status!=='quoted' && !(arrearsCat===3 && Number.isFinite(quote.totalSen))){
       summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),'<div class="pay-alert">Sejarah unit memerlukan semakan admin. Permohonan boleh dihantar, tetapi kelayakan percuma dan caj tidak dianggap muktamad.</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
       return;
     }
     const total=(quote.totalSen/100)+extraVehicleAmount;
-    summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),'<div class="pay-grid">',infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)',arrearsAmountDisplay),infoRow('Kiraan kenderaan utama',`Hari ${quote.lines[0].day}–${quote.lines.at(-1).day} kitaran unit`),infoRow('Kenderaan tambahan',`RM ${extraVehicleAmount.toFixed(2)}`),'</div>','<div class="pay-total-wrap">',`<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${total.toFixed(2)}</strong></div>`,renderPaymentCollectionInfo(total),`<ul class="arrears-payment-list pay-daily-list">${quote.lines.map(line=>`<li>${line.date} (Hari ${line.day}) : <strong>${line.amountSen?`RM ${(line.amountSen/100).toFixed(2)}`:'Percuma'}</strong></li>`).join('')}</ul>`,'</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
+    const reviewNotice=quote.status==='requires_review'
+      ? '<div class="pay-alert">Tarikh ini bertindih atau tidak mengikut urutan rekod unit. Anggaran caj tetap RM15 sehari, tetapi pendaftaran memerlukan semakan admin.</div>'
+      : '';
+    summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),reviewNotice,'<div class="pay-grid">',infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)',arrearsAmountDisplay),infoRow('Kiraan kenderaan utama',`Hari ${quote.lines[0].day}–${quote.lines.at(-1).day} kitaran unit`),infoRow('Kenderaan tambahan',`RM ${extraVehicleAmount.toFixed(2)}`),'</div>','<div class="pay-total-wrap">',`<div class="pay-grand-total">${quote.status==='requires_review'?'Anggaran jumlah perlu bayar':'Jumlah perlu bayar'}: <strong>RM ${total.toFixed(2)}</strong></div>`,renderPaymentCollectionInfo(total),`<ul class="arrears-payment-list pay-daily-list">${quote.lines.map(line=>`<li>${line.date} (Hari ${line.day}) : <strong>${line.amountSen?`RM ${(line.amountSen/100).toFixed(2)}`:'Percuma'}</strong></li>`).join('')}</ul>`,'</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
     return;
   }
 

@@ -11,9 +11,12 @@ export function quoteFromUnitState({unitId, category, state = null, start, end, 
   // unmigrated usage therefore cannot make the current amount ambiguous.
   if(category===3){
     if(state?.unitId && state.unitId!==unit) throw new Error('Ringkasan unit tidak sah.');
-    if(state?.lastAnyEnd && start<=state.lastAnyEnd) return {status:'requires_review',reason:'overlapping_or_out_of_order',totalSen:null};
     const priorDays=state?.category===3&&Number.isInteger(state.mainUsageDays)?state.mainUsageDays:0;
     const lines=requested.map((date,index)=>({date,day:priorDays+index+1,amountSen:dailyRateSen(3,priorDays+index+1,'main')}));
+    if(state?.lastAnyEnd && start<=state.lastAnyEnd) return {
+      status:'requires_review',reason:'overlapping_or_out_of_order',policyVersion:POLICY_VERSION,
+      unitId:unit,lines,totalSen:lines.reduce((sum,line)=>sum+line.amountSen,0)
+    };
     const anyEnd=lastAnyEnd<end?end:lastAnyEnd;
     return {status:'quoted',policyVersion:POLICY_VERSION,unitId:unit,lines,totalSen:lines.reduce((sum,line)=>sum+line.amountSen,0),
       nextState:{unitId:unit,category:3,cycleStart:state?.category===3&&state.cycleStart?state.cycleStart:start,mainUsageDays:priorDays+requested.length,lastMainEnd:end,lastAnyEnd:anyEnd,policyVersion:POLICY_VERSION}};

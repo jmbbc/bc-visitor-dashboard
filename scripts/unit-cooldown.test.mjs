@@ -46,5 +46,8 @@ test('category 3 always quotes RM15 per day despite legacy or category transitio
 
 test('category 3 still sends overlapping dates for review',()=>{
   const result=quoteFromUnitState({unitId:'A-1-1',category:3,state:{unitId:'A-1-1',category:3,cycleStart:'2026-09-01',mainUsageDays:2,lastAnyEnd:'2026-09-02'},start:'2026-09-02',end:'2026-09-03'});
+  assert.equal(result.status,'requires_review');
+  assert.equal(result.totalSen,3000);
+  assert.equal(result.lines.length,2);
   assert.equal(result.status,'requires_review');assert.equal(result.reason,'overlapping_or_out_of_order');
 });
