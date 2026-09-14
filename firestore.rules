@@ -49,7 +49,9 @@ service cloud.firestore {
     // Visitor form responses: allow public create with strict validation
     match /responses/{respId} {
       allow create: if isValidResponse(request.resource.data)
-        && validSubmittedPriorState(request.resource.data);
+        && validSubmittedPriorState(request.resource.data)
+        && request.resource.data.vehicleNo is string
+        && request.resource.data.vehicleNo.size() > 0;
       allow update: if (isAdmin() && isValidResponse(request.resource.data))
         || canConfirmPaidResponse(resource.data, request.resource.data, respId)
         || canGuardStatusUpdate(resource.data, request.resource.data)

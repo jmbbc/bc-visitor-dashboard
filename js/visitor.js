@@ -3856,6 +3856,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      if (!vehicleNo) {
+        focusFieldWithStatus('vehicleNo', 'Sila masukkan nombor kenderaan utama.');
+        return;
+      }
+
       const unitFound = units.includes(hostUnit);
       if (!unitFound) { const el = document.getElementById('hostUnit'); setFieldError(el, 'Unit tidak ditemui dalam senarai'); try { el.focus(); } catch(e) {} updateUnitStatus(el); showStatus('Unit tidak ditemui dalam senarai; pastikan ia betul.', false); return; }
 
