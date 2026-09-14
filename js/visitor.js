@@ -4033,12 +4033,16 @@ document.addEventListener('DOMContentLoaded', () => {
           } catch (e) {
             showStatus('Unit ini dalam tempoh bertenang. Sila cuba semula kemudian atau hubungi pentadbir.', false);
           }
+        } else if (err && String(err.code || '').toLowerCase().includes('resource-exhausted')) {
+          showStatus('Pendaftaran tidak dapat disimpan kerana kuota pangkalan data telah penuh. Sila cuba semula selepas kuota harian diperbaharui. Kod rujukan: VF-QUOTA.', false, { duration: 20000 });
         } else if (err && (String(err.code || '').toLowerCase().includes('permission') || String(err.code || '').toLowerCase().includes('internal') || String(err.code || '').toLowerCase().includes('fallback') || String(err).toLowerCase().includes('fallback'))) {
           // permission or internal server errors — provide a clearer action for the user
           console.warn('Server / fallback error during submission:', err);
-          showStatus('Gagal hantar — masalah pelayan atau kebenaran. Sila hubungi pentadbir.', false);
+          const code = String(err.code || '').toLowerCase().includes('permission') ? 'VF-PERM' : 'VF-SERVER';
+          showStatus(`Gagal hantar — masalah pelayan atau kebenaran. Sila hubungi pentadbir dan berikan kod rujukan: ${code}.`, false, { duration: 20000 });
         } else {
-          showStatus('Gagal hantar. Sila cuba lagi atau hubungi pentadbir.', false);
+          const rawCode = String(err?.code || 'UNKNOWN').replace(/^firestore\//i, '').toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 24) || 'UNKNOWN';
+          showStatus(`Gagal hantar. Sila cuba lagi atau hubungi pentadbir. Kod rujukan: VF-${rawCode}.`, false, { duration: 20000 });
         }
       } finally {
         // always re-enable submit btn after attempt

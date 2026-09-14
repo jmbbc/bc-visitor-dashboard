@@ -18,6 +18,12 @@ test('advance booking removes input maximum and obsolete submit restriction', ()
   assert.ok(!visitor.includes('__VISITOR_FORM_MAX_DATE_KEY'));
 });
 
+test('visitor submission errors expose a phone-friendly reference code', () => {
+  assert.match(visitor, /Kod rujukan: VF-QUOTA/);
+  assert.match(visitor, /kod rujukan: \$\{code\}/);
+  assert.match(visitor, /VF-\$\{rawCode\}/);
+});
+
 async function fetchFixtureRows(records, overflow = false) {
   const start = dashboard.indexOf('const maxRows = 2000;');
   const end = dashboard.indexOf('weekResponseCache[weekKey] = rows;', start);
