@@ -24,6 +24,8 @@ test('visitor submission errors expose a phone-friendly reference code', () => {
   assert.match(visitor, /Salin Maklumat Ralat/);
   assert.match(visitor, /Hantar melalui WhatsApp/);
   assert.match(visitor, /https:\/\/wa\.me\/\?text=/);
+  assert.match(visitor, /mockError'\)===\s*'1'/);
+  assert.match(visitor, /paparan simulasi sahaja/);
 });
 
 async function fetchFixtureRows(records, overflow = false) {

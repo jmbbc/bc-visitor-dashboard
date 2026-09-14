@@ -4138,5 +4138,19 @@ document.addEventListener('DOMContentLoaded', () => {
       refreshRecallButtonState(amendLastBtn);
       updateFormProgress();
     });
+
+    // Safe visual preview for support training. It renders the error card only
+    // and never submits a form or writes to Firebase.
+    try {
+      const previewParams=new URLSearchParams(window.location.search);
+      if(previewParams.get('mockError')==='1'){
+        const unitPreview=normalizeUnitInput(previewParams.get('unit')||'B2-15-9');
+        if(input)input.value=unitPreview;
+        const message='Gagal hantar — masalah pelayan atau kebenaran. Ini ialah paparan simulasi sahaja.';
+        showStatus(`${message} Kod rujukan: VF-PERM.`,false);
+        showSubmissionErrorSupport('VF-PERM',message);
+        document.getElementById('statusMsg')?.scrollIntoView({behavior:'smooth',block:'center'});
+      }
+    } catch(_previewError) {}
   })();
 });
