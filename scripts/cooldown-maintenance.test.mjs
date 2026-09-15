@@ -39,6 +39,12 @@ test('panel, semakan transaksi dan kebenaran admin disambungkan', () => {
   assert.match(html, /dashboard-cooldown-maintenance\.mjs/);
   assert.match(module, /token\.claims\.admin!==true/);
   assert.match(module, /runTransaction/);
+  assert.match(module, /id="cooldownUnitResetBtn"/);
+  assert.match(module, /Reset Kecemasan/);
+  assert.match(module, /cooldownEmergencyReason/);
+  assert.match(module, /const outcome=await resetOne\(\{unit\},\{emergency,reason\}\)/);
+  assert.match(module, /emergency_cooldown_reset/);
+  assert.match(module, /tx\.set\(auditRef/);
   assert.match(module, /Promise\.all\(\[getDoc\(doc\(window\.__FIRESTORE,'units',unit\)\),getDoc\(doc\(window\.__FIRESTORE,'overnightLocks'/);
   assert.match(module, /tx\.get\(lockRef\)/);
   assert.match(module, /tx\.get\(unitRef\)/);
