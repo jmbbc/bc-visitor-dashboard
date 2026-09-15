@@ -1306,6 +1306,8 @@ async function createResponseWithDedupe(payload){
       let parkingDecision = null;
       // Retain the snapshot for the response's cancellation/restore record.
       let lockData = null;
+      let nextLock = null;
+      let existingResp = null;
 
       const dedupeSnap = await tx.get(dedupeRef);
       if (dedupeSnap.exists()) {
@@ -1370,7 +1372,7 @@ async function createResponseWithDedupe(payload){
           }
         }
 
-        const nextLock = {
+        nextLock = {
           unit: hostUnitId,
           startDate: Timestamp.fromDate(etaStart),
           endDate: Timestamp.fromDate(etaEnd),
@@ -1390,8 +1392,21 @@ async function createResponseWithDedupe(payload){
           parkingReviewRequired: false
         });
         else if (parkingDecision?.status === 'requires_review') nextLock.parkingReviewRequired = true;
-        tx.set(lockRef, nextLock, { merge: true });
       }
+
+      // Firestore requires every transaction read to finish before the first
+      // write. An amendment target is only known after the dedupe/lock reads.
+      if (amended) {
+        const existingRespSnap = await tx.get(targetRespRef);
+        if (!existingRespSnap.exists()) {
+          const err = new Error('response_not_found_for_amend');
+          err.code = 'AMEND_TARGET_NOT_FOUND';
+          throw err;
+        }
+        existingResp = existingRespSnap.data() || {};
+      }
+
+      if (nextLock) tx.set(lockRef, nextLock, { merge: true });
 
       tx.set(dedupeRef, {
         responseId: targetRespId,
@@ -1448,13 +1463,6 @@ async function createResponseWithDedupe(payload){
           });
         }
       } else {
-        const existingRespSnap = await tx.get(targetRespRef);
-        if (!existingRespSnap.exists()) {
-          const err = new Error('response_not_found_for_amend');
-          err.code = 'AMEND_TARGET_NOT_FOUND';
-          throw err;
-        }
-        const existingResp = existingRespSnap.data() || {};
         const existingVehicles = collectVehicleSetFromPayloadLike(existingResp);
         const incomingVehicles = collectVehicleSetFromPayloadLike(docPayload);
         const existingDetails = collectVehicleDetailsFromPayloadLike(existingResp);
