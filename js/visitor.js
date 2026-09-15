@@ -2552,6 +2552,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const VISITOR_LAST_SUBMISSION_KEY = 'visitorForm:lastSubmission:v1';
   const VISITOR_LAST_BY_UNIT_KEY = 'visitorForm:lastSubmissionByUnit:v1';
   let isMockSubmit = false;
+  let mockManagementSubmission = null;
   let draftTimer = null;
 
   function setFinalStepState(state = 'save') {
@@ -2813,8 +2814,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setAmendButtonState(btn, !!saved);
     if (btn) {
       btn.title = !unit
-        ? 'Masukkan Unit rumah untuk mencari data terakhir.'
-        : (saved ? `Panggil data terakhir untuk unit ${unit}.` : `Tiada data terakhir tersimpan untuk unit ${unit}.`);
+        ? 'Masukkan Unit rumah untuk menggunakan semula maklumat terdahulu.'
+        : (saved ? `Guna semula maklumat terakhir untuk unit ${unit}.` : `Tiada maklumat terdahulu tersimpan untuk unit ${unit}.`);
     }
   }
 
@@ -3379,7 +3380,7 @@ document.addEventListener('DOMContentLoaded', () => {
     amendLastBtn?.addEventListener('click', () => {
       const unit = normalizeUnitInput(input?.value || '');
       if (!unit) {
-        showStatus('Masukkan Unit rumah dahulu untuk memanggil data terakhir.', false);
+        showStatus('Masukkan Unit rumah dahulu untuk menggunakan semula maklumat.', false);
         try { input?.focus(); } catch (e) { /* ignore */ }
         return;
       }
@@ -3394,7 +3395,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showStatus(`Gagal memuatkan data terakhir untuk unit ${unit}.`, false);
         return;
       }
-      showStatus(`Data terakhir untuk unit ${unit} berjaya dimuatkan. Semak butiran sebelum mendaftar.`, true);
+      showStatus(`Maklumat terakhir untuk unit ${unit} berjaya digunakan semula. Tetapkan tarikh dan semak butiran sebelum mendaftar.`, true);
       resetWhatsAppAction();
       try { document.getElementById('vehicleNo')?.focus(); } catch (e) { /* ignore */ }
     });
@@ -4178,7 +4179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     manageLastSubmissionBtn?.addEventListener('click', () => {
-      const saved = getSavedLastSubmission();
+      const saved = mockManagementSubmission || getSavedLastSubmission();
       if (!saved || !saved.responseId) {
         showStatus('Maklumat pindaan tidak dijumpai pada peranti ini.', false);
         return;
@@ -4235,6 +4236,13 @@ document.addEventListener('DOMContentLoaded', () => {
         showStatus(`${message} Kod rujukan: VF-PERM.`,false);
         showSubmissionErrorSupport('VF-PERM',message,'Missing or insufficient permissions.');
         document.getElementById('statusMsg')?.scrollIntoView({behavior:'smooth',block:'center'});
+      }
+      if(previewParams.get('mockManage')==='1'){
+        const sample={responseId:'mock-response-local-only',hostUnit:'B3-3-2',hostName:'Penghuni Contoh',hostPhone:'0123456789',category:'Pelawat',subCategory:'',entryDetails:'',companyName:'',visitorName:'Pelawat Contoh',visitorPhone:'0112345678',stayOver:'Yes',eta:'2026-09-20',etd:'2026-09-21',vehicleNo:'ABC1234',vehicleNumbers:['ABC1234','XYZ5678'],vehicleRowsDetailed:[{plate:'ABC1234',visitorName:'Pelawat Contoh',visitorPhone:'0112345678',startDate:'2026-09-20',endDate:'2026-09-21'},{plate:'XYZ5678',visitorName:'Pelawat Kedua',visitorPhone:'0198765432',startDate:'2026-09-20',endDate:'2026-09-21'}],vehicleType:'Kereta',savedAt:Date.now()};
+        mockManagementSubmission=sample;
+        enableWhatsAppAction({mock:true},true);
+        if(waHint)waHint.textContent='Paparan simulasi: data tidak dihantar ke Firebase atau WhatsApp.';
+        waActionBlock?.scrollIntoView({behavior:'smooth',block:'center'});
       }
     } catch(_previewError) {}
   })();

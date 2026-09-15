@@ -6,12 +6,22 @@ const read=path=>readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
 
 test('successful registration exposes a local-only management action',()=>{
   const html=read('visitor.html'),source=read('js/visitor.js');
-  assert.match(html,/id="manageLastSubmissionBtn"[^>]*>Lihat \/ Kemaskini Pendaftaran/);
+  assert.match(html,/id="manageLastSubmissionBtn"[^>]*>Betulkan Pendaftaran Ini/);
+  assert.match(html,/Guna Semula Maklumat/);
   assert.match(html,/tidak dihantar melalui WhatsApp/);
   assert.match(source,/enableWhatsAppAction\(payload, true\)/);
-  assert.match(source,/const saved = getSavedLastSubmission\(\)/);
+  assert.match(source,/const saved = mockManagementSubmission \|\| getSavedLastSubmission\(\)/);
   assert.match(source,/loadSubmissionIntoForm\(saved\)/);
   assert.doesNotMatch(source,/Pautan kemas kini/);
+});
+
+test('management mock is local-only and exposes the post-submit state',()=>{
+  const source=read('js/visitor.js');
+  assert.match(source,/previewParams\.get\('mockManage'\)==='1'/);
+  assert.match(source,/mockManagementSubmission=sample/);
+  assert.doesNotMatch(source,/mockManage[\s\S]{0,900}saveLastSubmission\(sample\)/);
+  assert.match(source,/enableWhatsAppAction\(\{mock:true\},true\)/);
+  assert.match(source,/data tidak dihantar ke Firebase atau WhatsApp/);
 });
 
 test('self-edit keeps policy fields immutable and expires before entry or 24 hours',()=>{

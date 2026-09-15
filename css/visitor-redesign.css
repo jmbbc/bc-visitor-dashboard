@@ -769,11 +769,11 @@ body.visitor-page {
   grid-template-rows: auto auto auto;
   align-content: start;
   height: 100%;
-  min-height: 112px;
-  padding: 12px;
+  min-height: 94px;
+  padding: 10px 11px 8px;
   box-sizing: border-box;
   border: 1px solid var(--visitor-line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--visitor-soft);
   overflow: visible;
 }
@@ -784,13 +784,13 @@ body.visitor-page {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 40px;
+  min-height: 34px;
 }
 
 .visitor-page .section-options .option-tile-title {
   min-width: 0;
   color: var(--visitor-ink);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.25;
 }
@@ -800,10 +800,10 @@ body.visitor-page {
   align-items: center !important;
   justify-content: center !important;
   gap: 6px;
-  width: 90px;
-  min-width: 90px;
-  min-height: 36px !important;
-  padding: 7px 11px !important;
+  width: 82px;
+  min-width: 82px;
+  min-height: 32px !important;
+  padding: 6px 9px !important;
   border: 1px solid #9fb4cc !important;
   border-radius: 9px !important;
   color: #163b68 !important;
@@ -868,9 +868,9 @@ body.visitor-page {
   justify-content: space-between !important;
   gap: 8px;
   width: 100%;
-  min-height: 31px !important;
-  margin-top: 8px;
-  padding: 7px 2px 0 !important;
+  min-height: 27px !important;
+  margin-top: 5px;
+  padding: 5px 2px 0 !important;
   border: 0 !important;
   border-top: 1px solid #dbe3ec !important;
   border-radius: 0 !important;

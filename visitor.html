@@ -443,7 +443,7 @@
                   </span>
                 </button>
                 <div id="waHint" class="muted-small">Aktif selepas pendaftaran disimpan.</div>
-                <button type="button" id="manageLastSubmissionBtn" class="btn-ghost manage-registration-btn" hidden>Lihat / Kemaskini Pendaftaran</button>
+                <button type="button" id="manageLastSubmissionBtn" class="btn-ghost manage-registration-btn" hidden>Betulkan Pendaftaran Ini</button>
                 <div id="manageLastSubmissionHint" class="muted-small" hidden>Akses pindaan ini hanya tersedia pada peranti ini dan tidak dihantar melalui WhatsApp.</div>
               </div>
 
@@ -464,7 +464,7 @@
           <div class="section-options-content">
             <div class="option-tile option-tile-repeat repeat-mode-wrap">
               <div class="option-tile-head">
-                <strong class="option-tile-title">Mode Pendaftaran Berulang</strong>
+                <strong class="option-tile-title">Pendaftaran Berulang</strong>
                 <input id="repeatMode" type="checkbox" hidden aria-hidden="true" tabindex="-1" />
                 <button type="button" id="repeatModeActionBtn" class="option-action-btn option-action-toggle" aria-pressed="false">
                   <span class="option-action-dot" aria-hidden="true"></span>
@@ -480,14 +480,14 @@
 
             <div class="option-tile option-tile-action option-tile-recall">
               <div class="option-tile-head">
-                <strong class="option-tile-title">Panggil Data Terakhir</strong>
-                <button type="button" id="amendLastBtn" class="option-action-btn" disabled>Panggil</button>
+                <strong class="option-tile-title">Guna Semula Maklumat</strong>
+                <button type="button" id="amendLastBtn" class="option-action-btn" disabled>Gunakan</button>
               </div>
               <button type="button" id="amendLastInfoBtn" class="option-helper-toggle" aria-expanded="false" aria-controls="amendLastInfo">
                 <span>Lihat penerangan</span>
                 <span class="option-helper-chevron" aria-hidden="true">⌄</span>
               </button>
-              <div id="amendLastInfo" class="option-helper-text hidden">Masukkan Unit rumah dahulu. Data pendaftaran terakhir untuk unit tersebut yang disimpan pada peranti ini akan dimuatkan.</div>
+              <div id="amendLastInfo" class="option-helper-text hidden">Isi semula maklumat terdahulu pada peranti ini untuk membuat pendaftaran baharu. Tarikh dan butiran boleh diubah.</div>
             </div>
 
             <div class="option-tile option-tile-action option-tile-clear">
@@ -513,6 +513,6 @@
 
   <!-- Firebase init then visitor.js -->
   <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/visitor.js?v=20260915-2"></script>
+  <script type="module" src="js/visitor.js?v=20260915-4"></script>
 </body>
 </html>
