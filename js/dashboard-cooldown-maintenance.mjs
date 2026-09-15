@@ -1,4 +1,4 @@
-import {collection,doc,getCountFromServer,getDocs,runTransaction,serverTimestamp,Timestamp} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+import {collection,doc,getCountFromServer,getDoc,getDocs,runTransaction,serverTimestamp,Timestamp} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 import {onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 import {categoryFromUnit,cooldownResetEligibility} from './cooldown-maintenance-policy.mjs?v=20260915-1';
 
@@ -8,6 +8,7 @@ if(panel&&window.__AUTH&&window.__FIRESTORE){
   const message=document.getElementById('cooldownMaintenanceMessage'),body=document.getElementById('cooldownMaintenanceRows'),selectAll=document.getElementById('cooldownSelectAll');
   const search=document.getElementById('cooldownMaintenanceSearch'),categoryFilter=document.getElementById('cooldownMaintenanceCategory');
   const checkedCount=document.getElementById('cooldownCheckedCount'),eligibleCount=document.getElementById('cooldownEligibleCount'),selectedCount=document.getElementById('cooldownSelectedCount'),reviewCount=document.getElementById('cooldownReviewCount');
+  const lookupInput=document.getElementById('cooldownUnitLookupInput'),lookupBtn=document.getElementById('cooldownUnitLookupBtn'),lookupMessage=document.getElementById('cooldownUnitLookupMessage'),lookupResult=document.getElementById('cooldownUnitLookupResult');
   let adminUser=null,rows=[],estimatedLocks=0;
   const safe=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const todayKey=()=>{
@@ -20,6 +21,26 @@ if(panel&&window.__AUTH&&window.__FIRESTORE){
     const get=type=>parts.find(part=>part.type===type)?.value||'';return `${get('year')}-${get('month')}-${get('day')}`;
   };
   const unitKey=value=>String(value||'').replace(/\s+/g,'').toUpperCase();
+  const reasonText={
+    cooldown_active:'Cooldown masih aktif',cooldown_complete:'Cooldown tamat — layak reset',already_reset:'Counter sudah bermula semula',
+    category_3:'Kategori 3 — tiada kelayakan percuma/cooldown',category_unknown:'Kategori tidak dapat ditentukan',incomplete:'Data counter tidak lengkap',no_record:'Tiada rekod cooldown untuk unit ini'
+  };
+  async function lookupUnit(){
+    const unit=unitKey(lookupInput.value);lookupResult.hidden=true;lookupResult.replaceChildren();
+    if(!unit){lookupMessage.textContent='Masukkan nombor unit dahulu.';lookupInput.focus();return;}
+    lookupBtn.disabled=true;lookupMessage.textContent=`Menyemak ${unit}…`;
+    try{
+      const [unitSnap,lockSnap]=await Promise.all([getDoc(doc(window.__FIRESTORE,'units',unit)),getDoc(doc(window.__FIRESTORE,'overnightLocks',`unit-${unit}`))]);
+      if(!unitSnap.exists()){lookupMessage.textContent=`Unit ${unit} tidak dijumpai dalam senarai unit.`;return;}
+      const unitData=unitSnap.data()||{},category=categoryFromUnit(unitData),arrears=Number(unitData.arrearsAmount),lock=lockSnap.exists()?(lockSnap.data()||{}):null;
+      const days=lock?Number(lock.mainUsageDays):0,lastAnyEnd=lock?malaysiaDate(lock.lastAnyEnd||lock.endDate):null;
+      const result=lock?cooldownResetEligibility({category,mainUsageDays:lock.mainUsageDays,lastAnyEnd,today:todayKey()}):{eligible:false,reason:'no_record',nextEligible:null};
+      const arrearsText=Number.isFinite(arrears)?`RM ${arrears.toFixed(2)}`:'Tidak tersedia',lastText=lastAnyEnd||'Tiada rekod',nextText=result.nextEligible||'Tidak berkenaan';
+      lookupResult.innerHTML=`<div class="cooldown-unit-result-grid"><div><span>Unit</span><strong>${safe(unit)}</strong></div><div><span>Kategori</span><strong>${category?`Kategori ${category}`:'Tidak diketahui'}</strong></div><div><span>Tunggakan</span><strong>${safe(arrearsText)}</strong></div><div><span>Counter</span><strong>${Number.isInteger(days)&&days>=0?days:'Tidak lengkap'}</strong></div><div><span>Parkir terakhir</span><strong>${safe(lastText)}</strong></div></div><p class="cooldown-unit-result-note small"><strong>${safe(reasonText[result.reason]||result.reason)}</strong>${result.reason==='cooldown_active'?` · Layak semula pada ${safe(nextText)}`:result.reason==='cooldown_complete'?` · Layak sejak ${safe(nextText)}`:''}</p>`;
+      lookupResult.hidden=false;lookupMessage.textContent=`Semakan ${unit} selesai. 2 bacaan digunakan.`;
+    }catch(error){lookupMessage.textContent=error.code==='permission-denied'?'Akses ditolak. Log masuk semula menggunakan akaun admin.':'Semakan unit gagal. Sila cuba lagi.';}
+    finally{lookupBtn.disabled=false;}
+  }
   const visibleRows=()=>{const term=unitKey(search.value),wanted=categoryFilter.value;return rows.filter(row=>(!term||row.unit.includes(term))&&(!wanted||String(row.category)===wanted));};
   function render(){
     const visible=visibleRows();body.replaceChildren();
@@ -64,6 +85,7 @@ if(panel&&window.__AUTH&&window.__FIRESTORE){
     message.textContent=`Selesai: ${reset} reset, ${skipped} dilangkau kerana keadaan berubah, ${failed} gagal.`;loadBtn.disabled=false;render();
   }
   estimateBtn.addEventListener('click',estimate);loadBtn.addEventListener('click',load);resetBtn.addEventListener('click',resetSelected);
+  lookupBtn.addEventListener('click',lookupUnit);lookupInput.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();lookupUnit();}});
   search.addEventListener('input',render);categoryFilter.addEventListener('change',render);selectAll.addEventListener('change',()=>{for(const row of visibleRows())if(row.status==='eligible')row.selected=selectAll.checked;render();});
   onAuthStateChanged(window.__AUTH,async user=>{panel.hidden=true;adminUser=null;rows=[];if(!user||user.isAnonymous)return;try{const token=await user.getIdTokenResult();if(token.claims.admin!==true)return;adminUser=user;panel.hidden=false;}catch{/* Fail closed. */}});
 }

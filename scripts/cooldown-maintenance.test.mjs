@@ -34,9 +34,12 @@ test('panel, semakan transaksi dan kebenaran admin disambungkan', () => {
   const module = readFileSync(new URL('js/dashboard-cooldown-maintenance.mjs', root), 'utf8');
   const rules = readFileSync(new URL('firestore.rules', root), 'utf8');
   assert.match(html, /id="cooldownMaintenancePanel"/);
+  assert.match(html, /id="cooldownUnitLookupInput"/);
+  assert.match(html, /id="cooldownUnitLookupBtn"/);
   assert.match(html, /dashboard-cooldown-maintenance\.mjs/);
   assert.match(module, /token\.claims\.admin!==true/);
   assert.match(module, /runTransaction/);
+  assert.match(module, /Promise\.all\(\[getDoc\(doc\(window\.__FIRESTORE,'units',unit\)\),getDoc\(doc\(window\.__FIRESTORE,'overnightLocks'/);
   assert.match(module, /tx\.get\(lockRef\)/);
   assert.match(module, /tx\.get\(unitRef\)/);
   assert.match(module, /parkingReviewedAt:serverTimestamp\(\)/);
