@@ -56,7 +56,8 @@ service cloud.firestore {
         || canConfirmPaidResponse(resource.data, request.resource.data, respId)
         || canGuardStatusUpdate(resource.data, request.resource.data)
         || canAmendResponse(resource.data, request.resource.data, respId);
-      allow read, delete: if request.auth != null;
+      allow read: if paymentStaff();
+      allow delete: if isAdmin();
     }
 
     // Dedupe keys for transaction-based duplicate prevention (public create/update only with linked response in same request)
@@ -478,7 +479,7 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/overnightLocks/$(lockId)).data.amendToken == oldData.amendToken
         );
       return isValidResponse(newData)
-        && oldData.status == 'Pending'
+        && oldData.status in ['Pending', 'Pending Payment']
         && newData.status == oldData.status
         && oldData.hostUnit == newData.hostUnit
         && oldData.category == newData.category
@@ -487,6 +488,15 @@ service cloud.firestore {
         && oldData.amendToken is string
         && newData.amendToken == oldData.amendToken
         && request.time < oldData.createdAt + duration.value(24, 'h')
+        && request.time < oldData.eta
+        && newData.diff(oldData).affectedKeys().hasOnly([
+          'hostName','hostPhone','visitorName','visitorPhone','entryDetails','companyName',
+          'vehicleNo','vehicleNumbers','vehicleRowsDetailed','vehicleType','updatedAt'
+        ])
+        // A user may correct vehicle identifiers, but changing the number of
+        // vehicles could change the payable amount and remains a staff action.
+        && newData.get('vehicleNumbers', []).size() == oldData.get('vehicleNumbers', []).size()
+        && newData.get('vehicleRowsDetailed', []).size() == oldData.get('vehicleRowsDetailed', []).size()
         && lockMatches;
     }
 

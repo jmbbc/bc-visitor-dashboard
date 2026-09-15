@@ -139,7 +139,7 @@
     }
     /* keep desktop layout default for confirm-row: no forced margin-left (we use section grouping) */
   </style>
-  <link rel="stylesheet" href="css/visitor-redesign.css?v=20260914-1">
+  <link rel="stylesheet" href="css/visitor-redesign.css?v=20260915-2">
 </head>
 
   <script>
@@ -443,6 +443,8 @@
                   </span>
                 </button>
                 <div id="waHint" class="muted-small">Aktif selepas pendaftaran disimpan.</div>
+                <button type="button" id="manageLastSubmissionBtn" class="btn-ghost manage-registration-btn" hidden>Lihat / Kemaskini Pendaftaran</button>
+                <div id="manageLastSubmissionHint" class="muted-small" hidden>Akses pindaan ini hanya tersedia pada peranti ini dan tidak dihantar melalui WhatsApp.</div>
               </div>
 
               <div id="statusMsg" role="status" aria-live="polite" class="small status-message"></div>
@@ -511,6 +513,6 @@
 
   <!-- Firebase init then visitor.js -->
   <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/visitor.js?v=20260915-1"></script>
+  <script type="module" src="js/visitor.js?v=20260915-2"></script>
 </body>
 </html>

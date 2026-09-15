@@ -1219,6 +1219,11 @@ function _toDateOnly(v) {
 
 async function createResponseWithDedupe(payload){
   if (!window.__FIRESTORE) throw new Error('Firestore not available');
+  const replaceAmendedVehicles = payload?.__replaceAmendedVehicles === true;
+  if (replaceAmendedVehicles) {
+    payload = Object.assign({}, payload);
+    delete payload.__replaceAmendedVehicles;
+  }
 
   const etaDate = payload && payload.eta && payload.eta.toDate ? payload.eta.toDate() : null;
   if (!etaDate || isNaN(etaDate.getTime())) {
@@ -1468,11 +1473,13 @@ async function createResponseWithDedupe(payload){
         const existingDetails = collectVehicleDetailsFromPayloadLike(existingResp);
         const incomingDetails = collectVehicleDetailsFromPayloadLike(docPayload);
         const shouldMergeVehicles = String(docPayload.stayOver || 'No') === 'Yes';
-        const mergedVehicles = shouldMergeVehicles
+        const mergedVehicles = replaceAmendedVehicles
+          ? incomingVehicles
+          : shouldMergeVehicles
           ? Array.from(new Set([...existingVehicles, ...incomingVehicles]))
           : incomingVehicles;
         let mergedVehicleDetails = incomingDetails;
-        if (shouldMergeVehicles) {
+        if (shouldMergeVehicles && !replaceAmendedVehicles) {
           const detailMap = new Map();
           existingDetails.forEach((item) => {
             if (!item || !item.plate) return;
@@ -1499,7 +1506,27 @@ async function createResponseWithDedupe(payload){
           amendToken,
           vehicleNumbers: mergedVehicles,
           vehicleNo: mergedVehicles.length ? mergedVehicles[0] : (docPayload.vehicleNo || ''),
-          vehicleRowsDetailed: mergedVehicleDetails
+          vehicleRowsDetailed: mergedVehicleDetails,
+          // User amendments must not silently change policy, dates, category,
+          // payment state or the unit snapshot captured at registration time.
+          hostUnit: existingResp.hostUnit,
+          category: existingResp.category,
+          subCategory: existingResp.subCategory || '',
+          stayOver: existingResp.stayOver || 'No',
+          eta: existingResp.eta,
+          etd: existingResp.etd ?? null,
+          status: existingResp.status,
+          unitCategory: existingResp.unitCategory,
+          unitArrears: existingResp.unitArrears,
+          unitArrearsAmount: existingResp.unitArrearsAmount,
+          unitLastUpdatedAt: existingResp.unitLastUpdatedAt,
+          parkingQuote: existingResp.parkingQuote,
+          parkingReviewRequired: existingResp.parkingReviewRequired,
+          parkingReviewReason: existingResp.parkingReviewReason,
+          parkingPriorState: existingResp.parkingPriorState
+        });
+        Object.keys(amendedPayload).forEach((key) => {
+          if (amendedPayload[key] === undefined) delete amendedPayload[key];
         });
         tx.update(targetRespRef, amendedPayload);
       }
@@ -2502,6 +2529,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const waBtn = document.getElementById('waBtn');
   const waActionBlock = document.getElementById('waActionBlock');
   const waHint = document.getElementById('waHint');
+  const manageLastSubmissionBtn = document.getElementById('manageLastSubmissionBtn');
+  const manageLastSubmissionHint = document.getElementById('manageLastSubmissionHint');
   const finalStepStateEl = document.getElementById('finalStepState');
   const finalStepKickerEl = document.getElementById('finalStepKicker');
   const finalStepTitleEl = document.getElementById('finalStepTitle');
@@ -2573,10 +2602,12 @@ document.addEventListener('DOMContentLoaded', () => {
       waBtn.classList.remove('is-active','is-loading','is-success');
     }
     if (waHint) waHint.textContent = 'Aktif selepas pendaftaran disimpan.';
+    if (manageLastSubmissionBtn) manageLastSubmissionBtn.hidden = true;
+    if (manageLastSubmissionHint) manageLastSubmissionHint.hidden = true;
     setFinalStepState('save');
   }
 
-  function enableWhatsAppAction(payload){
+  function enableWhatsAppAction(payload, allowManagement = false){
     pendingWaPayload = payload;
     if (submitActionBlock) submitActionBlock.hidden = true;
     if (waActionBlock) waActionBlock.hidden = false;
@@ -2585,6 +2616,8 @@ document.addEventListener('DOMContentLoaded', () => {
       waBtn.classList.remove('btn-disabled','is-loading','is-success');
     }
     if (waHint) waHint.textContent = 'Pendaftaran berjaya. Tekan untuk maklumkan pihak keselamatan.';
+    if (manageLastSubmissionBtn) manageLastSubmissionBtn.hidden = !allowManagement;
+    if (manageLastSubmissionHint) manageLastSubmissionHint.hidden = !allowManagement;
     setFinalStepState('whatsapp');
     requestAnimationFrame(() => { try { waBtn?.focus(); } catch (e) { /* ignore */ } });
   }
@@ -3070,6 +3103,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const vehicleList = document.getElementById('vehicleList');
     const addVehicleBtn = document.getElementById('addVehicleBtn');
     const getAdditionalVehicleLimit = (cat) => (cat === 'Pelawat' ? 2 : Number.POSITIVE_INFINITY);
+    let manageEditMode = false;
+
+    function setManageEditMode(active) {
+      manageEditMode = !!active;
+      [categoryEl, subCategoryEl, stayOverEl, etaEl, etdEl].forEach((field) => {
+        if (field) field.disabled = !!active;
+      });
+      document.querySelectorAll('#vehicleList .vehicle-remove').forEach((button) => {
+        button.disabled = !!active;
+      });
+      if (addVehicleBtn) {
+        addVehicleBtn.disabled = !!active;
+        addVehicleBtn.classList.toggle('btn-disabled', !!active);
+      }
+    }
 
     function refreshAddVehicleButtonState(catOverride) {
       if (!addVehicleBtn || !vehicleList) return;
@@ -3963,6 +4011,7 @@ document.addEventListener('DOMContentLoaded', () => {
         etd: etdVal || '',
         vehicleNo: vehicleNo || '',
         vehicleNumbers: vehicleNumbers.length ? vehicleNumbers : (vehicleNo ? [vehicleNo] : []),
+        vehicleRowsDetailed,
         vehicleType: vehicleType || '',
         savedAt: Date.now()
       };
@@ -3994,6 +4043,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         // attempt create with server-side dedupe transaction
         // create response (atomic) and dedupe key inside a transaction to avoid duplicates
+        if (manageEditMode) payload.__replaceAmendedVehicles = true;
         const resp = await createResponseWithDedupe(payload);
         if (resp && resp.fallback) {
           // we succeeded but without dedupe enforcement (callable not available or blocked)
@@ -4007,9 +4057,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         lastSubmissionSnapshot.responseId = resp && resp.id ? String(resp.id) : '';
         saveLastSubmission(lastSubmissionSnapshot);
-        enableWhatsAppAction(payload);
+        enableWhatsAppAction(payload, true);
         const repeatPreset = (repeatModeEl && repeatModeEl.checked) ? captureRepeatPreset() : null;
         form.reset();
+        setManageEditMode(false);
         if (repeatModeEl) repeatModeEl.checked = !!repeatPreset;
         syncRepeatModeActionState();
         saveRepeatModePreference();
@@ -4126,9 +4177,26 @@ document.addEventListener('DOMContentLoaded', () => {
       if (waHint) waHint.textContent = 'WhatsApp dibuka. Hantar mesej yang telah disediakan.';
     });
 
+    manageLastSubmissionBtn?.addEventListener('click', () => {
+      const saved = getSavedLastSubmission();
+      if (!saved || !saved.responseId) {
+        showStatus('Maklumat pindaan tidak dijumpai pada peranti ini.', false);
+        return;
+      }
+      resetWhatsAppAction();
+      if (!loadSubmissionIntoForm(saved)) {
+        showStatus('Pendaftaran tidak dapat dimuatkan untuk pindaan.', false);
+        return;
+      }
+      setManageEditMode(true);
+      showStatus('Pendaftaran dimuatkan. Tarikh dan kategori dikunci; kemaskini maklumat pelawat atau nombor kenderaan sahaja.', true);
+      try { document.getElementById('visitorName')?.focus(); } catch (e) { /* ignore */ }
+    });
+
     // clear handler
     clearBtn?.addEventListener('click', () => {
       form.reset();
+      setManageEditMode(false);
       syncRepeatModeActionState();
       saveRepeatModePreference();
       try { clearFieldError(document.getElementById('hostUnit')); updateUnitStatus(document.getElementById('hostUnit')); } catch(e) {}

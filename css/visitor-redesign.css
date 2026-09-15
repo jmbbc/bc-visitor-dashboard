@@ -608,6 +608,21 @@ body.visitor-page {
   grid-column: 1 / -1;
 }
 
+.visitor-page .manage-registration-btn {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  border-color: #99d8cb;
+  background: #f0fdfa;
+  color: #115e59;
+  font-weight: 750;
+}
+
+.visitor-page .manage-registration-btn:hover {
+  border-color: #5fc2af;
+  background: #e3faf5;
+}
+
 .visitor-page .submission-error-card {
   margin-top: 12px;
   padding: 14px;
