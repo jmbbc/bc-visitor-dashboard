@@ -657,9 +657,13 @@ body.visitor-page {
 .visitor-page .section-options-content {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: 1fr;
-  gap: 12px;
+  gap: 0;
   align-items: stretch;
+  overflow: hidden;
+  border: 1px solid #d5e0e9;
+  border-radius: 14px;
+  background: #f8fafc;
+  box-shadow: 0 5px 16px rgba(15, 35, 65, 0.05);
 }
 
 .visitor-page .section-options .unit-update-info {
@@ -769,22 +773,45 @@ body.visitor-page {
   grid-template-rows: auto auto auto;
   align-content: start;
   height: 100%;
-  min-height: 94px;
-  padding: 10px 11px 8px;
+  min-height: 82px;
+  padding: 10px 12px 8px;
   box-sizing: border-box;
-  border: 1px solid var(--visitor-line);
-  border-radius: 10px;
-  background: var(--visitor-soft);
+  border: 0;
+  border-right: 1px solid #dbe3ec;
+  border-radius: 0;
+  background: transparent;
   overflow: visible;
+}
+
+.visitor-page .section-options .option-tile:last-child {
+  border-right: 0;
 }
 
 .visitor-page .section-options .option-tile-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   width: 100%;
   min-height: 34px;
+}
+
+.visitor-page .section-options .option-tile-icon {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  color: #0f766e;
+  background: #e6f5f2;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.visitor-page .section-options .option-tile-clear .option-tile-icon {
+  color: #a12f43;
+  background: #fff0f2;
 }
 
 .visitor-page .section-options .option-tile-title {
@@ -793,6 +820,7 @@ body.visitor-page {
   font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.25;
+  text-align: left;
 }
 
 .visitor-page .section-options .option-action-btn {
@@ -865,14 +893,13 @@ body.visitor-page {
 .visitor-page .section-options .option-helper-toggle {
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
+  justify-content: flex-end !important;
   gap: 8px;
   width: 100%;
   min-height: 27px !important;
-  margin-top: 5px;
-  padding: 5px 2px 0 !important;
+  margin-top: 3px;
+  padding: 3px 0 0 !important;
   border: 0 !important;
-  border-top: 1px solid #dbe3ec !important;
   border-radius: 0 !important;
   color: var(--visitor-muted) !important;
   background: transparent !important;
@@ -889,13 +916,13 @@ body.visitor-page {
 
 .visitor-page .section-options .option-helper-chevron {
   display: inline-grid;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   place-items: center;
   border-radius: 50%;
   color: #31577e;
-  background: #e7eef6;
-  font-size: 1rem;
+  background: #e5edf5;
+  font-size: 0.85rem;
   line-height: 1;
   transition: transform 160ms ease;
 }
@@ -909,8 +936,8 @@ body.visitor-page {
   display: block;
   width: 100%;
   max-width: none;
-  margin: 8px 0 0;
-  padding: 9px 10px;
+  margin: 6px 0 2px;
+  padding: 8px 9px;
   box-sizing: border-box;
   border: 1px solid #dbe3ec;
   border-radius: 9px;
@@ -1066,6 +1093,19 @@ body.visitor-page {
   .visitor-page .final-registration-actions .action-buttons,
   .visitor-page .section-options-content {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .visitor-page .section-options .option-tile {
+    border-right: 0;
+    border-bottom: 1px solid #dbe3ec;
+  }
+
+  .visitor-page .section-options .option-tile-head {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+  }
+
+  .visitor-page .section-options .option-tile:last-child {
+    border-bottom: 0;
   }
 
   .visitor-page .section-options-content .secondary-actions {
