@@ -217,6 +217,8 @@ const refreshAdminClaimBtn = document.getElementById('refreshAdminClaimBtn');
 
 // Units cache (unitId -> doc data) used to display unit category fallback
 const unitsCache = Object.create(null);
+// Read-only snapshot for admin modules. Mutations remain owned by dashboard.js.
+window.__getDashboardUnits = () => Object.assign({}, unitsCache);
 // Flag set when reading units collection fails due to insufficient permissions
 let unitsLoadPermissionDenied = false;
 // Units cache policy: fetch at most once per day per browser unless force refresh.

@@ -70,6 +70,7 @@ service cloud.firestore {
     // Overnight lock to force Pelawat Bermalam vehicle combination in one submission
     match /overnightLocks/{lockId} {
       allow get: if true;
+      allow list: if isAdmin();
       allow create: if isValidOvernightLock(request.resource.data, lockId)
         && (existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId))
           || (isAdmin() && isAdminParkingReviewCreate(request.resource.data, lockId)));
