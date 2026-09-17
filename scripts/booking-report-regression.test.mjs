@@ -72,3 +72,8 @@ test('weekly usage alone does not label a unit as violating SOP', () => {
   assert.ok(!dashboard.includes("tr.className = 'is-over-limit'"));
   assert.ok(dashboard.includes('Caj dan status pembayaran belum disahkan'));
 });
+
+test('non-portfolio units are excluded from the arrears list and its totals', () => {
+  assert.match(dashboard, /UNIT_ARREARS_LIST_EXCLUSIONS\s*=\s*new Set\(\['B3-16-4', 'B2-9-5', 'B3-14-4'\]\)/);
+  assert.match(dashboard, /getCombinedUnitsOrdered\(\)\.filter\(\(unitId\) => !UNIT_ARREARS_LIST_EXCLUSIONS\.has/);
+});

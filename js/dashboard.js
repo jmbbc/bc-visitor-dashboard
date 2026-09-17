@@ -958,8 +958,12 @@ function ensureArrearsTrendMonthValue(){
   return parseTrendMonthInput(arrearsTrendMonth.value);
 }
 
+// Unit yang tidak termasuk dalam portfolio Senarai Unit & Tunggakan.
+// Rekod pendaftaran lama dan dokumen Firestore dikekalkan untuk tujuan audit.
+const UNIT_ARREARS_LIST_EXCLUSIONS = new Set(['B3-16-4', 'B2-9-5', 'B3-14-4']);
+
 function computeCurrentOutstandingSummary(){
-  const combined = getCombinedUnitsOrdered();
+  const combined = getCombinedUnitsOrdered().filter((unitId) => !UNIT_ARREARS_LIST_EXCLUSIONS.has(String(unitId || '').trim().toUpperCase()));
   const rows = combined.map((unitId) => {
     const u = unitsCache[unitId] || {};
     const amount = (typeof u.arrearsAmount === 'number' && Number.isFinite(u.arrearsAmount)) ? Number(u.arrearsAmount) : null;
