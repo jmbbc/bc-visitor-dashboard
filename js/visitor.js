@@ -476,14 +476,7 @@ function renderPaymentUpdateNotice(lastUpdatedAt){
       <summary>Nota Tunggakan dan Kemaskini Bayaran</summary>
       <div class="payment-update-note-body">
         <p>Kemaskini bagi rekod pembayaran dijalankan pada: <strong>${ts}${suffix}</strong>.</p>
-        <p>Untuk makluman, senarai tunggakan yang dipaparkan di dalam lif ialah unit yang mempunyai tunggakan melebihi RM 400.00 ke atas. Unit yang ada tunggakan di bawah RM 400.00 masih dikira sebagai unit tunggakan, cuma tidak dipaparkan dalam senarai tersebut.</p>
-        <p>Unit yang dikategorikan sebagai Tiada Tunggakan adalah unit yang menyelesaikan:</p>
-        <ul>
-          <li>Fi Penyelenggaraan sebelum bulan semasa.</li>
-          <li>Insurans Kebakaran (selesai untuk tahun semasa).</li>
-        </ul>
-        <p><strong>Contoh:</strong><br>Bulan semasa: 31 Januari 2026<br>Fi penyelenggaraan: Fi Penyelenggaraan bulan Dis 2025 selesai</p>
-        <p>Sebarang pembayaran atas talian (on-line), resit perlu dihantar melalui e-mail yang ditetapkan. Kegagalan membuat demikian akan menyebabkan rekod pembayaran tidak dapat dikemaskini.</p>
+        <img class="payment-update-poster" src="assets/nota-tunggakan-kemaskini-bayaran.png" alt="Nota tunggakan dan kemas kini bayaran Banjaria Court" loading="lazy">
       </div>
     </details>
   `;

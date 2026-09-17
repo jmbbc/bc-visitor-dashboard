@@ -977,6 +977,16 @@ body{
   margin: 0 0 4px;
 }
 
+.payment-update-poster {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 2px auto 0;
+  border: 1px solid #dbeafe;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
 /* Registration steps box (below Pengesahan) */
 .registration-steps {
   padding: 12px;
