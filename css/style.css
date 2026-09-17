@@ -374,6 +374,73 @@ body{
   text-align: right;
 }
 
+.free-parking-status {
+  margin: 0 0 9px;
+  border: 1px solid #a7f3d0;
+  border-radius: 9px;
+  background: #ecfdf5;
+  color: #065f46;
+  overflow: hidden;
+}
+
+.free-parking-status summary,
+.free-parking-status:not(details) {
+  display: grid;
+  grid-template-columns: 28px minmax(0,1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  list-style: none;
+}
+
+.free-parking-status summary { cursor: pointer; }
+.free-parking-status summary::-webkit-details-marker { display: none; }
+.free-parking-status small,
+.free-parking-status strong { display: block; line-height: 1.25; }
+.free-parking-status small { font-size: 10px; color: #047857; }
+.free-parking-status strong { margin-top: 1px; font-size: 12px; }
+
+.free-parking-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #d1fae5;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.free-parking-icon svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.free-parking-chevron {
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 160ms ease;
+}
+
+.free-parking-status[open] .free-parking-chevron { transform: rotate(-135deg); }
+.free-parking-detail { padding: 7px 9px 8px 45px; border-top: 1px solid #a7f3d0; font-size: 10px; line-height: 1.4; color: #166534; }
+.free-parking-detail strong { display: inline; font-size: inherit; }
+.free-parking-status.is-none { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+.free-parking-status.is-none .free-parking-icon { background: #ffedd5; }
+.free-parking-status.is-none small { color: #c2410c; }
+.free-parking-status.is-review { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.free-parking-status.is-review .free-parking-icon { background: #fef3c7; }
+.free-parking-status.is-review small { color: #a16207; }
+
 .pay-breakdown {
   border: 1px solid var(--input-border);
   border-radius: 10px;

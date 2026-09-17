@@ -1,6 +1,15 @@
 import {analyseUnitCycles} from './parking-cycles.mjs';
 import {datesInclusive, dailyRateSen, POLICY_VERSION} from './parking-policy.mjs';
 
+export function nextFreeParkingDate({category,lastAnyEnd}) {
+  if(category===3)return null;
+  if(![1,2].includes(category)||!/^\d{4}-\d{2}-\d{2}$/.test(String(lastAnyEnd||'')))return '';
+  const date=new Date(`${lastAnyEnd}T00:00:00Z`);
+  if(!Number.isFinite(date.getTime()))return '';
+  date.setUTCDate(date.getUTCDate()+4);
+  return date.toISOString().slice(0,10);
+}
+
 export function quoteFromUnitState({unitId, category, state = null, start, end, lastAnyEnd = end}) {
   const unit=String(unitId || '').trim().toUpperCase();
   const requested=datesInclusive(start,end);

@@ -1,8 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {quoteUnitContinuation,quoteFromUnitState} from '../js/unit-cooldown.mjs';
+import {nextFreeParkingDate,quoteUnitContinuation,quoteFromUnitState} from '../js/unit-cooldown.mjs';
 const a={id:'a',unitId:'B2-15-9',vehicleId:'CAR-A',role:'main',cat:1,state:'registered',start:'2026-09-07',end:'2026-09-09'};
 const b={...a,id:'b',vehicleId:'CAR-B',start:'2026-09-10',end:'2026-09-12'};
+
+test('next free parking begins after three full cooldown dates',()=>{
+  assert.equal(nextFreeParkingDate({category:1,lastAnyEnd:'2026-09-19'}),'2026-09-23');
+  assert.equal(nextFreeParkingDate({category:2,lastAnyEnd:'2026-09-19'}),'2026-09-23');
+  assert.equal(nextFreeParkingDate({category:3,lastAnyEnd:'2026-09-19'}),null);
+});
 const quote=(history,application)=>quoteUnitContinuation({unitId:'B2-15-9',category:1,history,application});
 test('different main car continues unit days 4–6, RM15, without mutating history',()=>{
   const saved=JSON.stringify(a);const result=quote([a],b);
