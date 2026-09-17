@@ -61,27 +61,25 @@ export function nextFreeDate(registrations) {
   return ends.length ? iso(Math.max(...ends) + 4 * DAY) : null;
 }
 
-// Review routing only, NOT an approval or a revised quote. Dates must already
-// be Malaysia calendar dates. changeDate is the category update date, not the
-// date an admin opens the review. Caller must recheck cycle eligibility when
-// applying any adjustment. No inference about actual vehicle arrival is made.
+// A submitted registration is an immutable pricing snapshot. Later category
+// imports are recorded for information only and apply to new registrations.
 export function assessCategoryChange({originalCategory, currentCategory, startDate, changeDate}) {
   category(originalCategory); category(currentCategory);
   const start = epoch(startDate), changed = epoch(changeDate);
   const timing = changed < start ? 'before_entry' : changed === start ? 'on_entry_date' : 'after_entry_date';
-  const requiresReview = originalCategory !== currentCategory;
+  const categoryChanged = originalCategory !== currentCategory;
   return Object.freeze({
     policyVersion: POLICY_VERSION,
     originalCategory, currentCategory, startDate, changeDate, timing,
-    requiresReview,
-    status: requiresReview ? 'needs_review' : 'unchanged',
-    reviewPath: !requiresReview ? 'none' : timing === 'after_entry_date'
-      ? 'continuation_or_manual_adjustment' : 'whole_registration_adjustment',
+    categoryChanged,
+    requiresReview: false,
+    status: categoryChanged ? 'snapshot_preserved' : 'unchanged',
+    reviewPath: 'none',
     automaticChargeChange: false,
     automaticFreeDaysReset: false,
     preserveOriginalCharge: true,
     preservePayments: true,
-    requiresCycleEligibilityCheck: requiresReview,
-    requiresAdminReason: requiresReview
+    requiresCycleEligibilityCheck: false,
+    requiresAdminReason: false
   });
 }

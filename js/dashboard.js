@@ -2749,9 +2749,11 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
 
     // Unit category + arrears/payment computation (used by two columns)
     const live = unitsCache[r.hostUnit] || {};
-    const uc = (live.category && String(live.category).trim()) ? String(live.category).trim() : ((r.unitCategory && String(r.unitCategory).trim()) ? String(r.unitCategory).trim() : '—');
-    const arrears = (typeof live.arrears === 'boolean') ? live.arrears : (r.unitArrears === true);
-    const amount = (typeof live.arrearsAmount === 'number') ? live.arrearsAmount : ((typeof r.unitArrearsAmount === 'number') ? r.unitArrearsAmount : null);
+    // A submitted registration keeps the category and charge snapshot that the
+    // user accepted. Later arrears imports apply only to new registrations.
+    const uc = (r.unitCategory && String(r.unitCategory).trim()) ? String(r.unitCategory).trim() : ((live.category && String(live.category).trim()) ? String(live.category).trim() : '—');
+    const arrears = (typeof r.unitArrears === 'boolean') ? r.unitArrears : (live.arrears === true);
+    const amount = (typeof r.unitArrearsAmount === 'number') ? r.unitArrearsAmount : ((typeof live.arrearsAmount === 'number') ? live.arrearsAmount : null);
     let badgeLabel = uc;
     let badgeClassExtra = '';
     try {
@@ -2779,7 +2781,8 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
         const visitorCat = (r.category || '').trim();
         if (visitorCat === 'Pelawat' || visitorCat === 'Kontraktor') {
           const cat = computeArrearsCategory(amount);
-          const charge = computeChargeForDates(cat, r.eta, r.etd);
+          const quotedTotal = r.parkingQuote && Number.isFinite(Number(r.parkingQuote.mainTotalSen)) ? Number(r.parkingQuote.mainTotalSen) / 100 : null;
+          const charge = Number.isFinite(quotedTotal) ? {total:quotedTotal} : computeChargeForDates(cat, r.eta, r.etd);
           if (charge && typeof charge.total === 'number') {
             paymentHtml = `<div class="payment-block"><div class="line-strong">Jumlah pembayaran :</div><div class="line-strong">RM ${formatAmount(charge.total)}</div></div>`;
             paymentAmountDisplay = charge.total;
@@ -2796,14 +2799,9 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       ? Number(r.parkingQuote.mainTotalSen)
       : null;
     const hasParkingCharge = Number.isFinite(quotedMainSen) && quotedMainSen > 0;
-    const originalArrears=Number(r.unitArrearsAmount);
-    const originalParkingCategory=Number.isFinite(originalArrears)?computeArrearsCategory(originalArrears):null;
-    const currentParkingCategory=Number.isFinite(amount)?computeArrearsCategory(amount):null;
-    const etaForCategoryReview=toJsDateSafe(r.eta);
-    const categoryChangedBeforeEntry=!!(originalParkingCategory&&currentParkingCategory&&originalParkingCategory!==currentParkingCategory&&currentParkingCategory!==1&&etaForCategoryReview&&etaForCategoryReview.getTime()>Date.now());
     let paymentStatusLabel = '—';
     let paymentStatusClass = 'payment-status-none';
-    if (r.parkingReviewRequired === true || categoryChangedBeforeEntry) {
+    if (r.parkingReviewRequired === true) {
       paymentStatusLabel = 'Perlu semakan';
       paymentStatusClass = 'payment-status-review';
     } else if (r.status === 'Pending Payment') {

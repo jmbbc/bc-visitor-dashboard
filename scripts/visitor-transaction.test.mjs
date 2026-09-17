@@ -34,6 +34,27 @@ for(const oldDays of [0,2])test(`overnight transaction builds response and prior
   assert.equal(writes.some(w=>w.ref.col==='parkingCharges'),oldDays>0);
 });
 
+test('new category 3 registration preserves category 1 counter and remains rules-compatible',async()=>{
+  const writes=[];
+  const state={unitId:'A-1-1',category:1,mainUsageDays:3,cycleStart:'2026-09-10',lastAnyEnd:'2026-09-12'};
+  const lock={...state,startDate:stamp('2026-09-10'),endDate:stamp('2026-09-12')};
+  const context={window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
+    clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'fixture',
+    doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),
+    dedupeTransactionUnavailable:false,serverTimestamp:()=> 'SERVER_TIME',Timestamp:{fromDate:d=>stamp(d)},computeArrearsCategory:()=>3,
+    parkingStateFromLock:()=>state,parkingPriorStateFromLock:(_unit,data)=>({exists:true,category:data.category,mainUsageDays:data.mainUsageDays}),quoteFromUnitState,
+    runTransaction:async(_db,callback)=>callback({get:async ref=>({exists:()=>ref.col==='overnightLocks',data:()=>lock}),set:(ref,data)=>writes.push({ref,data})})};
+  vm.createContext(context);vm.runInContext(body,context);
+  await context.createResponseWithDedupe({hostUnit:'A-1-1',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',unitArrearsAmount:500,vehicleNo:'TEST',status:'Pending'});
+  const nextLock=writes.find(w=>w.ref.col==='overnightLocks').data;
+  const response=writes.find(w=>w.ref.col==='responses').data;
+  assert.equal(nextLock.parkingCategory,3);
+  assert.equal(nextLock.mainUsageDays,6);
+  assert.ok(nextLock.mainUsageDays>=lock.mainUsageDays);
+  assert.equal(response.parkingQuote.mainTotalSen,4500);
+  assert.equal(response.parkingQuote.mainStartDay,4);
+});
+
 test('amendment completes all Firestore reads before any write',async()=>{
   const operations=[];
   let updated=null;

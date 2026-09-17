@@ -30,11 +30,11 @@ test('split receipt then adjust one charge never transfers excess to the other',
   state=apply(state,'void',{receiptId:'r',reason:'Wrong receipt'});
   assert.deepEqual(paymentSummary(state).charges.map(c=>c.balanceSen),[3000,1500]);
 });
-test('category review does not itself reprice ledger or modify payments',()=>{
+test('category change preserves submitted ledger and payments without review',()=>{
   const state=seeded(),snapshot=JSON.stringify(state);
   for(const changeDate of ['2026-09-03','2026-09-04','2026-09-05']){
     const review=assessCategoryChange({originalCategory:2,currentCategory:1,startDate:'2026-09-04',changeDate});
-    assert.equal(review.requiresReview,true);assert.equal(review.automaticChargeChange,false);
+    assert.equal(review.requiresReview,false);assert.equal(review.status,'snapshot_preserved');assert.equal(review.automaticChargeChange,false);
     assert.equal(JSON.stringify(state),snapshot);
   }
 });

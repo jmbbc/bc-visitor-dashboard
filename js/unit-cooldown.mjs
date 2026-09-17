@@ -11,7 +11,10 @@ export function quoteFromUnitState({unitId, category, state = null, start, end, 
   // unmigrated usage therefore cannot make the current amount ambiguous.
   if(category===3){
     if(state?.unitId && state.unitId!==unit) throw new Error('Ringkasan unit tidak sah.');
-    const priorDays=state?.category===3&&Number.isInteger(state.mainUsageDays)?state.mainUsageDays:0;
+    // Keep the accounting counter monotonic when a unit moves from Category
+    // 1/2 to Category 3. Category 3 still charges RM15 for every requested
+    // day; the carried counter exists only for continuity and Firestore state.
+    const priorDays=state?.unitId===unit&&Number.isInteger(state.mainUsageDays)&&state.mainUsageDays>=0?state.mainUsageDays:0;
     const lines=requested.map((date,index)=>({date,day:priorDays+index+1,amountSen:dailyRateSen(3,priorDays+index+1,'main')}));
     if(state?.lastAnyEnd && start<=state.lastAnyEnd) return {
       status:'requires_review',reason:'overlapping_or_out_of_order',policyVersion:POLICY_VERSION,
@@ -19,7 +22,7 @@ export function quoteFromUnitState({unitId, category, state = null, start, end, 
     };
     const anyEnd=lastAnyEnd<end?end:lastAnyEnd;
     return {status:'quoted',policyVersion:POLICY_VERSION,unitId:unit,lines,totalSen:lines.reduce((sum,line)=>sum+line.amountSen,0),
-      nextState:{unitId:unit,category:3,cycleStart:state?.category===3&&state.cycleStart?state.cycleStart:start,mainUsageDays:priorDays+requested.length,lastMainEnd:end,lastAnyEnd:anyEnd,policyVersion:POLICY_VERSION}};
+      nextState:{unitId:unit,category:3,cycleStart:state?.cycleStart||start,mainUsageDays:priorDays+requested.length,lastMainEnd:end,lastAnyEnd:anyEnd,policyVersion:POLICY_VERSION}};
   }
   if(state?.legacyMissingUsage === true) return {status:'requires_review',reason:'legacy_history_not_migrated',totalSen:null};
   let priorDays=0, cycleStart=start,categoryOneTransitionException=false;

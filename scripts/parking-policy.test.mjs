@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {arrearsCategory, datesInclusive, dailyRateSen, quoteSameCategory, nextFreeDate, assessCategoryChange} from '../js/parking-policy.mjs';
 
 test('category boundaries and invalid input', () => {
@@ -61,22 +62,23 @@ test('unresolved transitions and invalid roles rejected', () => {
 });
 
 const changeExample = {originalCategory:2, currentCategory:1, startDate:'2026-09-04'};
-test('category updated before entry routes entire registration to admin review', () => {
+test('category updated before entry preserves the submitted snapshot', () => {
   const result = assessCategoryChange({...changeExample, changeDate:'2026-09-03'});
   assert.equal(result.timing,'before_entry');
-  assert.equal(result.reviewPath,'whole_registration_adjustment');
-  assert.equal(result.requiresCycleEligibilityCheck,true);
+  assert.equal(result.reviewPath,'none');
+  assert.equal(result.requiresReview,false);
+  assert.equal(result.status,'snapshot_preserved');
 });
-test('category updated on entry date does not assume arrival or grant free days', () => {
+test('category updated on entry date preserves the submitted snapshot', () => {
   const result = assessCategoryChange({...changeExample, changeDate:'2026-09-04'});
   assert.equal(result.timing,'on_entry_date');
-  assert.equal(result.reviewPath,'whole_registration_adjustment');
+  assert.equal(result.reviewPath,'none');
   assert.equal(result.automaticFreeDaysReset,false);
 });
-test('after entry uses continuation/manual review, never automatic repricing', () => {
+test('category updated after entry preserves the submitted snapshot', () => {
   const result = assessCategoryChange({...changeExample, changeDate:'2026-09-05'});
   assert.equal(result.timing,'after_entry_date');
-  assert.equal(result.reviewPath,'continuation_or_manual_adjustment');
+  assert.equal(result.reviewPath,'none');
   assert.equal(result.automaticChargeChange,false);
 });
 test('all category changes preserve original charges and payments in every timing', () => {
@@ -85,14 +87,15 @@ test('all category changes preserve original charges and payments in every timin
       const input = Object.freeze({...changeExample,originalCategory,currentCategory,changeDate});
       const before = JSON.stringify(input);
       const result = assessCategoryChange(input);
-      assert.equal(result.requiresReview,originalCategory !== currentCategory);
-      assert.equal(result.requiresAdminReason,result.requiresReview);
+      assert.equal(result.categoryChanged,originalCategory !== currentCategory);
+      assert.equal(result.requiresReview,false);
+      assert.equal(result.requiresAdminReason,false);
       assert.equal(result.preserveOriginalCharge,true);
       assert.equal(result.preservePayments,true);
       assert.equal(result.automaticChargeChange,false);
       assert.equal(result.automaticFreeDaysReset,false);
       assert.equal(JSON.stringify(input),before);
-      if (!result.requiresReview) assert.equal(result.reviewPath,'none');
+      assert.equal(result.reviewPath,'none');
     }
   }
 });
@@ -106,4 +109,11 @@ test('review routing handles year boundary and rejects missing/invalid data', ()
   for (const patch of [{currentCategory:null},{originalCategory:4},{changeDate:'2026-02-29'},{changeDate:'2026-09-03T23:00:00Z'},{startDate:undefined}]) {
     assert.throws(() => assessCategoryChange({...changeExample,changeDate:'2026-09-03',...patch}));
   }
+});
+
+test('dashboard uses the submitted category snapshot without live-category review routing',()=>{
+  const dashboard=readFileSync(new URL('../js/dashboard.js',import.meta.url),'utf8');
+  assert.match(dashboard,/const uc = \(r\.unitCategory/);
+  assert.match(dashboard,/if \(r\.parkingReviewRequired === true\)/);
+  assert.doesNotMatch(dashboard,/categoryChangedBeforeEntry/);
 });

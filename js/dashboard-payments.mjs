@@ -47,15 +47,14 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     const eta=response.eta?.toDate?response.eta.toDate():null;
     find('[data-cancel]').hidden=!isAdmin||!eta||eta.getTime()<=Date.now()||['Checked In','Checked Out','Cancelled Before Entry'].includes(response.status);
     const originalAmount=Number(response.unitArrearsAmount),originalCategory=Number.isFinite(originalAmount)?(originalAmount<=1?1:originalAmount<=400?2:3):null;
-    const selectedCategory=result.currentCategory||originalCategory||1;
+    const selectedCategory=originalCategory||result.currentCategory||1;
     find('[data-create] select[name="category"]').value=String(selectedCategory);
     find('[data-adjust] select[name="category"]').value=String(selectedCategory);
-    const categoryNeedsReview=originalCategory&&result.currentCategory&&originalCategory!==result.currentCategory&&result.currentCategory!==1;
-    const categoryNote=originalCategory&&result.currentCategory&&originalCategory!==result.currentCategory?` • Kategori berubah sebelum masuk: asal ${originalCategory}, semasa ${result.currentCategory}.${result.currentCategory===1?' Peralihan ke Kategori 1 diterima secara automatik.':''}`:'';
+    const categoryNote=originalCategory&&result.currentCategory&&originalCategory!==result.currentCategory?` • Kategori unit semasa ${result.currentCategory}; pendaftaran ini kekal Kategori ${originalCategory} seperti ketika dihantar.`:'';
     if(!hasCharge){
       const create=find('[data-create]');
       create.amount.value=Number.isSafeInteger(quote.mainTotalSen)?rm(quote.mainTotalSen):'';
-      tell(`Belum ada caj rasmi.${Number.isSafeInteger(quote.mainTotalSen)?` Anggaran borang RM${rm(quote.mainTotalSen)}.`:''}${categoryNote}${categoryNeedsReview?' Semak kelayakan unit sebelum memuktamadkan.':''}`);
+      tell(`Belum ada caj rasmi.${Number.isSafeInteger(quote.mainTotalSen)?` Anggaran borang RM${rm(quote.mainTotalSen)}.`:''}${categoryNote}`);
       return;
     }
     find('[data-adjust] input[name="amount"]').value=rm(result.charge.amountSen);

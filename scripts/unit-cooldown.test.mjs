@@ -41,7 +41,15 @@ test('category 3 always quotes RM15 per day despite legacy or category transitio
   const legacy=quoteFromUnitState({unitId:'A-1-1',category:3,state:{legacyMissingUsage:true},start:'2026-10-01',end:'2026-10-03'});
   assert.equal(legacy.status,'quoted');assert.equal(legacy.totalSen,4500);
   const transition=quoteFromUnitState({unitId:'A-1-1',category:3,state:{unitId:'A-1-1',category:1,cycleStart:'2026-09-01',mainUsageDays:3,lastAnyEnd:'2026-09-03'},start:'2026-09-07',end:'2026-09-08'});
-  assert.equal(transition.status,'quoted');assert.equal(transition.totalSen,3000);assert.equal(transition.nextState.mainUsageDays,2);
+  assert.equal(transition.status,'quoted');assert.equal(transition.totalSen,3000);assert.equal(transition.nextState.mainUsageDays,5);assert.equal(transition.nextState.cycleStart,'2026-09-01');
+});
+
+test('category 2 to category 3 preserves the prior counter while charging RM15 daily',()=>{
+  const transition=quoteFromUnitState({unitId:'A-2-2',category:3,state:{unitId:'A-2-2',category:2,cycleStart:'2026-09-10',mainUsageDays:1,lastAnyEnd:'2026-09-10'},start:'2026-09-11',end:'2026-09-12'});
+  assert.equal(transition.status,'quoted');assert.equal(transition.totalSen,3000);
+  assert.deepEqual(transition.lines.map(line=>line.amountSen),[1500,1500]);
+  assert.deepEqual(transition.lines.map(line=>line.day),[2,3]);
+  assert.equal(transition.nextState.mainUsageDays,3);
 });
 
 test('category 3 still sends overlapping dates for review',()=>{
