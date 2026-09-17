@@ -1302,6 +1302,7 @@ async function createResponseWithDedupe(payload){
     }
   }
 
+  let attemptedAmendment = false;
   try {
     let amended = false;
     let finalResponseId = responseId;
@@ -1312,7 +1313,6 @@ async function createResponseWithDedupe(payload){
       // Retain the snapshot for the response's cancellation/restore record.
       let lockData = null;
       let nextLock = null;
-      let existingResp = null;
 
       const dedupeSnap = await tx.get(dedupeRef);
       if (dedupeSnap.exists()) {
@@ -1325,6 +1325,7 @@ async function createResponseWithDedupe(payload){
               targetRespId = existing.responseId;
               targetRespRef = doc(window.__FIRESTORE, 'responses', targetRespId);
               amended = true;
+              attemptedAmendment = true;
               finalResponseId = targetRespId;
             } else {
               const err = new Error('duplicate');
@@ -1349,6 +1350,7 @@ async function createResponseWithDedupe(payload){
                 targetRespId = lock.responseId;
                 targetRespRef = doc(window.__FIRESTORE, 'responses', targetRespId);
                 amended = true;
+                attemptedAmendment = true;
                 finalResponseId = targetRespId;
               } else {
                 const err = new Error('combine_vehicle_registration_required');
@@ -1397,18 +1399,6 @@ async function createResponseWithDedupe(payload){
           parkingReviewRequired: false
         });
         else if (parkingDecision?.status === 'requires_review') nextLock.parkingReviewRequired = true;
-      }
-
-      // Firestore requires every transaction read to finish before the first
-      // write. An amendment target is only known after the dedupe/lock reads.
-      if (amended) {
-        const existingRespSnap = await tx.get(targetRespRef);
-        if (!existingRespSnap.exists()) {
-          const err = new Error('response_not_found_for_amend');
-          err.code = 'AMEND_TARGET_NOT_FOUND';
-          throw err;
-        }
-        existingResp = existingRespSnap.data() || {};
       }
 
       if (nextLock) tx.set(lockRef, nextLock, { merge: true });
@@ -1468,63 +1458,24 @@ async function createResponseWithDedupe(payload){
           });
         }
       } else {
-        const existingVehicles = collectVehicleSetFromPayloadLike(existingResp);
         const incomingVehicles = collectVehicleSetFromPayloadLike(docPayload);
-        const existingDetails = collectVehicleDetailsFromPayloadLike(existingResp);
         const incomingDetails = collectVehicleDetailsFromPayloadLike(docPayload);
-        const shouldMergeVehicles = String(docPayload.stayOver || 'No') === 'Yes';
-        const mergedVehicles = replaceAmendedVehicles
-          ? incomingVehicles
-          : shouldMergeVehicles
-          ? Array.from(new Set([...existingVehicles, ...incomingVehicles]))
-          : incomingVehicles;
-        let mergedVehicleDetails = incomingDetails;
-        if (shouldMergeVehicles && !replaceAmendedVehicles) {
-          const detailMap = new Map();
-          existingDetails.forEach((item) => {
-            if (!item || !item.plate) return;
-            detailMap.set(item.plate, Object.assign({}, item));
-          });
-          incomingDetails.forEach((item) => {
-            if (!item || !item.plate) return;
-            detailMap.set(item.plate, Object.assign({}, item));
-          });
-          mergedVehicleDetails = mergedVehicles.map((plate) => {
-            const found = detailMap.get(plate);
-            if (found) return found;
-            return {
-              plate,
-              visitorName: (docPayload.visitorName || existingResp.visitorName || ''),
-              visitorPhone: normalizePhoneInput(docPayload.visitorPhone || existingResp.visitorPhone || '')
-            };
-          });
-        }
-
-        const amendedPayload = Object.assign({}, existingResp, docPayload, {
-          createdAt: existingResp.createdAt || docPayload.createdAt,
+        // Visitor clients intentionally cannot read response documents. Send
+        // only the editable fields; Firestore Rules compare this update with
+        // the existing resource and keep dates, category and payment immutable.
+        const amendedPayload = {
+          hostName: docPayload.hostName || '',
+          hostPhone: docPayload.hostPhone || '',
+          visitorName: docPayload.visitorName || '',
+          visitorPhone: docPayload.visitorPhone || '',
+          entryDetails: docPayload.entryDetails || '',
+          companyName: docPayload.companyName || '',
+          vehicleType: docPayload.vehicleType || '',
           updatedAt: serverTimestamp(),
-          amendToken,
-          vehicleNumbers: mergedVehicles,
-          vehicleNo: mergedVehicles.length ? mergedVehicles[0] : (docPayload.vehicleNo || ''),
-          vehicleRowsDetailed: mergedVehicleDetails,
-          // User amendments must not silently change policy, dates, category,
-          // payment state or the unit snapshot captured at registration time.
-          hostUnit: existingResp.hostUnit,
-          category: existingResp.category,
-          subCategory: existingResp.subCategory || '',
-          stayOver: existingResp.stayOver || 'No',
-          eta: existingResp.eta,
-          etd: existingResp.etd ?? null,
-          status: existingResp.status,
-          unitCategory: existingResp.unitCategory,
-          unitArrears: existingResp.unitArrears,
-          unitArrearsAmount: existingResp.unitArrearsAmount,
-          unitLastUpdatedAt: existingResp.unitLastUpdatedAt,
-          parkingQuote: existingResp.parkingQuote,
-          parkingReviewRequired: existingResp.parkingReviewRequired,
-          parkingReviewReason: existingResp.parkingReviewReason,
-          parkingPriorState: existingResp.parkingPriorState
-        });
+          vehicleNumbers: incomingVehicles,
+          vehicleNo: incomingVehicles.length ? incomingVehicles[0] : (docPayload.vehicleNo || ''),
+          vehicleRowsDetailed: incomingDetails
+        };
         Object.keys(amendedPayload).forEach((key) => {
           if (amendedPayload[key] === undefined) delete amendedPayload[key];
         });
@@ -1547,6 +1498,11 @@ async function createResponseWithDedupe(payload){
     // Backward-compatible safety net: if new transaction paths are denied by old rules,
     // still allow a direct response write so users can submit while rules are being deployed.
     if (code.toLowerCase().includes('permission') || msg.includes('permission-denied')) {
+      if (attemptedAmendment) {
+        const e = new Error('amendment_not_allowed');
+        e.code = 'AMENDMENT_NOT_ALLOWED';
+        throw e;
+      }
       if (category === 'Pelawat' && stayOver === 'Yes') {
         const e = new Error('cooldown_state_write_required');
         e.code = 'COOLDOWN_STATE_REQUIRED';
@@ -4113,6 +4069,10 @@ document.addEventListener('DOMContentLoaded', () => {
           showStatus('Pendaftaran serupa telah wujud untuk tarikh ini — tidak dihantar.', false);
         } else if (err && err.code === 'COMBINE_REQUIRED') {
           showStatus('Pendaftaran Pelawat untuk unit dan julat tarikh ini telah wujud dari peranti lain. Sila kemas kini rekod asal pada peranti yang sama, atau hubungi pentadbir untuk bantuan pindaan.', false, { duration: 12000 });
+        } else if (err && err.code === 'AMENDMENT_NOT_ALLOWED') {
+          const message='Pindaan tidak dapat disimpan. Tempoh pindaan mungkin tamat, pendaftaran sudah diproses, atau bilangan kenderaan telah berubah.';
+          showStatus(`${message} Kod rujukan: VF-AMENDMENT-NOT-ALLOWED.`, false, { duration: 20000 });
+          showSubmissionErrorSupport('VF-AMENDMENT-NOT-ALLOWED',message,safeSubmissionErrorDetail(err));
         } else if (err && err.code === 'COOLDOWN') {
           try {
             const d = err.until instanceof Date ? err.until : (err.untilISO ? new Date(err.untilISO) : null);

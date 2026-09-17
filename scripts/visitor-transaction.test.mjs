@@ -85,6 +85,7 @@ test('amendment completes all Firestore reads before any write',async()=>{
   vm.runInContext(body,context);
   const result=await context.createResponseWithDedupe({hostUnit:'B2-15-9',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',unitArrearsAmount:0,vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-B'],status:'Pending'});
   assert.equal(result.amended,true);
+  assert.equal(operations.includes('read:responses'),false);
   const firstWrite=operations.findIndex(item=>item.startsWith('write:'));
   assert.equal(operations.slice(firstWrite).some(item=>item.startsWith('read:')),false);
 });
