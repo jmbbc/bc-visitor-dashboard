@@ -12,6 +12,7 @@ import {
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import {normalizeVerificationCode,isVerificationCode} from './registration-verification.mjs?v=20260919-1';
 
 const DASHBOARD_PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
 let dashboardHasAdminClaim = false;
@@ -198,6 +199,9 @@ const who = document.getElementById('who');
 const listAreaSummary = document.getElementById('listAreaSummary');
 const listAreaCheckedIn = document.getElementById('listAreaCheckedIn');
 const summarySearch = document.getElementById('summarySearch');
+const verificationForm = document.getElementById('verificationForm');
+const verificationCodeInput = document.getElementById('verificationCodeInput');
+const verificationResult = document.getElementById('verificationResult');
 const purgeBeforeDate = document.getElementById('purgeBeforeDate');
 const purgeOldBtn = document.getElementById('purgeOldBtn');
 // per-page date inputs (summary, checked-in, parking)
@@ -1261,6 +1265,64 @@ logoutBtn.addEventListener('click', async ()=> {
     toast('Gagal log keluar. Sila cuba semula.', false);
   } finally {
     logoutBtn.disabled = false;
+  }
+});
+
+function showVerificationResult(kind, html) {
+  if (!verificationResult) return;
+  verificationResult.hidden = false;
+  verificationResult.className = `verification-result ${kind}`;
+  verificationResult.innerHTML = html;
+}
+
+async function verifyRegistrationCode(rawCode) {
+  const code = normalizeVerificationCode(rawCode);
+  if (!isVerificationCode(code)) {
+    showVerificationResult('bad', '<strong>Format kod tidak sah.</strong> Gunakan kod penuh seperti BC-26W38-XXXXXXXX.');
+    return;
+  }
+  showVerificationResult('warn', 'Menyemak rekod sistem…');
+  const snap = await getDocs(query(collection(window.__FIRESTORE, 'responses'), where('verificationCode', '==', code), limit(2)));
+  if (snap.empty) {
+    showVerificationResult('bad', '<strong>Kod tidak dijumpai.</strong> Jangan benarkan kemasukan berdasarkan mesej WhatsApp ini sahaja.');
+    return;
+  }
+  if (snap.size !== 1) {
+    showVerificationResult('bad', '<strong>Kod bertindih.</strong> Hubungi admin sebelum membenarkan kemasukan.');
+    return;
+  }
+  const responseDoc = snap.docs[0];
+  const data = responseDoc.data() || {};
+  let paymentLabel = 'Tiada caj / belum ditetapkan';
+  if (data.status === 'Pending Payment') paymentLabel = 'Menunggu bayaran';
+  if (['Approved','Checked In','Checked Out'].includes(data.status) && Number(data?.parkingQuote?.mainTotalSen || 0) > 0) paymentLabel = 'Sudah disahkan';
+  if (Number(data?.parkingQuote?.mainTotalSen || 0) > 0) {
+    try {
+      const chargeSnap = await getDoc(doc(window.__FIRESTORE, 'parkingCharges', responseDoc.id));
+      if (chargeSnap.exists()) {
+        const charge = chargeSnap.data() || {};
+        const paid = Number(charge.paidSen || 0);
+        const due = Number(charge.amountSen || 0);
+        paymentLabel = paid >= due && due > 0 ? `Sudah bayar • RM ${(paid/100).toFixed(2)}` : `Belum selesai • RM ${(paid/100).toFixed(2)} / RM ${(due/100).toFixed(2)}`;
+      }
+    } catch (error) { console.warn('verification payment read failed', error); }
+  }
+  const expiry = data.verificationExpiresAt?.toDate ? data.verificationExpiresAt.toDate() : null;
+  const cancelled = String(data.status || '').toLowerCase().includes('cancel');
+  const expired = expiry && Date.now() >= expiry.getTime();
+  const kind = cancelled ? 'bad' : (expired ? 'warn' : 'ok');
+  const headline = cancelled ? 'Pendaftaran dibatalkan' : (expired ? 'Kod sah tetapi telah tamat tempoh' : 'Kod sah dan sepadan dengan sistem');
+  const vehicles = Array.isArray(data.vehicleNumbers) && data.vehicleNumbers.length ? data.vehicleNumbers.join(', ') : (data.vehicleNo || '-');
+  showVerificationResult(kind, `<strong>${escapeHtml(headline)}</strong><div class="verification-grid"><div><b>Unit</b><span>${escapeHtml(data.hostUnit || '-')}</span></div><div><b>Kenderaan</b><span>${escapeHtml(vehicles)}</span></div><div><b>Masuk / Keluar</b><span>${escapeHtml(formatDateOnly(data.eta))} – ${escapeHtml(formatDateOnly(data.etd))}</span></div><div><b>Status</b><span>${escapeHtml(data.status || 'Pending')}</span></div><div><b>Bayaran</b><span>${escapeHtml(paymentLabel)}</span></div></div>`);
+}
+
+if (verificationForm) verificationForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try { await verifyRegistrationCode(verificationCodeInput?.value || ''); }
+  catch (error) {
+    console.error('verify registration code failed', error);
+    const denied = String(error?.code || '').includes('permission-denied');
+    showVerificationResult('bad', denied ? '<strong>Akses ditolak.</strong> Sila log masuk semula sebagai admin atau pengawal.' : '<strong>Semakan gagal.</strong> Periksa sambungan dan cuba lagi.');
   }
 });
 

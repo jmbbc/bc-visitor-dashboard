@@ -278,6 +278,7 @@ service cloud.firestore {
           'vehicleRowsDetailed',
           'subCategoryHelp','status','createdAt','updatedAt',
           'amendToken',
+          'verificationCode','verificationExpiresAt',
           'parkingQuote','parkingReviewRequired','parkingReviewReason','parkingPriorState',
           // unit snapshot fields
           'unitCategory','unitArrears','unitArrearsAmount','unitLastUpdatedAt'
@@ -305,6 +306,10 @@ service cloud.firestore {
         && (data.createdAt is timestamp)
         && (data.updatedAt is timestamp)
         && (data.amendToken is string || !('amendToken' in data))
+        && (data.verificationCode is string || !('verificationCode' in data))
+        && (!('verificationCode' in data) || data.verificationCode.matches('^BC-[0-9]{2}W[0-9]{2}-[A-Z0-9]{8}$'))
+        && (data.verificationExpiresAt is timestamp || !('verificationExpiresAt' in data))
+        && (!('verificationExpiresAt' in data) || data.verificationExpiresAt > data.eta)
         && (data.parkingQuote is map || !('parkingQuote' in data))
         && (!('parkingQuote' in data) || isValidParkingQuote(data.parkingQuote))
         && (data.parkingReviewRequired is bool || !('parkingReviewRequired' in data))

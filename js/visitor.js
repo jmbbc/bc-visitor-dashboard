@@ -3,6 +3,7 @@ import {
   collection, serverTimestamp, Timestamp, doc, setDoc, deleteDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import {nextFreeParkingDate,quoteFromUnitState} from './unit-cooldown.mjs?v=20260917-2';
+import {createRegistrationVerification,verificationExpiryDate,isVerificationCode} from './registration-verification.mjs?v=20260919-1';
 
 /* ---------- full units array (from your List.csv) ---------- */
 const units = [
@@ -1270,6 +1271,12 @@ async function createResponseWithDedupe(payload){
   const dedupeKey = `dedupe-${dateKey}_${hostUnitId}_${dedupeIdentity}`;
 
   const responseId = `resp-${Date.now()}-${_shortId()}`;
+  const verificationCode = isVerificationCode(payload && payload.verificationCode)
+    ? String(payload.verificationCode).trim().toUpperCase()
+    : createRegistrationVerification(responseId, etaDate);
+  const verificationEnd = (payload && payload.etd && payload.etd.toDate) ? payload.etd.toDate() : etaDate;
+  const verificationExpiresAt = Timestamp.fromDate(verificationExpiryDate(verificationEnd));
+  payload = Object.assign({}, payload, { verificationCode, verificationExpiresAt });
   const dedupeRef = doc(window.__FIRESTORE, 'dedupeKeys', dedupeKey);
   const respRef = doc(window.__FIRESTORE, 'responses', responseId);
 
@@ -1295,7 +1302,7 @@ async function createResponseWithDedupe(payload){
     try { delete fallbackPayload.amendToken; } catch (e) { /* ignore */ }
     await setDoc(targetRef, fallbackPayload);
     try { localStorage.setItem(fallbackAmendKey, targetId); } catch (e) { /* ignore */ }
-    return { success: true, id: targetId, fallback: true, amended: isAmendFallback };
+    return { success: true, id: targetId, fallback: true, amended: isAmendFallback, verificationCode, verificationExpiresAt };
   }
 
   const category = String(payload.category || '').trim();
@@ -1514,7 +1521,7 @@ async function createResponseWithDedupe(payload){
         tx.update(targetRespRef, amendedPayload);
       }
     });
-    return { success: true, id: finalResponseId, fallback: false, amended };
+    return { success: true, id: finalResponseId, fallback: false, amended, verificationCode, verificationExpiresAt };
   } catch (err) {
     const code = err && err.code ? String(err.code) : '';
     const msg = String(err && (err.message || err)).toLowerCase();
@@ -2426,6 +2433,7 @@ function buildWhatsAppUrlForAdmin(payload){
       : ((perVehicle && perVehicle.visitorPhone) || payload.visitorPhone || '');
     return ([
     'Pendaftaran Pelawat Baru',
+    `Kod Pengesahan Sistem: ${payload.verificationCode || 'REKOD LAMA'}`,
     `Tarikh : ${messageDateText}`,
     `Unit: ${payload.hostUnit || '-'}`,
     `Nama penghuni: ${payload.hostName || '-'}`,
@@ -3098,9 +3106,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const addVehicleBtn = document.getElementById('addVehicleBtn');
     const getAdditionalVehicleLimit = (cat) => (cat === 'Pelawat' ? 2 : Number.POSITIVE_INFINITY);
     let manageEditMode = false;
+    let manageVerificationCode = '';
 
     function setManageEditMode(active) {
       manageEditMode = !!active;
+      if (!manageEditMode) manageVerificationCode = '';
       [categoryEl, subCategoryEl, stayOverEl, etaEl, etdEl].forEach((field) => {
         if (field) field.disabled = !!active;
       });
@@ -4037,7 +4047,10 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         // attempt create with server-side dedupe transaction
         // create response (atomic) and dedupe key inside a transaction to avoid duplicates
-        if (manageEditMode) payload.__replaceAmendedVehicles = true;
+        if (manageEditMode) {
+          payload.__replaceAmendedVehicles = true;
+          if (isVerificationCode(manageVerificationCode)) payload.verificationCode = manageVerificationCode;
+        }
         const resp = await createResponseWithDedupe(payload);
         if (resp && resp.fallback) {
           // we succeeded but without dedupe enforcement (callable not available or blocked)
@@ -4050,7 +4063,10 @@ document.addEventListener('DOMContentLoaded', () => {
           showStatus('Pendaftaran sedia ada berjaya dikemaskini dengan butiran kenderaan baharu.', true);
         }
         lastSubmissionSnapshot.responseId = resp && resp.id ? String(resp.id) : '';
+        lastSubmissionSnapshot.verificationCode = resp && resp.verificationCode ? String(resp.verificationCode) : '';
+        lastSubmissionSnapshot.verificationExpiresAt = resp && resp.verificationExpiresAt ? resp.verificationExpiresAt : null;
         saveLastSubmission(lastSubmissionSnapshot);
+        payload.verificationCode = lastSubmissionSnapshot.verificationCode;
         enableWhatsAppAction(payload, true);
         const repeatPreset = (repeatModeEl && repeatModeEl.checked) ? captureRepeatPreset() : null;
         form.reset();
@@ -4191,6 +4207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       setManageEditMode(true);
+      manageVerificationCode = isVerificationCode(saved.verificationCode) ? saved.verificationCode : '';
       showStatus('Pendaftaran dimuatkan. Tarikh dan kategori dikunci; kemaskini maklumat pelawat atau nombor kenderaan sahaja.', true);
       try { document.getElementById('visitorName')?.focus(); } catch (e) { /* ignore */ }
     });

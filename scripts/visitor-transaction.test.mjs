@@ -3,15 +3,17 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {quoteFromUnitState} from '../js/unit-cooldown.mjs';
+import {createRegistrationVerification,verificationExpiryDate,isVerificationCode} from '../js/registration-verification.mjs';
 
 const source=readFileSync(new URL('../js/visitor.js',import.meta.url),'utf8');
 const body=source.slice(source.indexOf('async function createResponseWithDedupe(payload){'),source.indexOf('// Client-side duplicate protection:'));
 const stamp=value=>({toDate:()=>new Date(value)});
+const verificationHelpers={createRegistrationVerification,verificationExpiryDate,isVerificationCode};
 for(const oldDays of [0,2])test(`overnight transaction builds response and prior state with counter ${oldDays}`,async()=>{
   const writes=[];
   const state={unitId:'B2-15-9',category:1,mainUsageDays:oldDays,cycleStart:'2026-09-12',lastAnyEnd:'2026-09-12'};
   const lock={...state,startDate:stamp('2026-09-10'),endDate:stamp('2026-09-12')};
-  const context={window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
+  const context={...verificationHelpers,window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
     clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'fixture',
     doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,
     dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),
@@ -38,7 +40,7 @@ test('new category 3 registration preserves category 1 counter and remains rules
   const writes=[];
   const state={unitId:'A-1-1',category:1,mainUsageDays:3,cycleStart:'2026-09-10',lastAnyEnd:'2026-09-12'};
   const lock={...state,startDate:stamp('2026-09-10'),endDate:stamp('2026-09-12')};
-  const context={window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
+  const context={...verificationHelpers,window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
     clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'fixture',
     doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),
     dedupeTransactionUnavailable:false,serverTimestamp:()=> 'SERVER_TIME',Timestamp:{fromDate:d=>stamp(d)},computeArrearsCategory:()=>3,
@@ -61,7 +63,7 @@ test('amendment completes all Firestore reads before any write',async()=>{
   let hasWritten=false;
   const existing={hostUnit:'B2-15-9',category:'Pelawat',stayOver:'Yes',vehicleNo:'CAR-A',vehicleNumbers:['CAR-A']};
   const lock={unit:'B2-15-9',startDate:stamp('2026-09-14'),endDate:stamp('2026-09-16'),responseId:'existing-response',amendToken:'fixture'};
-  const context={window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
+  const context={...verificationHelpers,window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
     clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'fixture',
     doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,
     dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),normalizePhoneInput:v=>v,
@@ -94,7 +96,7 @@ test('local management replaces a plate without appending a third vehicle',async
   let updated=null;
   const existing={hostUnit:'B2-15-9',hostName:'Host',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-20'),etd:stamp('2026-09-21'),createdAt:stamp(new Date()),updatedAt:stamp(new Date()),status:'Pending',amendToken:'fixture',vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-B'],vehicleRowsDetailed:[{plate:'CAR-A'},{plate:'CAR-B'}]};
   const lock={unit:'B2-15-9',startDate:stamp('2026-09-20'),endDate:stamp('2026-09-21'),responseId:'existing-response',amendToken:'fixture'};
-  const context={window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
+  const context={...verificationHelpers,window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
     clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'fixture',doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,
     dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),normalizePhoneInput:v=>v,normalizeVehicleInput:v=>String(v||'').trim().toUpperCase(),
     collectVehicleSetFromPayloadLike:value=>Array.from(new Set([value.vehicleNo,...(value.vehicleNumbers||[])].filter(Boolean))),
