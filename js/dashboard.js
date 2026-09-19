@@ -685,7 +685,7 @@ if (DASHBOARD_PREVIEW_MODE) {
       showPage('summary');
       const previewStamp = (value) => new Date(value);
       const previewRows = [
-        {id:'preview-1',createdAt:previewStamp('2026-09-19T08:12:00+08:00'),visitorName:'Ahmad Firdaus',visitorPhone:'012-345 6789',hostUnit:'B2-15-9',hostName:'Pn. Aisyah',hostPhone:'013-222 1188',eta:previewStamp('2026-09-19'),etd:previewStamp('2026-09-21'),vehicleNo:'VAA 2187',vehicleNumbers:['VAA 2187'],category:'Pelawat',stayOver:'Yes',status:'Pending',unitCategory:'Kategori 1',unitArrears:false,unitArrearsAmount:0,parkingQuote:{mainTotalSen:0}},
+        {id:'preview-1',createdAt:previewStamp('2026-09-19T08:12:00+08:00'),visitorName:'Ahmad Firdaus',visitorPhone:'012-345 6789',entryDetails:'Melawat keluarga',hostUnit:'B2-15-9',hostName:'Pn. Aisyah',hostPhone:'013-222 1188',eta:previewStamp('2026-09-19'),etd:previewStamp('2026-09-21'),vehicleNo:'VAA 2187',vehicleNumbers:['VAA 2187'],category:'Pelawat',stayOver:'Yes',status:'Pending',unitCategory:'Kategori 1',unitArrears:false,unitArrearsAmount:0,parkingQuote:{mainTotalSen:0}},
         {id:'preview-2',createdAt:previewStamp('2026-09-19T08:38:00+08:00'),visitorName:'Mei Ling',visitorPhone:'017-880 4412',hostUnit:'A-4-9',hostName:'Mr. Tan',hostPhone:'016-770 2211',eta:previewStamp('2026-09-19'),etd:previewStamp('2026-09-19'),vehicleNo:'BQN 9072',vehicleNumbers:['BQN 9072'],category:'Pelawat',stayOver:'No',status:'Checked In',unitCategory:'Kategori 2',unitArrears:true,unitArrearsAmount:185.50,parkingQuote:{mainTotalSen:0}},
         {id:'preview-3',createdAt:previewStamp('2026-09-19T09:05:00+08:00'),visitorName:'Ravi Kumar',visitorPhone:'019-334 7721',hostUnit:'B3-3-2',hostName:'En. Hafiz',hostPhone:'011-2988 7712',eta:previewStamp('2026-09-20'),etd:previewStamp('2026-09-22'),vehicleNo:'WXY 5521',vehicleNumbers:['WXY 5521','VCE 8830'],category:'Pelawat',stayOver:'Yes',status:'Pending Payment',unitCategory:'Kategori 3',unitArrears:true,unitArrearsAmount:520,parkingQuote:{mainTotalSen:4500}}
       ];
@@ -2875,6 +2875,8 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     const quotedMainSen = r.parkingQuote && Number.isFinite(Number(r.parkingQuote.mainTotalSen))
       ? Number(r.parkingQuote.mainTotalSen)
       : null;
+    if (!arrears && arrearsAmountDisplay === null) arrearsAmountDisplay = 0;
+    if (paymentAmountDisplay === null && Number.isFinite(quotedMainSen)) paymentAmountDisplay = quotedMainSen / 100;
     const hasParkingCharge = Number.isFinite(quotedMainSen) && quotedMainSen > 0;
     let paymentStatusLabel = '—';
     let paymentStatusClass = 'payment-status-none';
@@ -2895,14 +2897,16 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     const tr = document.createElement('tr');
     if (highlightIds && highlightIds.has(r.id)) tr.classList.add('conflict');
     const visitorPhoneHtml = visitorPhoneDisplay ? (()=>{ const waHref=normalizePhoneForWhatsapp(visitorPhoneDisplay); return `<a class="tel-link" href="${waHref}" target="_blank" rel="noopener noreferrer">${escapeHtml(visitorPhoneDisplay)}</a>`; })() : '—';
-    const arrearsValueHtml = arrearsAmountDisplay === null ? '—' : `<strong>RM ${formatAmount(arrearsAmountDisplay)}</strong>`;
+    const arrearsValueHtml = arrearsAmountDisplay === null ? '—' : (arrearsAmountDisplay > 0 ? `<strong>RM ${formatAmount(arrearsAmountDisplay)}</strong>` : '<strong>Tiada</strong>');
     const chargeValueHtml = paymentAmountDisplay === null ? '—' : `<strong>RM ${formatAmount(paymentAmountDisplay)}</strong>`;
+    const arrearsFinanceClass = arrearsAmountDisplay === null ? 'finance-unknown' : (arrearsAmountDisplay > 0 ? 'finance-due' : 'finance-clear');
+    const chargeFinanceClass = paymentAmountDisplay === null ? 'finance-unknown' : (paymentAmountDisplay > 0 ? 'finance-due' : 'finance-clear');
     tr.innerHTML = `
       <td class="timestamp-cell"><div class="ts-date">${formatDateOnly(r.createdAt)}</div><div class="ts-time">${formatTime(r.createdAt)}</div></td>
-      <td><div class="reg-primary">${escapeHtml(visitorNameDisplay || '—')}</div><div class="reg-secondary">${visitorPhoneHtml}${r.entryDetails ? ' • '+escapeHtml(r.entryDetails) : ''}</div></td>
+      <td><div class="reg-primary">${escapeHtml(visitorNameDisplay || '—')}</div><div class="reg-secondary">${visitorPhoneHtml}</div>${r.entryDetails ? `<div class="reg-entry-details">${escapeHtml(r.entryDetails)}</div>` : ''}</td>
       <td><span class="reg-unit">${escapeHtml(r.hostUnit || '—')}</span><div class="reg-secondary">${hostContactHtml || 'Maklumat penghuni tidak direkod'}</div></td>
       <td><div class="reg-visit-grid"><span class="label">Masuk</span><span class="value in">${formatDateOnly(r.eta)}</span><span class="label">Keluar</span><span class="value out">${formatDateOnly(r.etd)}</span><span class="label">Kenderaan</span><span class="value vehicle">${escapeHtml(vehicleDisplay)}</span></div></td>
-      <td><div class="reg-category-layout">${categoryPillHtml}<div class="reg-finance-grid"><div class="reg-finance-item"><span class="label">Tunggakan</span><span class="value">${arrearsValueHtml}</span></div><div class="reg-finance-item"><span class="label">Caj parkir</span><span class="value">${chargeValueHtml}</span></div></div></div></td>
+      <td><div class="reg-category-layout">${categoryPillHtml}<div class="reg-finance-grid"><div class="reg-finance-item ${arrearsFinanceClass}"><span class="label">Tunggakan</span><span class="value">${arrearsValueHtml}</span></div><div class="reg-finance-item ${chargeFinanceClass}"><span class="label">Caj parkir</span><span class="value">${chargeValueHtml}</span></div></div></div></td>
       <td><div class="reg-status-stack"><span class="status-pill ${statusClass}">${escapeHtml(r.status || 'Pending')}</span><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span>${badge}</div></td>
       <td><div class="actions registration-actions">
         <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
