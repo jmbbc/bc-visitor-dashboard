@@ -12,6 +12,11 @@ test('rules permit only a verified category 3 to 1 counter reset',()=>{
   assert.match(rules,/get\(unitPath\)\.data\.arrearsAmount <= 1/);
 });
 test('charged cooldown submission is pending payment and creates one linked charge',()=>{assert.match(visitor,/docPayload\.status = 'Pending Payment'/);assert.match(visitor,/parkingCharges', targetRespId/);assert.match(visitor,/paidSen: 0/);});
+test('visitor charge validates the response created by the same atomic transaction',()=>{
+  assert.match(rules,/existsAfter\(\/databases\/\$\(database\)\/documents\/responses\/\$\(id\)\)/);
+  assert.match(visitor,/attemptedParkingCharge = true/);
+  assert.match(visitor,/VF-PAYMENT-STATE/);
+});
 test('staff receipt updates cumulative payment and approves only once fully paid',()=>{assert.match(payments,/paidSen>=chargeData\.amountSen/);assert.match(payments,/status:'Approved'/);assert.match(rules,/oldData\.status == 'Pending Payment' && newData\.status == 'Approved'/);});
 test('guard operational transitions cannot bypass pending payment',()=>{assert.match(rules,/oldData\.status == 'Approved' && newData\.status == 'Checked In'/);assert.doesNotMatch(rules,/oldData\.status == 'Pending Payment' && newData\.status == 'Checked In'/);});
 test('registration list opens its linked payment record on demand',()=>{assert.match(dashboard,/dashboard:open-payment/);assert.match(dashboardPayments,/event\.detail\?\.registrationId/);assert.match(dashboardPayments,/await load\(id\)/);});

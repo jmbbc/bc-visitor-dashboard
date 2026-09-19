@@ -1333,6 +1333,7 @@ async function createResponseWithDedupe(payload){
   }
 
   let attemptedAmendment = false;
+  let attemptedParkingCharge = false;
   try {
     let amended = false;
     let finalResponseId = responseId;
@@ -1478,6 +1479,7 @@ async function createResponseWithDedupe(payload){
       if (!amended) {
         tx.set(targetRespRef, docPayload);
         if (parkingDecision?.status === 'quoted' && parkingDecision.totalSen > 0) {
+          attemptedParkingCharge = true;
           tx.set(doc(window.__FIRESTORE, 'parkingCharges', targetRespId), {
             registrationId: targetRespId,
             amountSen: parkingDecision.totalSen,
@@ -1531,6 +1533,11 @@ async function createResponseWithDedupe(payload){
       if (attemptedAmendment) {
         const e = new Error('amendment_not_allowed');
         e.code = 'AMENDMENT_NOT_ALLOWED';
+        throw e;
+      }
+      if (attemptedParkingCharge) {
+        const e = new Error('payment_state_write_required');
+        e.code = 'PAYMENT_STATE_REQUIRED';
         throw e;
       }
       if (category === 'Pelawat' && stayOver === 'Yes') {
@@ -4103,6 +4110,10 @@ document.addEventListener('DOMContentLoaded', () => {
           const message='Pindaan tidak dapat disimpan. Tempoh pindaan mungkin tamat, pendaftaran sudah diproses, atau bilangan kenderaan telah berubah.';
           showStatus(`${message} Kod rujukan: VF-AMENDMENT-NOT-ALLOWED.`, false, { duration: 20000 });
           showSubmissionErrorSupport('VF-AMENDMENT-NOT-ALLOWED',message,safeSubmissionErrorDetail(err));
+        } else if (err && err.code === 'PAYMENT_STATE_REQUIRED') {
+          const message='Pendaftaran berbayar tidak dapat disimpan kerana rekod caj gagal diwujudkan. Tiada pendaftaran separa disimpan.';
+          showStatus(`${message} Kod rujukan: VF-PAYMENT-STATE.`, false, { duration: 20000 });
+          showSubmissionErrorSupport('VF-PAYMENT-STATE',message,safeSubmissionErrorDetail(err));
         } else if (err && err.code === 'COOLDOWN') {
           try {
             const d = err.until instanceof Date ? err.until : (err.untilISO ? new Date(err.untilISO) : null);

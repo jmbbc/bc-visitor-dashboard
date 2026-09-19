@@ -143,7 +143,10 @@ service cloud.firestore {
       allow create: if (paymentAdmin() || isVisitorFormCharge(id))
         && request.resource.data.keys().hasOnly(['registrationId','amountSen','paidSen','paymentStatus','createdBy','createdAt'])
         && request.resource.data.registrationId == id
-        && exists(/databases/$(database)/documents/responses/$(id))
+        // The visitor transaction creates the response and charge together.
+        // Inspect the post-transaction document rather than requiring it to
+        // exist before the atomic write starts.
+        && existsAfter(/databases/$(database)/documents/responses/$(id))
         && request.resource.data.amountSen is int
         && request.resource.data.amountSen >= 0 && request.resource.data.amountSen <= 100000000
         && ((paymentAdmin() && request.resource.data.createdBy == request.auth.uid) || request.resource.data.createdBy == 'visitor-form')
