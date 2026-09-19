@@ -668,8 +668,9 @@ if (DASHBOARD_PREVIEW_MODE) {
       if (el) { el.disabled = true; el.title = 'Tidak tersedia dalam mod pratonton'; }
     });
     const spinner = document.getElementById('spinner'); if (spinner) spinner.style.display = 'none';
-    const previewPage = new URLSearchParams(window.location.search).get('page') === 'parking' ? 'parking' : 'unitsummary';
-    const activePreviewNavId = previewPage === 'parking' ? 'navParking' : 'navUnitSummary';
+    const requestedPreviewPage = new URLSearchParams(window.location.search).get('page');
+    const previewPage = requestedPreviewPage === 'parking' ? 'parking' : (requestedPreviewPage === 'summary' ? 'summary' : 'unitsummary');
+    const activePreviewNavId = previewPage === 'parking' ? 'navParking' : (previewPage === 'summary' ? 'navSummary' : 'navUnitSummary');
     document.querySelectorAll('.head-nav .nav-item').forEach((button) => { button.disabled = button.id !== activePreviewNavId; });
     if (previewPage === 'parking') {
       document.body.dataset.dashboardPage = 'parking';
@@ -680,6 +681,17 @@ if (DASHBOARD_PREVIEW_MODE) {
       const previewParkingDateLabel = document.getElementById('parkingDateLabel');
       if (previewParkingDateLabel) previewParkingDateLabel.textContent = formatDateOnly(now);
       if (typeof window.__renderParkingWeekCalendar === 'function') window.__renderParkingWeekCalendar(isoDateString(now));
+    } else if (previewPage === 'summary') {
+      showPage('summary');
+      const previewStamp = (value) => new Date(value);
+      const previewRows = [
+        {id:'preview-1',createdAt:previewStamp('2026-09-19T08:12:00+08:00'),visitorName:'Ahmad Firdaus',visitorPhone:'012-345 6789',hostUnit:'B2-15-9',hostName:'Pn. Aisyah',hostPhone:'013-222 1188',eta:previewStamp('2026-09-19'),etd:previewStamp('2026-09-21'),vehicleNo:'VAA 2187',vehicleNumbers:['VAA 2187'],category:'Pelawat',stayOver:'Yes',status:'Pending',unitCategory:'Kategori 1',unitArrears:false,unitArrearsAmount:0,parkingQuote:{mainTotalSen:0}},
+        {id:'preview-2',createdAt:previewStamp('2026-09-19T08:38:00+08:00'),visitorName:'Mei Ling',visitorPhone:'017-880 4412',hostUnit:'A-4-9',hostName:'Mr. Tan',hostPhone:'016-770 2211',eta:previewStamp('2026-09-19'),etd:previewStamp('2026-09-19'),vehicleNo:'BQN 9072',vehicleNumbers:['BQN 9072'],category:'Pelawat',stayOver:'No',status:'Checked In',unitCategory:'Kategori 2',unitArrears:true,unitArrearsAmount:185.50,parkingQuote:{mainTotalSen:0}},
+        {id:'preview-3',createdAt:previewStamp('2026-09-19T09:05:00+08:00'),visitorName:'Ravi Kumar',visitorPhone:'019-334 7721',hostUnit:'B3-3-2',hostName:'En. Hafiz',hostPhone:'011-2988 7712',eta:previewStamp('2026-09-20'),etd:previewStamp('2026-09-22'),vehicleNo:'WXY 5521',vehicleNumbers:['WXY 5521','VCE 8830'],category:'Pelawat',stayOver:'Yes',status:'Pending Payment',unitCategory:'Kategori 3',unitArrears:true,unitArrearsAmount:520,parkingQuote:{mainTotalSen:4500}}
+      ];
+      renderList(previewRows,listAreaSummary,false);
+      listAreaSummary?.querySelectorAll('button[data-action]').forEach((button)=>{button.disabled=true;button.title='Tindakan dimatikan dalam mod pratonton';});
+      if (kpiWrap) kpiWrap.innerHTML = '<div class="chip kpi-total"><span class="chip-left"><span class="chip-label">Jumlah dipaparkan</span><span class="chip-meta">Data contoh</span></span><span class="chip-count">3</span></div>';
     } else {
       showPage('unitsummary');
       if (unitSummaryReadEstimate) unitSummaryReadEstimate.textContent = 'Mod pratonton aktif — tiada rekod Firebase dibaca. Log masuk untuk menggunakan fungsi kiraan dan laporan.';
@@ -2346,6 +2358,8 @@ if (exportAllCSVBtn) exportAllCSVBtn.addEventListener('click', async ()=> {
 /* ---------- core fetch ---------- */
 async function loadListForDateStr(yyyymmdd){
   console.info('[loadListForDateStr] called', yyyymmdd);
+  // Preview pages must remain visual-only: never attach Firestore listeners or consume reads.
+  if (DASHBOARD_PREVIEW_MODE) return;
   const d = yyyymmdd.split('-');
   if (d.length !== 3) { listAreaSummary.innerHTML = '<div class="small">Tarikh tidak sah</div>'; return; }
   const from = new Date(parseInt(d[0],10), parseInt(d[1],10)-1, parseInt(d[2],10), 0,0,0,0);
@@ -2760,19 +2774,16 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
   wrap.className = 'table-wrap';
   const table = document.createElement('table');
   table.className = 'table registration-table';
+    wrap.classList.add('registration-table-wrap');
     const thead = document.createElement('thead');
     thead.innerHTML = `<tr>
-      <th>Tarikh & Masa Borang Di isi</th>
-      <th>Nama Pelawat</th>
-      <th>Unit / Tuan Rumah</th>
-      <th>Kategori Unit</th>
-      <th>Jumlah Tunggakan</th>
-      <th>ETA / ETD</th>
-      <th>Kenderaan</th>
-      <th>Kategori</th>
+      <th>Dihantar</th>
+      <th>Pelawat</th>
+      <th>Unit</th>
+      <th>Lawatan &amp; Kenderaan</th>
+      <th>Kategori &amp; Kewangan</th>
       <th>Status</th>
-      <th>Bayaran</th>
-      <th>Aksi</th>
+      <th>Tindakan</th>
     </tr>`;
   table.appendChild(thead);
   const tbody = document.createElement('tbody');
@@ -2787,7 +2798,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       const phone = (r.hostPhone || '').trim();
       if (phone) {
         const normalized = normalizePhoneForWhatsapp(phone);
-        hostContactHtml = `${escapeHtml(r.hostName || '')} • <a class="tel-link" href="${normalized}" target="_blank" rel="noopener noreferrer">${escapeHtml(phone)}</a>`;
+        hostContactHtml = `<span>${escapeHtml(r.hostName || '')}</span><a class="tel-link reg-owner-phone" href="${normalized}" target="_blank" rel="noopener noreferrer">${escapeHtml(phone)}</a>`;
       } else {
         hostContactHtml = escapeHtml(r.hostName || '');
       }
@@ -2883,28 +2894,22 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
 
     const tr = document.createElement('tr');
     if (highlightIds && highlightIds.has(r.id)) tr.classList.add('conflict');
+    const visitorPhoneHtml = visitorPhoneDisplay ? (()=>{ const waHref=normalizePhoneForWhatsapp(visitorPhoneDisplay); return `<a class="tel-link" href="${waHref}" target="_blank" rel="noopener noreferrer">${escapeHtml(visitorPhoneDisplay)}</a>`; })() : '—';
+    const arrearsValueHtml = arrearsAmountDisplay === null ? '—' : `<strong>RM ${formatAmount(arrearsAmountDisplay)}</strong>`;
+    const chargeValueHtml = paymentAmountDisplay === null ? '—' : `<strong>RM ${formatAmount(paymentAmountDisplay)}</strong>`;
     tr.innerHTML = `
       <td class="timestamp-cell"><div class="ts-date">${formatDateOnly(r.createdAt)}</div><div class="ts-time">${formatTime(r.createdAt)}</div></td>
-      <td class="visitor-cell">${escapeHtml(visitorNameDisplay || '')}${r.entryDetails ? '<div class="small">'+escapeHtml(r.entryDetails || '')+'</div>' : ''}${visitorPhoneDisplay ? (function(){ const waHref = normalizePhoneForWhatsapp(visitorPhoneDisplay); return '<div class="small visitor-phone"><a class="tel-link" href="'+waHref+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(visitorPhoneDisplay)+'</a></div>'; })() : ''}</td>
-      <td>${escapeHtml(r.hostUnit || '')}${hostContactHtml ? '<div class="small">'+hostContactHtml+'</div>' : ''}</td>
-      <td>${unitCategoryHtml}</td>
-      <td class="arrears-cell">${(function(){
-        if (arrearsAmountDisplay === null) return '—';
-        return `<div class="line-strong">RM ${formatAmount(arrearsAmountDisplay)}</div>`;
-      })()}</td>
-      <td class="eta-etd-cell"><span class="eta-pill">${formatDateOnly(r.eta)}</span><span class="etd-pill">${formatDateOnly(r.etd)}</span></td>
-      <td>${escapeHtml(vehicleDisplay)}</td>
-      <td>${categoryPillHtml}</td>
-      <td><span class="status-pill ${statusClass}">${escapeHtml(r.status || 'Pending')}</span></td>
-      <td><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span></td>
-      <td>
-        <div class="actions">
-          <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
-          <button class="btn btn-ghost" data-action="edit" data-id="${r.id}" title="Edit tarikh / status">✏️ Edit</button>
-          <button class="btn" data-action="in" data-id="${r.id}" ${['Pending Payment','Cancelled Before Entry','Checked Out'].includes(r.status)?'disabled':''}>Check In</button>
-          <button class="btn btn-ghost" data-action="out" data-id="${r.id}" ${r.status!=='Checked In'?'disabled':''}>Check Out</button>
-        </div>
-      </td>
+      <td><div class="reg-primary">${escapeHtml(visitorNameDisplay || '—')}</div><div class="reg-secondary">${visitorPhoneHtml}${r.entryDetails ? ' • '+escapeHtml(r.entryDetails) : ''}</div></td>
+      <td><span class="reg-unit">${escapeHtml(r.hostUnit || '—')}</span><div class="reg-secondary">${hostContactHtml || 'Maklumat penghuni tidak direkod'}</div></td>
+      <td><div class="reg-visit-grid"><span class="label">Masuk</span><span class="value in">${formatDateOnly(r.eta)}</span><span class="label">Keluar</span><span class="value out">${formatDateOnly(r.etd)}</span><span class="label">Kenderaan</span><span class="value vehicle">${escapeHtml(vehicleDisplay)}</span></div></td>
+      <td><div class="reg-category-layout">${categoryPillHtml}<div class="reg-finance-grid"><div class="reg-finance-item"><span class="label">Tunggakan</span><span class="value">${arrearsValueHtml}</span></div><div class="reg-finance-item"><span class="label">Caj parkir</span><span class="value">${chargeValueHtml}</span></div></div></div></td>
+      <td><div class="reg-status-stack"><span class="status-pill ${statusClass}">${escapeHtml(r.status || 'Pending')}</span><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span>${badge}</div></td>
+      <td><div class="actions registration-actions">
+        <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
+        <button class="btn btn-ghost" data-action="edit" data-id="${r.id}" title="Edit tarikh atau status">✏️ Edit</button>
+        <button class="btn" data-action="in" data-id="${r.id}" ${['Pending Payment','Cancelled Before Entry','Checked Out'].includes(r.status)?'disabled':''}>✓ Masuk</button>
+        <button class="btn btn-ghost" data-action="out" data-id="${r.id}" ${r.status!=='Checked In'?'disabled':''}>↗ Keluar</button>
+      </div></td>
     `;
     tbody.appendChild(tr);
   });
