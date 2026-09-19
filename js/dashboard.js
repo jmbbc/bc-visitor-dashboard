@@ -689,7 +689,9 @@ if (DASHBOARD_PREVIEW_MODE) {
         {id:'preview-2',createdAt:previewStamp('2026-09-19T08:38:00+08:00'),visitorName:'Mei Ling',visitorPhone:'017-880 4412',hostUnit:'A-4-9',hostName:'Mr. Tan',hostPhone:'016-770 2211',eta:previewStamp('2026-09-19'),etd:previewStamp('2026-09-19'),vehicleNo:'BQN 9072',vehicleNumbers:['BQN 9072'],category:'Pelawat',stayOver:'No',status:'Checked In',unitCategory:'Kategori 2',unitArrears:true,unitArrearsAmount:185.50,parkingQuote:{mainTotalSen:0}},
         {id:'preview-3',createdAt:previewStamp('2026-09-19T09:05:00+08:00'),visitorName:'Ravi Kumar',visitorPhone:'019-334 7721',hostUnit:'B3-3-2',hostName:'En. Hafiz',hostPhone:'011-2988 7712',eta:previewStamp('2026-09-20'),etd:previewStamp('2026-09-22'),vehicleNo:'WXY 5521',vehicleNumbers:['WXY 5521','VCE 8830'],category:'Pelawat',stayOver:'Yes',status:'Pending Payment',unitCategory:'Kategori 3',unitArrears:true,unitArrearsAmount:520,parkingQuote:{mainTotalSen:4500}}
       ];
-      renderList(previewRows,listAreaSummary,false);
+      responseCache.date = isoDateString(now);
+      responseCache.rows = previewRows;
+      renderSummaryWithSearch(previewRows);
       listAreaSummary?.querySelectorAll('button[data-action]').forEach((button)=>{button.disabled=true;button.title='Tindakan dimatikan dalam mod pratonton';});
       if (kpiWrap) kpiWrap.innerHTML = '<div class="chip kpi-total"><span class="chip-left"><span class="chip-label">Jumlah dipaparkan</span><span class="chip-meta">Data contoh</span></span><span class="chip-count">3</span></div>';
     } else {
