@@ -695,8 +695,16 @@ if (DASHBOARD_PREVIEW_MODE) {
       listAreaSummary?.querySelectorAll('button[data-action]').forEach((button)=>{button.disabled=true;button.title='Tindakan dimatikan dalam mod pratonton';});
       if (kpiWrap) kpiWrap.innerHTML = '<div class="chip kpi-total"><span class="chip-left"><span class="chip-label">Jumlah dipaparkan</span><span class="chip-meta">Data contoh</span></span><span class="chip-count">3</span></div>';
     } else {
+      document.body.classList.add('preview-management');
       showPage('unitsummary');
       if (unitSummaryReadEstimate) unitSummaryReadEstimate.textContent = 'Mod pratonton aktif — tiada rekod Firebase dibaca. Log masuk untuk menggunakan fungsi kiraan dan laporan.';
+      const reviewMessage = document.getElementById('parkingReviewMessage');
+      const reviewCount = document.getElementById('parkingReviewPendingCount');
+      const cooldownMessage = document.getElementById('cooldownMaintenanceMessage');
+      if (reviewCount) reviewCount.textContent = '0';
+      if (reviewMessage) reviewMessage.textContent = 'Tiada unit menunggu semakan dalam contoh pratonton.';
+      if (cooldownMessage) cooldownMessage.textContent = 'Buka bahagian ini hanya untuk penyelenggaraan secara pukal.';
+      document.getElementById('pageUnitSummary')?.querySelectorAll('button').forEach((button)=>{button.disabled=true;button.title='Tidak tersedia dalam mod pratonton';});
     }
   }, 0);
 }

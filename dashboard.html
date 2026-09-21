@@ -365,6 +365,31 @@
     #pageUnitSummary .cooldown-maintenance-table th { padding:7px 6px; }
     #pageUnitSummary .cooldown-maintenance-table td { padding:6px; }
     #pageUnitSummary .cooldown-state { padding:2px 5px; }
+    #pageUnitSummary .section-kicker{display:block;margin-bottom:3px;color:#0f766e;font-size:8px;font-weight:850;letter-spacing:.09em}
+    #pageUnitSummary .management-advanced-block{margin-top:9px;border:1px solid #dbeafe;border-radius:9px;background:#f8fbff}
+    #pageUnitSummary .management-advanced-block>summary,#pageUnitSummary .management-tools>summary,#pageUnitSummary .management-danger>summary{cursor:pointer;list-style:none;font-weight:800}
+    #pageUnitSummary .management-advanced-block>summary::-webkit-details-marker,#pageUnitSummary .management-tools>summary::-webkit-details-marker,#pageUnitSummary .management-danger>summary::-webkit-details-marker{display:none}
+    #pageUnitSummary .management-advanced-block>summary{position:relative;padding:9px 34px 9px 11px;color:#1e3a5f}
+    #pageUnitSummary .management-advanced-block>summary::after,#pageUnitSummary .management-tools>summary::after,#pageUnitSummary .management-danger>summary::after{content:'⌄';position:absolute;right:12px;top:50%;transform:translateY(-52%);font-size:15px}
+    #pageUnitSummary details[open]>summary::after{content:'⌃'}
+    #pageUnitSummary .management-advanced-body{padding:0 10px 10px;border-top:1px solid #dbeafe}
+    #pageUnitSummary .advanced-action-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-top:10px}
+    #pageUnitSummary .report-builder{margin-top:9px}
+    #pageUnitSummary .management-tools,#pageUnitSummary .management-danger{position:relative;padding:0;overflow:hidden}
+    #pageUnitSummary .management-tools>summary,#pageUnitSummary .management-danger>summary{position:relative;padding:11px 38px 11px 13px}
+    #pageUnitSummary .management-tools>summary{color:#334155;background:#f8fafc}
+    #pageUnitSummary .management-tools-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px;border-top:1px solid #e2e8f0}
+    #pageUnitSummary .management-tool-item{display:grid;align-content:start;gap:8px;padding:10px;border:1px solid #e2e8f0;border-radius:9px;background:#fff}
+    #pageUnitSummary .management-tool-action{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    #pageUnitSummary .management-tool-action .database-count-value{margin:0;font-size:18px}
+    #pageUnitSummary .management-tool-buttons{display:flex;gap:6px;flex-wrap:wrap}
+    #pageUnitSummary .management-danger{border-color:#fecaca;background:#fffafa}
+    #pageUnitSummary .management-danger>summary{color:#991b1b;background:#fff1f2}
+    #pageUnitSummary .management-danger>div,#pageUnitSummary .management-danger>.danger-action-row{margin-left:12px!important;margin-right:12px!important}
+    #pageUnitSummary .danger-action-row{display:flex;align-items:end;gap:8px;padding:0 0 12px}
+    #pageUnitSummary .danger-action-row input{display:block;min-height:34px;margin-top:3px;padding:6px 8px;border:1px solid #fecaca;border-radius:7px}
+    body.preview-management #parkingReviewAdminPanel[hidden],body.preview-management #cooldownMaintenancePanel[hidden]{display:block!important}
+    @media(max-width:760px){#pageUnitSummary .management-tools-grid{grid-template-columns:1fr}#pageUnitSummary .advanced-action-head,#pageUnitSummary .danger-action-row{align-items:stretch;flex-direction:column}#pageUnitSummary .danger-action-row button{width:100%}}
     @media (max-width: 760px) {
       .management-hero { align-items:flex-start; flex-direction:column; }
       .data-management-grid, .report-filter-grid { grid-template-columns:1fr; }
@@ -599,8 +624,7 @@
 
               <section id="cooldownMaintenancePanel" class="card parking-review-panel cooldown-maintenance-panel" hidden aria-labelledby="cooldownMaintenanceTitle">
                 <div class="parking-review-head">
-                  <div><span class="admin-only-pill">ADMIN SAHAJA</span><h4 id="cooldownMaintenanceTitle">Penyelenggaraan Counter Cooldown</h4><p class="small muted">Semak dahulu, pilih unit yang layak, kemudian reset secara terkawal. Sejarah pendaftaran dan bayaran tidak diubah.</p></div>
-                  <button id="cooldownEstimateBtn" class="btn-ghost" type="button">Semak Anggaran</button>
+                  <div><span class="admin-only-pill">ADMIN SAHAJA</span><h4 id="cooldownMaintenanceTitle">Operasi Harian • Cooldown Unit</h4><p class="small muted">Semak keadaan satu unit dan lakukan reset kecemasan hanya apabila diperlukan.</p></div>
                 </div>
                 <div class="cooldown-unit-lookup">
                   <label for="cooldownUnitLookupInput"><strong>Semak Satu Unit</strong></label>
@@ -612,53 +636,37 @@
                   <div id="cooldownUnitLookupMessage" class="small muted" role="status" aria-live="polite" style="margin-top:8px">Masukkan nombor unit untuk melihat keadaan cooldown semasa.</div>
                   <div id="cooldownUnitLookupResult" class="cooldown-unit-result" hidden></div>
                 </div>
-                <div class="cooldown-maintenance-metrics">
-                  <div class="cooldown-maintenance-metric"><span class="small muted">Lock / anggaran reads</span><strong id="cooldownCheckedCount">—</strong></div>
-                  <div class="cooldown-maintenance-metric"><span class="small muted">Layak reset</span><strong id="cooldownEligibleCount">0</strong></div>
-                  <div class="cooldown-maintenance-metric"><span class="small muted">Dipilih</span><strong id="cooldownSelectedCount">0</strong></div>
-                  <div class="cooldown-maintenance-metric"><span class="small muted">Data perlu semakan</span><strong id="cooldownReviewCount">0</strong></div>
-                </div>
-                <div id="cooldownMaintenanceMessage" class="small muted" role="status" aria-live="polite">Semak anggaran reads sebelum memuat senarai.</div>
-                <div class="cooldown-maintenance-toolbar" style="margin-top:10px">
-                  <button id="cooldownLoadBtn" class="btn-ghost" type="button" disabled>Muat Senarai</button>
-                  <input id="cooldownMaintenanceSearch" type="search" placeholder="Cari unit" aria-label="Cari unit layak reset" />
-                  <select id="cooldownMaintenanceCategory" aria-label="Tapis kategori"><option value="">Semua kategori</option><option value="1">Kategori 1</option><option value="2">Kategori 2</option></select>
-                  <label class="small"><input id="cooldownSelectAll" type="checkbox" /> Pilih semua yang dipaparkan</label>
-                  <button id="cooldownResetBtn" class="btn" type="button" disabled>Reset Counter Dipilih</button>
-                </div>
-                <div class="cooldown-maintenance-table-wrap">
-                  <table class="cooldown-maintenance-table"><thead><tr><th>Pilih</th><th>Unit</th><th>Kategori</th><th>Counter</th><th>Parkir terakhir</th><th>Layak sejak</th><th>Status</th></tr></thead><tbody id="cooldownMaintenanceRows"><tr><td colspan="7" class="small muted">Belum dimuatkan.</td></tr></tbody></table>
-                </div>
+                <details class="management-advanced-block">
+                  <summary>Penyelenggaraan counter secara pukal</summary>
+                  <div class="management-advanced-body">
+                    <div class="advanced-action-head"><div><strong>Reset unit yang telah tamat cooldown</strong><div class="small muted">Gunakan apabila banyak counter perlu diselenggara serentak.</div></div><button id="cooldownEstimateBtn" class="btn-ghost" type="button">Semak Anggaran</button></div>
+                    <div class="cooldown-maintenance-metrics">
+                      <div class="cooldown-maintenance-metric"><span class="small muted">Lock / anggaran reads</span><strong id="cooldownCheckedCount">—</strong></div>
+                      <div class="cooldown-maintenance-metric"><span class="small muted">Layak reset</span><strong id="cooldownEligibleCount">0</strong></div>
+                      <div class="cooldown-maintenance-metric"><span class="small muted">Dipilih</span><strong id="cooldownSelectedCount">0</strong></div>
+                      <div class="cooldown-maintenance-metric"><span class="small muted">Data perlu semakan</span><strong id="cooldownReviewCount">0</strong></div>
+                    </div>
+                    <div id="cooldownMaintenanceMessage" class="small muted" role="status" aria-live="polite">Semak anggaran reads sebelum memuat senarai.</div>
+                    <div class="cooldown-maintenance-toolbar" style="margin-top:10px">
+                      <button id="cooldownLoadBtn" class="btn-ghost" type="button" disabled>Muat Senarai</button>
+                      <input id="cooldownMaintenanceSearch" type="search" placeholder="Cari unit" aria-label="Cari unit layak reset" />
+                      <select id="cooldownMaintenanceCategory" aria-label="Tapis kategori"><option value="">Semua kategori</option><option value="1">Kategori 1</option><option value="2">Kategori 2</option></select>
+                      <label class="small"><input id="cooldownSelectAll" type="checkbox" /> Pilih semua yang dipaparkan</label>
+                      <button id="cooldownResetBtn" class="btn" type="button" disabled>Reset Counter Dipilih</button>
+                    </div>
+                    <div class="cooldown-maintenance-table-wrap">
+                      <table class="cooldown-maintenance-table"><thead><tr><th>Pilih</th><th>Unit</th><th>Kategori</th><th>Counter</th><th>Parkir terakhir</th><th>Layak sejak</th><th>Status</th></tr></thead><tbody id="cooldownMaintenanceRows"><tr><td colspan="7" class="small muted">Belum dimuatkan.</td></tr></tbody></table>
+                    </div>
+                  </div>
+                </details>
               </section>
-
-              <div class="data-management-grid">
-                <div class="data-management-card">
-                  <span class="metric-icon" aria-hidden="true">▤</span>
-                  <h4>Jumlah Rekod Database</h4>
-                  <div class="small muted">Kiraan ringan tanpa memuat turun kandungan rekod.</div>
-                  <div id="databaseCountValue" class="database-count-value">—</div>
-                  <div id="databaseCountMeta" class="small muted">Belum disemak</div>
-                  <button id="databaseCountBtn" class="btn-ghost" type="button" style="margin-top:9px;">Semak Jumlah Rekod</button>
-                </div>
-                <div class="data-management-card">
-                  <span class="metric-icon" aria-hidden="true">⌂</span>
-                  <h4>Sejarah Mengikut Unit</h4>
-                  <div class="metric-value">Unit → Pelawat</div>
-                  <div class="small muted">Teliti pelawat, telefon, kenderaan, kategori dan status bagi unit dipilih.</div>
-                </div>
-                <div class="data-management-card">
-                  <span class="metric-icon" aria-hidden="true">◷</span>
-                  <h4>Bajet Operasi</h4>
-                  <div class="metric-value">20,000</div>
-                  <div class="small muted">Had keselamatan rekod bagi satu operasi laporan.</div>
-                </div>
-              </div>
 
               <div class="report-builder">
                 <div class="report-builder-head">
                   <div>
-                    <h4>Penjana Laporan &amp; Sejarah Unit</h4>
-                    <div class="small muted">Pilih julat wajib, kemudian kecilkan hasil dengan penapis tambahan.</div>
+                    <span class="section-kicker">CARIAN &amp; LAPORAN</span>
+                    <h4>Sejarah Pelawat Mengikut Unit</h4>
+                    <div class="small muted">Cari rekod mengikut tarikh, unit atau maklumat pelawat, kemudian eksport apabila diperlukan.</div>
                   </div>
                   <div class="small muted">1. Semak → 2. Muat → 3. Eksport</div>
                 </div>
@@ -707,10 +715,6 @@
 
               <div id="unitSummaryMeta" class="small muted" style="margin-top:10px;"></div>
 
-              <div style="margin-top:8px;display:flex;justify-content:flex-end;">
-                <input id="unitSummarySearch" type="search" placeholder="Cari unit (contoh: A-1-1)" style="min-width:240px; padding:8px 10px; border-radius:10px; border:1px solid var(--input-border);" aria-label="Cari unit dalam summary" />
-              </div>
-
               <div id="listAreaUnitSummary" style="margin-top:10px"></div>
                 </div>
               </div>
@@ -721,18 +725,28 @@
               <div id="unitSummaryDetailArea" class="small muted">Pilih unit daripada ringkasan untuk melihat nama pelawat, telefon, kenderaan dan sejarah lawatan.</div>
             </div>
 
-            <details class="card card-tight" style="margin-top:10px;">
-              <summary style="cursor:pointer;font-weight:700;">Tindakan berisiko tinggi</summary>
-              <div class="small muted" style="margin:8px 0;">Gunakan hanya apabila benar-benar perlu kerana operasi ini boleh membaca keseluruhan database.</div>
-              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
-                <div>
-                  <label for="purgeBeforeDate" class="small muted">Padam data sebelum tarikh</label>
-                  <input id="purgeBeforeDate" type="date" aria-label="Tarikh cutoff padam data lama" />
+            <details class="card card-tight management-tools" style="margin-top:10px;">
+              <summary>Alat Lanjutan &amp; Penyelenggaraan</summary>
+              <div class="management-tools-grid">
+                <div class="management-tool-item">
+                  <div><strong>Jumlah Rekod Database</strong><div class="small muted">Kiraan ringan tanpa memuat kandungan rekod.</div></div>
+                  <div class="management-tool-action"><strong id="databaseCountValue" class="database-count-value">—</strong><button id="databaseCountBtn" class="btn-ghost" type="button">Semak Jumlah</button></div>
+                  <div id="databaseCountMeta" class="small muted">Belum disemak</div>
                 </div>
+                <div class="management-tool-item">
+                  <div><strong>Operasi Keseluruhan Database</strong><div class="small muted">Boleh menggunakan banyak reads. Had keselamatan kekal 20,000 rekod bagi satu operasi.</div></div>
+                  <div class="management-tool-buttons"><button id="exportAllCSVBtn" class="btn-ghost" type="button">Eksport Semua Rekod</button><button id="unitSummaryLoadAllBtn" class="btn-ghost" type="button">Muat Semua Sejak Mula</button></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="card card-tight management-danger" style="margin-top:10px;">
+              <summary>Zon Bahaya • Padam Data Lama</summary>
+              <div class="small muted" style="margin:8px 0;">Tindakan ini memadam rekod secara kekal. Gunakan hanya selepas semakan dan simpanan data dibuat.</div>
+              <div class="danger-action-row">
+                <div><label for="purgeBeforeDate" class="small muted">Padam data sebelum tarikh</label><input id="purgeBeforeDate" type="date" aria-label="Tarikh cutoff padam data lama" /></div>
                 <button id="purgeOldBtn" type="button" class="btn-ghost">Padam Data Lama</button>
               </div>
-              <button id="exportAllCSVBtn" class="btn-ghost" type="button">Eksport Semua Rekod</button>
-              <button id="unitSummaryLoadAllBtn" class="btn-ghost" type="button">Muat Semua Sejak Mula</button>
             </details>
           </div>
 
