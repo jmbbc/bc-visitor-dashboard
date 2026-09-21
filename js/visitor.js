@@ -464,7 +464,9 @@ function parkingStateFromLock(unit, lock){
 
 function parkingPriorStateFromLock(unit, lock){
   const state=parkingStateFromLock(unit,lock);
-  if(!state||state.legacyMissingUsage===true||!lock?.cycleStart||!(lock.lastMainEnd||lock.endDate)||!(lock.lastAnyEnd||lock.endDate))return {exists:false};
+  // Firestore Rules regard a maintenance-only counter without endDate as an
+  // incomplete legacy state. Keep the submitted snapshot consistent with it.
+  if(!state||state.legacyMissingUsage===true||!lock?.cycleStart||!lock?.endDate||!(lock.lastMainEnd||lock.endDate)||!(lock.lastAnyEnd||lock.endDate))return {exists:false};
   return {exists:true,category:state.category,cycleStart:lock.cycleStart,mainUsageDays:state.mainUsageDays,lastMainEnd:lock.lastMainEnd||lock.endDate,lastAnyEnd:lock.lastAnyEnd||lock.endDate,policyVersion:String(lock.parkingPolicyVersion||'2026-09-08')};
 }
 

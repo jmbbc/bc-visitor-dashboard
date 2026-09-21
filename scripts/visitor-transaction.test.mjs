@@ -9,6 +9,20 @@ const source=readFileSync(new URL('../js/visitor.js',import.meta.url),'utf8');
 const body=source.slice(source.indexOf('async function createResponseWithDedupe(payload){'),source.indexOf('// Client-side duplicate protection:'));
 const stamp=value=>({toDate:()=>new Date(value)});
 const verificationHelpers={createRegistrationVerification,verificationExpiryDate,isVerificationCode};
+test('maintenance-only counter without endDate is not submitted as complete prior state',()=>{
+  const helperSource=source.slice(source.indexOf('function parkingPriorStateFromLock'),source.indexOf('function renderPaymentUpdateNotice'));
+  const context={parkingStateFromLock:()=>({category:1,mainUsageDays:0}),String};
+  vm.createContext(context);
+  vm.runInContext(helperSource,context);
+  const result=context.parkingPriorStateFromLock('B1-3-2',{
+    parkingCategory:1,
+    cycleStart:stamp('2026-09-14'),
+    mainUsageDays:0,
+    lastMainEnd:stamp('2026-09-08'),
+    lastAnyEnd:stamp('2026-09-08')
+  });
+  assert.equal(result.exists,false);
+});
 for(const oldDays of [0,2])test(`overnight transaction builds response and prior state with counter ${oldDays}`,async()=>{
   const writes=[];
   const state={unitId:'B2-15-9',category:1,mainUsageDays:oldDays,cycleStart:'2026-09-12',lastAnyEnd:'2026-09-12'};
