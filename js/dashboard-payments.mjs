@@ -4,35 +4,40 @@ import {createPaymentStore} from './payment-store.mjs';
 import {parseRinggit} from './parking-payments.mjs';
 
 if (new URLSearchParams(location.search).get('preview') !== '1') {
-  const host = document.getElementById('pageSummary');
-  const panel = document.createElement('section');
-  panel.className = 'card';
+  const panel = document.createElement('div');
+  panel.className = 'modal hidden';
   panel.id = 'registrationPaymentPanel';
   panel.hidden = true;
-  panel.innerHTML = `<div class="payment-panel-head"><div><h3>Pengesahan Bayaran Parkir</h3><p>Admin dan pengawal boleh merekod bayaran. Pelarasan caj serta pembatalan kekal untuk admin sahaja.</p></div><button type="button" class="btn-ghost" data-close aria-label="Tutup panel pembayaran">Tutup</button></div>
+  panel.setAttribute('role','dialog');
+  panel.setAttribute('aria-modal','true');
+  panel.setAttribute('aria-labelledby','registrationPaymentTitle');
+  panel.innerHTML = `<section class="card payment-dialog"><div class="payment-panel-head"><div><h3 id="registrationPaymentTitle">Pengesahan Bayaran Parkir</h3><p>Admin dan pengawal boleh merekod bayaran. Pelarasan caj serta pembatalan kekal untuk admin sahaja.</p></div><button type="button" class="btn-ghost" data-close aria-label="Tutup panel pembayaran">Tutup</button></div>
     <p data-role-note></p>
     <form data-load><label>ID pendaftaran <input name="registration" required autocomplete="off"></label> <button>Muat rekod</button></form>
     <p data-summary role="status" aria-live="polite">Pilih pendaftaran untuk menyemak caj dan bayaran.</p>
     <form data-create hidden><h4>Keputusan admin</h4><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj rasmi (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab keputusan <input name="reason" required minlength="3" maxlength="500"></label> <button>Muktamadkan Caj</button></form>
-    <form data-record hidden><label>Rujukan bank <input name="reference" required></label> <label>Amaun diterima (RM) <input name="amount" required inputmode="decimal"></label> <button>Rekod bayaran</button></form>
+    <div class="payment-totals" data-totals hidden></div>
+    <form data-record hidden><h4>Rekod pembayaran</h4><p class="payment-form-hint">Masukkan amaun sebenar yang diterima dan rujukan transaksi.</p><label>Rujukan bank <input name="reference" required placeholder="Contoh: BC20261007" autocomplete="off"></label> <label>Amaun diterima (RM) <input name="amount" required inputmode="decimal" placeholder="0.00"></label> <button>Simpan rekod bayaran</button></form>
     <form data-adjust hidden><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj baharu (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab pelarasan <input name="reason" required maxlength="500"></label> <button>Laras caj</button></form>
     <div data-receipts></div>
     <form data-split hidden><h4>Pembahagian resit terpilih</h4><p>Gantikan keseluruhan pembahagian. Satu baris: ID pendaftaran, amaun RM. Maksimum 8 pendaftaran.</p>
       <label>Pembahagian <textarea name="allocations" rows="4" required></textarea></label>
       <label>Sebab <input name="reason" required maxlength="500"></label> <button>Simpan pembahagian</button></form>
     <form data-void hidden><label>Sebab pembatalan resit <input name="reason" required maxlength="500"></label> <button>Batalkan rekod resit terpilih</button><p>Pembatalan rekod bukan pemulangan wang.</p></form>
-    <form data-cancel hidden><h4>Pembatalan sebelum masuk</h4><label>Sebab pembatalan <input name="reason" required minlength="3" maxlength="500"></label> <button>Batalkan Pendaftaran</button><p>Hari percuma dan cooldown permohonan ini akan dipulihkan. Admin sahaja.</p></form>`;
-  host.prepend(panel);
+    <form data-cancel hidden><h4>Pembatalan sebelum masuk</h4><label>Sebab pembatalan <input name="reason" required minlength="3" maxlength="500"></label> <button>Batalkan Pendaftaran</button><p>Hari percuma dan cooldown permohonan ini akan dipulihkan. Admin sahaja.</p></form></section>`;
+  document.body.append(panel);
   const find = s => panel.querySelector(s);
   const store = createPaymentStore({db:window.__FIRESTORE, auth:window.__AUTH, sdk});
   let registration = '', loaded = null, selected = null, isAdmin = false, allowed = false, busy = false;
+  let previousFocus = null, previousBodyOverflow = '';
   const rm = n => (n/100).toFixed(2);
-  const statuses = {paid:'Sudah bayar',partial:'Bayaran sebahagian',unconfirmed:'Belum disahkan bayar',no_charge:'Tiada caj',overpaid:'Lebihan bayaran'};
+  const statuses = {paid:'Bayaran diterima',partial:'Bayaran sebahagian',unconfirmed:'Menunggu bayaran',no_charge:'Tiada caj',overpaid:'Lebihan bayaran'};
   const tell = message => {find('[data-summary]').textContent = message;};
   function clear() {
     registration = ''; loaded = null; selected = null;
     ['create','record','adjust','split','void','cancel'].forEach(key => find(`[data-${key}]`).hidden = true);
     find('[data-receipts]').replaceChildren();
+    find('[data-totals]').hidden=true;
   }
   async function load(id) {
     const loadingUser = window.__AUTH.currentUser;
@@ -58,6 +63,13 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
       return;
     }
     find('[data-adjust] input[name="amount"]').value=rm(result.charge.amountSen);
+    const totals=find('[data-totals]');
+    totals.replaceChildren();
+    for(const [title,value] of [['Caj rasmi',result.charge.amountSen],['Bayaran diterima',result.paidSen],[result.overpaidSen>0?'Lebihan bayaran':'Baki bayaran',result.overpaidSen>0?result.overpaidSen:result.balanceSen]]){
+      const tile=document.createElement('div'),label=document.createElement('span'),amount=document.createElement('strong');
+      label.textContent=title;amount.textContent=`RM ${rm(value)}`;tile.append(label,amount);totals.append(tile);
+    }
+    totals.hidden=false;
     tell(`${statuses[result.status]} • Caj RM${rm(result.charge.amountSen)} • Diperuntukkan RM${rm(result.paidSen)} • Baki RM${rm(result.balanceSen)} • Lebihan RM${rm(result.overpaidSen)}${categoryNote}`);
     result.receipts.forEach(receipt => {
       const row = document.createElement('p');
@@ -103,14 +115,41 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
   });
   handle('void',async data=>{const id=registration; await store.voidReceipt({reference:selected.reference,reason:data.reason}); await load(id);});
   handle('cancel',async data=>{const id=registration;await store.cancelBeforeEntry({registrationId:id,reason:data.reason});await load(id);});
-  find('[data-close]').addEventListener('click',()=>{panel.hidden=true;});
+  function closePanel(){
+    if(panel.hidden||busy)return;
+    panel.hidden=true;
+    panel.classList.add('hidden');
+    document.body.style.overflow=previousBodyOverflow;
+    if(previousFocus?.isConnected)previousFocus.focus();
+  }
+  function focusPaymentField(){
+    const field=panel.querySelector('[data-record]:not([hidden]) input[name="reference"]')
+      ||panel.querySelector('[data-create]:not([hidden]) input[name="amount"]')
+      ||panel.querySelector('[data-load] input[name="registration"]');
+    (field||find('[data-close]')).focus({preventScroll:true});
+  }
+  find('[data-close]').addEventListener('click',closePanel);
+  panel.addEventListener('click',event=>{if(event.target===panel)closePanel();});
+  panel.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();closePanel();return;}
+    if(event.key!=='Tab')return;
+    const focusable=[...panel.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')].filter(node=>node.getClientRects().length);
+    if(!focusable.length){event.preventDefault();return;}
+    const first=focusable[0],last=focusable[focusable.length-1];
+    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+  });
   window.addEventListener('dashboard:open-payment',async event=>{
     const id=String(event.detail?.registrationId || '').trim();
+    previousFocus=document.activeElement;
+    previousBodyOverflow=document.body.style.overflow;
     panel.hidden=false;
-    panel.scrollIntoView({behavior:'smooth',block:'start'});
+    panel.classList.remove('hidden');
+    document.body.style.overflow='hidden';
     find('[data-load] input[name="registration"]').value=id;
-    if(!allowed){tell('Akaun ini tiada hak pembayaran. Log masuk sebagai admin atau pengawal.');return;}
+    if(!allowed){tell('Akaun ini tiada hak pembayaran. Log masuk sebagai admin atau pengawal.');find('[data-close]').focus({preventScroll:true});return;}
     try {await load(id);} catch(error) {tell(error.message || 'Rekod bayaran gagal dimuat.');}
+    focusPaymentField();
   });
   onAuthStateChanged(window.__AUTH,async user=>{
     clear(); allowed=false; isAdmin=false;

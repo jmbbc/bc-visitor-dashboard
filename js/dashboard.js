@@ -1317,7 +1317,7 @@ async function verifyRegistrationCode(rawCode) {
   const data = responseDoc.data() || {};
   let paymentLabel = 'Tiada caj / belum ditetapkan';
   if (data.status === 'Pending Payment') paymentLabel = 'Menunggu bayaran';
-  if (['Approved','Checked In','Checked Out'].includes(data.status) && Number(data?.parkingQuote?.mainTotalSen || 0) > 0) paymentLabel = 'Sudah disahkan';
+  if (['Approved','Checked In','Checked Out'].includes(data.status) && Number(data?.parkingQuote?.mainTotalSen || 0) > 0) paymentLabel = 'Bayaran diterima';
   if (Number(data?.parkingQuote?.mainTotalSen || 0) > 0) {
     try {
       const chargeSnap = await getDoc(doc(window.__FIRESTORE, 'parkingCharges', responseDoc.id));
@@ -1325,7 +1325,11 @@ async function verifyRegistrationCode(rawCode) {
         const charge = chargeSnap.data() || {};
         const paid = Number(charge.paidSen || 0);
         const due = Number(charge.amountSen || 0);
-        paymentLabel = paid >= due && due > 0 ? `Sudah bayar • RM ${(paid/100).toFixed(2)}` : `Belum selesai • RM ${(paid/100).toFixed(2)} / RM ${(due/100).toFixed(2)}`;
+        paymentLabel = paid >= due && due > 0
+          ? `Bayaran diterima • RM ${(paid/100).toFixed(2)}`
+          : paid > 0
+            ? `Bayaran sebahagian • RM ${(paid/100).toFixed(2)} / RM ${(due/100).toFixed(2)}`
+            : `Menunggu bayaran • RM ${(paid/100).toFixed(2)} / RM ${(due/100).toFixed(2)}`;
       }
     } catch (error) { console.warn('verification payment read failed', error); }
   }
@@ -1334,8 +1338,9 @@ async function verifyRegistrationCode(rawCode) {
   const expired = expiry && Date.now() >= expiry.getTime();
   const kind = cancelled ? 'bad' : (expired ? 'warn' : 'ok');
   const headline = cancelled ? 'Pendaftaran dibatalkan' : (expired ? 'Kod sah tetapi telah tamat tempoh' : 'Kod sah dan sepadan dengan sistem');
+  const registrationStatusLabel = ({'Pending Payment':'Menunggu bayaran','Approved':'Diluluskan','Checked In':'Sudah masuk','Checked Out':'Sudah keluar','Cancelled Before Entry':'Dibatalkan sebelum masuk'})[data.status] || data.status || 'Pending';
   const vehicles = Array.isArray(data.vehicleNumbers) && data.vehicleNumbers.length ? data.vehicleNumbers.join(', ') : (data.vehicleNo || '-');
-  showVerificationResult(kind, `<strong>${escapeHtml(headline)}</strong><div class="verification-grid"><div><b>Unit</b><span>${escapeHtml(data.hostUnit || '-')}</span></div><div><b>Kenderaan</b><span>${escapeHtml(vehicles)}</span></div><div><b>Masuk / Keluar</b><span>${escapeHtml(formatDateOnly(data.eta))} – ${escapeHtml(formatDateOnly(data.etd))}</span></div><div><b>Status</b><span>${escapeHtml(data.status || 'Pending')}</span></div><div><b>Bayaran</b><span>${escapeHtml(paymentLabel)}</span></div></div>`);
+  showVerificationResult(kind, `<strong>${escapeHtml(headline)}</strong><div class="verification-grid"><div><b>Unit</b><span>${escapeHtml(data.hostUnit || '-')}</span></div><div><b>Kenderaan</b><span>${escapeHtml(vehicles)}</span></div><div><b>Masuk / Keluar</b><span>${escapeHtml(formatDateOnly(data.eta))} – ${escapeHtml(formatDateOnly(data.etd))}</span></div><div><b>Status</b><span>${escapeHtml(registrationStatusLabel)}</span></div><div><b>Bayaran</b><span>${escapeHtml(paymentLabel)}</span></div></div>`);
 }
 
 if (verificationForm) verificationForm.addEventListener('submit', async (event) => {
@@ -2832,7 +2837,8 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     };
     const inlineStyle = catStyleMap[catClass] || 'background:#e5e7eb;color:#0f172a; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 8px;border-radius:8px;min-height:28px;min-width:96px;max-width:110px;display:inline-flex;align-items:center;justify-content:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);text-align:center;';
     const categoryPillHtml = `<div class="cat-stack"><span class="cat-badge ${catClass}" style="${inlineStyle}">${escapeHtml(categoryDisplay)}</span>${subCategoryHtml}</div>`;
-    const statusClass = r.status === 'Checked In' ? 'pill-in' : (r.status === 'Checked Out' ? 'pill-out' : 'pill-pending');
+    const statusClass = ['Checked In','Approved'].includes(r.status) ? 'pill-in' : (r.status === 'Checked Out' ? 'pill-out' : 'pill-pending');
+    const registrationStatusLabel = ({'Pending Payment':'Menunggu bayaran','Approved':'Diluluskan','Checked In':'Sudah masuk','Checked Out':'Sudah keluar','Cancelled Before Entry':'Dibatalkan sebelum masuk'})[r.status] || r.status || 'Pending';
 
     // Unit category + arrears/payment computation (used by two columns)
     const live = unitsCache[r.hostUnit] || {};
@@ -2897,7 +2903,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       paymentStatusLabel = 'Menunggu bayaran';
       paymentStatusClass = 'payment-status-pending';
     } else if (['Approved','Checked In','Checked Out'].includes(r.status) && hasParkingCharge) {
-      paymentStatusLabel = 'Sudah bayar';
+      paymentStatusLabel = 'Bayaran diterima';
       paymentStatusClass = 'payment-status-paid';
     } else if (Number.isFinite(quotedMainSen) && quotedMainSen === 0) {
       paymentStatusLabel = 'Tiada caj';
@@ -2917,7 +2923,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       <td><span class="reg-unit">${escapeHtml(r.hostUnit || '—')}</span><div class="reg-secondary">${hostContactHtml || 'Maklumat penghuni tidak direkod'}</div></td>
       <td><div class="reg-visit-grid"><span class="label">Masuk</span><span class="value in">${formatDateOnly(r.eta)}</span><span class="label">Keluar</span><span class="value out">${formatDateOnly(r.etd)}</span><span class="label">Kenderaan</span><span class="value vehicle">${escapeHtml(vehicleDisplay)}</span></div></td>
       <td><div class="reg-category-layout">${categoryPillHtml}<div class="reg-finance-grid"><div class="reg-finance-item ${arrearsFinanceClass}"><span class="label">Tunggakan</span><span class="value">${arrearsValueHtml}</span></div><div class="reg-finance-item ${chargeFinanceClass}"><span class="label">Caj parkir</span><span class="value">${chargeValueHtml}</span></div></div></div></td>
-      <td><div class="reg-status-stack"><span class="status-pill ${statusClass}">${escapeHtml(r.status || 'Pending')}</span><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span>${badge}</div></td>
+      <td><div class="reg-status-stack"><span class="status-pill ${statusClass}">${escapeHtml(registrationStatusLabel)}</span><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span>${badge}</div></td>
       <td><div class="actions registration-actions">
         <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
         <button class="btn btn-ghost" data-action="edit" data-id="${r.id}" title="Edit tarikh atau status">✏️ Edit</button>
