@@ -1,6 +1,7 @@
 import * as sdk from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 import {onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
-import {createPaymentStore} from './payment-store.mjs';
+import './firebase-init.js';
+import {createPaymentStore} from './payment-store.mjs?v=20261007-2';
 import {parseRinggit} from './parking-payments.mjs';
 
 if (new URLSearchParams(location.search).get('preview') !== '1') {
