@@ -79,7 +79,24 @@ service cloud.firestore {
         && existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId)))
         || (isAdmin() && isValidOvernightLock(request.resource.data, lockId)
           && isAdminParkingReviewUpdate(resource.data, request.resource.data));
+      allow update: if isPaidCooldownReset(resource.data, request.resource.data);
       allow delete, list: if false;
+    }
+
+    function isPaidCooldownReset(oldData, newData) {
+      let chargePath = /databases/$(database)/documents/parkingCharges/$(oldData.responseId);
+      let responsePath = /databases/$(database)/documents/responses/$(oldData.responseId);
+      return paymentStaff()
+        && newData.diff(oldData).affectedKeys().hasOnly(['mainUsageDays','cycleStart','parkingReviewedAt','parkingReviewedBy'])
+        && oldData.parkingCategory in [1,2] && newData.mainUsageDays == 0
+        && newData.cycleStart == request.time && newData.parkingReviewedAt == request.time
+        && newData.parkingReviewedBy == request.auth.uid
+        && get(responsePath).data.hostUnit == oldData.unit
+        && get(chargePath).data.amountSen > 0
+        && get(chargePath).data.paidSen < get(chargePath).data.amountSen
+        && getAfter(chargePath).data.paidSen >= getAfter(chargePath).data.amountSen
+        && getAfter(chargePath).data.amountSen == get(chargePath).data.amountSen
+        && isStaffPaymentUpdate(get(chargePath).data, getAfter(chargePath).data, oldData.responseId);
     }
 
     match /parkingReviewQueue/{unitId} {

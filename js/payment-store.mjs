@@ -64,10 +64,20 @@ export function createPaymentStore({db, auth, sdk}) {
           throw new Error('Rujukan bank sudah digunakan. Semak rekod asal.');
         }
         const chargeData=charge.data(),paidSen=Number(chargeData.paidSen||0)+amountSen;
+        const settled=chargeData.amountSen>0 && Number(chargeData.paidSen||0)<chargeData.amountSen && paidSen>=chargeData.amountSen;
+        const responseRef=doc(db,'responses',chargeId),response=await tx.get(responseRef);
+        if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
+        const lockRef=doc(db,'overnightLocks',`unit-${response.data().hostUnit}`),lock=await tx.get(lockRef);
         const paymentStatus=paidSen>chargeData.amountSen?'overpaid':paidSen===chargeData.amountSen?'paid':'partial';
         tx.set(ref, {chargeId, reference:id, amountSen, state:'active', createdBy:by, createdAt:serverTimestamp()});
         tx.update(doc(db,'parkingCharges',chargeId),{paidSen,paymentStatus,lastReceiptId:id});
-        if(paidSen>=chargeData.amountSen)tx.update(doc(db,'responses',chargeId),{status:'Approved',updatedAt:serverTimestamp()});
+        if(paidSen>=chargeData.amountSen && response.data().status==='Pending Payment')tx.update(responseRef,{status:'Approved',updatedAt:serverTimestamp()});
+        // Never erase usage belonging to a newer registration or reset again on extra receipts.
+        if(settled && lock.exists() && lock.data().responseId===chargeId && [1,2].includes(lock.data().parkingCategory)){
+          tx.update(lockRef,{mainUsageDays:0,cycleStart:serverTimestamp(),parkingReviewedAt:serverTimestamp(),parkingReviewedBy:by});
+          const auditRef=doc(collection(db,'audit'));
+          tx.set(auditRef,{ts:serverTimestamp(),userId:by,rowId:chargeId,unit:response.data().hostUnit,field:'cooldown_counter',old:String(lock.data().mainUsageDays||0),new:'0',action:'payment_cooldown_reset',notes:`Bayaran penuh diterima: ${id}`});
+        }
         return id;
       });
     },
