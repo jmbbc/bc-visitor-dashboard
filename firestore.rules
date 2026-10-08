@@ -90,8 +90,9 @@ service cloud.firestore {
       let paymentSettledByAdjustment = paymentAdmin()
         && get(chargePath).data.paidSen >= get(chargePath).data.amountSen
         && getAfter(chargePath).data.amountSen > 0
-        && getAfter(chargePath).data.amountSen < get(chargePath).data.amountSen
+        && getAfter(chargePath).data.amountSen <= get(chargePath).data.amountSen
         && getAfter(chargePath).data.paidSen == get(chargePath).data.paidSen
+        && get(responsePath).data.status == 'Pending Payment'
         && existsAfter(adjustmentPath)
         && getAfter(adjustmentPath).data.beforeSen == get(chargePath).data.amountSen
         && getAfter(adjustmentPath).data.afterSen == getAfter(chargePath).data.amountSen

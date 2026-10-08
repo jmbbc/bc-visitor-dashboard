@@ -96,7 +96,7 @@ export function createPaymentStore({db, auth, sdk}) {
         if (!old.exists() || old.data().amountSen !== expectedAmountSen) throw new Error('Caj telah berubah. Muat semula sebelum pelarasan.');
         if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
         tx.set(event, {beforeSen:old.data().amountSen, afterSen:amountSen, reason:reason.trim(), by, at:serverTimestamp()});
-        const paidSen=Number(oldCharge.paidSen||0),settledNow=oldCharge.amountSen>0&&paidSen<oldCharge.amountSen&&paidSen>=amountSen&&amountSen>0;
+        const paidSen=Number(oldCharge.paidSen||0),settledNow=oldCharge.amountSen>0&&paidSen>=amountSen&&amountSen>0&&responseData.status==='Pending Payment';
         const paymentStatus=paidSen>amountSen?'overpaid':paidSen===amountSen&&amountSen>0?'paid':amountSen===0?'no_charge':paidSen>0?'partial':'unconfirmed';
         tx.update(ref, {amountSen, paymentStatus, lastChangeId:event.id});
         const responseUpdate={parkingReviewRequired:false,updatedAt:serverTimestamp()};
@@ -104,7 +104,7 @@ export function createPaymentStore({db, auth, sdk}) {
         if(paidSen>=amountSen&&amountSen>0&&responseData.status==='Pending Payment')responseUpdate.status='Approved';
         tx.update(responseRef,responseUpdate);
         if(lock.exists()&&lock.data().responseId===id){
-          if(settledNow&&[1,2].includes(lock.data().parkingCategory)){
+          if(settledNow&&Number(lock.data().mainUsageDays)>0&&[1,2].includes(lock.data().parkingCategory)){
             tx.update(lockRef,{mainUsageDays:0,cycleStart:serverTimestamp(),parkingReviewRequired:false,parkingReviewedAt:serverTimestamp(),parkingReviewedBy:by});
             const resetAudit=doc(collection(db,'audit'));
             tx.set(resetAudit,{ts:serverTimestamp(),userId:by,rowId:id,unit:responseData.hostUnit,field:'cooldown_counter',old:String(lock.data().mainUsageDays||0),new:'0',action:'charge_adjustment_cooldown_reset',notes:`Caj dilaras kepada RM${(amountSen/100).toFixed(2)}; bayaran sedia ada mencukupi`});
