@@ -18,9 +18,9 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     <p data-summary role="status" aria-live="polite">Pilih pendaftaran untuk menyemak caj dan bayaran.</p>
     <form data-create hidden><h4>Keputusan admin</h4><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj rasmi (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab keputusan <input name="reason" required minlength="3" maxlength="500"></label> <button>Muktamadkan Caj</button></form>
     <div class="payment-totals" data-totals hidden></div>
-    <form data-record hidden><h4>Rekod pembayaran</h4><p class="payment-form-hint">Masukkan amaun sebenar yang diterima dan rujukan transaksi.</p><label>Rujukan bank <input name="reference" required placeholder="Contoh: BC20261007" autocomplete="off"></label> <label>Amaun diterima (RM) <input name="amount" required inputmode="decimal" placeholder="0.00"></label> <button>Simpan rekod bayaran</button></form>
+    <form data-record hidden><h4>Rekod pembayaran</h4><p class="payment-form-hint">Masukkan amaun sebenar yang diterima dan nombor resit pembayaran.</p><label>Nombor resit pembayaran <input name="reference" required placeholder="Contoh: BC20261007" autocomplete="off"></label> <label>Amaun diterima (RM) <input name="amount" required inputmode="decimal" placeholder="0.00"></label><div class="payment-form-actions"><button type="button" class="payment-cancel" data-cancel-payment>Batal</button><button type="submit">Simpan rekod bayaran</button></div></form>
     <form data-adjust hidden><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj baharu (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab pelarasan <input name="reason" required maxlength="500"></label> <button>Laras caj</button></form>
-    <div data-receipts></div>
+    <details class="payment-receipts"><summary>Sejarah resit <span data-receipt-count>0</span></summary><div data-receipts></div></details>
     <form data-split hidden><h4>Pembahagian resit terpilih</h4><p>Gantikan keseluruhan pembahagian. Satu baris: ID pendaftaran, amaun RM. Maksimum 8 pendaftaran.</p>
       <label>Pembahagian <textarea name="allocations" rows="4" required></textarea></label>
       <label>Sebab <input name="reason" required maxlength="500"></label> <button>Simpan pembahagian</button></form>
@@ -38,6 +38,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     registration = ''; loaded = null; selected = null;
     ['create','record','adjust','split','void','cancel'].forEach(key => find(`[data-${key}]`).hidden = true);
     find('[data-receipts]').replaceChildren();
+    find('[data-receipt-count]').textContent='0';
     find('[data-totals]').hidden=true;
   }
   async function load(id) {
@@ -90,6 +91,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
       }
       find('[data-receipts]').append(row);
     });
+    find('[data-receipt-count]').textContent=String(result.receipts.length);
   }
   function handle(key, action) {
     find(`[data-${key}]`).addEventListener('submit', async event => {
@@ -103,7 +105,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
   }
   handle('load', data=>load(data.registration.trim()));
   handle('create',async data=>{const id=registration; await store.createCharge({registrationId:id,amountSen:parseRinggit(data.amount),finalCategory:Number(data.category),reason:data.reason}); await load(id);});
-  handle('record',async data=>{const id=registration; await store.recordReceipt({registrationId:id,reference:data.reference,amountSen:parseRinggit(data.amount)}); await load(id);});
+  handle('record',async data=>{const id=registration,reference=data.reference.trim().toUpperCase(),amountSen=parseRinggit(data.amount); await store.recordReceipt({registrationId:id,reference,amountSen}); await load(id); find('[data-record]').reset(); tell(`Berjaya disimpan: resit ${reference}, RM${rm(amountSen)}. ${statuses[loaded.status]} • baki RM${rm(loaded.balanceSen)}${loaded.overpaidSen?` • lebihan RM${rm(loaded.overpaidSen)}`:''}.`);});
   handle('adjust',async data=>{const id=registration; await store.adjustCharge({registrationId:id,amountSen:parseRinggit(data.amount),expectedAmountSen:loaded.charge.amountSen,finalCategory:Number(data.category),reason:data.reason}); await load(id);});
   handle('split',async data=>{
     const allocations=data.allocations.trim().split(/\r?\n/).map(line=>{
@@ -130,6 +132,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     (field||find('[data-close]')).focus({preventScroll:true});
   }
   find('[data-close]').addEventListener('click',closePanel);
+  find('[data-cancel-payment]').addEventListener('click',closePanel);
   panel.addEventListener('click',event=>{if(event.target===panel)closePanel();});
   panel.addEventListener('keydown',event=>{
     if(event.key==='Escape'){event.preventDefault();closePanel();return;}
