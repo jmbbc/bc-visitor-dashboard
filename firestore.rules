@@ -86,17 +86,28 @@ service cloud.firestore {
     function isPaidCooldownReset(oldData, newData) {
       let chargePath = /databases/$(database)/documents/parkingCharges/$(oldData.responseId);
       let responsePath = /databases/$(database)/documents/responses/$(oldData.responseId);
-      return paymentStaff()
+      let adjustmentPath = /databases/$(database)/documents/parkingCharges/$(oldData.responseId)/changes/$(getAfter(chargePath).data.lastChangeId);
+      let paymentSettledByAdjustment = paymentAdmin()
+        && get(chargePath).data.paidSen >= get(chargePath).data.amountSen
+        && getAfter(chargePath).data.amountSen > 0
+        && getAfter(chargePath).data.amountSen < get(chargePath).data.amountSen
+        && getAfter(chargePath).data.paidSen == get(chargePath).data.paidSen
+        && existsAfter(adjustmentPath)
+        && getAfter(adjustmentPath).data.beforeSen == get(chargePath).data.amountSen
+        && getAfter(adjustmentPath).data.afterSen == getAfter(chargePath).data.amountSen
+        && getAfter(adjustmentPath).data.by == request.auth.uid;
+      return (paymentStaff() || paymentAdmin())
         && newData.diff(oldData).affectedKeys().hasOnly(['mainUsageDays','cycleStart','parkingReviewedAt','parkingReviewedBy'])
         && oldData.parkingCategory in [1,2] && newData.mainUsageDays == 0
         && newData.cycleStart == request.time && newData.parkingReviewedAt == request.time
         && newData.parkingReviewedBy == request.auth.uid
         && get(responsePath).data.hostUnit == oldData.unit
-        && get(chargePath).data.amountSen > 0
-        && get(chargePath).data.paidSen < get(chargePath).data.amountSen
-        && getAfter(chargePath).data.paidSen >= getAfter(chargePath).data.amountSen
-        && getAfter(chargePath).data.amountSen == get(chargePath).data.amountSen
-        && isStaffPaymentUpdate(get(chargePath).data, getAfter(chargePath).data, oldData.responseId);
+        && getAfter(chargePath).data.amountSen > 0
+        && ((get(chargePath).data.paidSen < get(chargePath).data.amountSen
+          && getAfter(chargePath).data.paidSen >= getAfter(chargePath).data.amountSen
+          && getAfter(chargePath).data.amountSen == get(chargePath).data.amountSen
+          && isStaffPaymentUpdate(get(chargePath).data, getAfter(chargePath).data, oldData.responseId))
+          || paymentSettledByAdjustment);
     }
 
     match /parkingReviewQueue/{unitId} {
@@ -172,9 +183,11 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
       allow update: if paymentStaff() && isStaffPaymentUpdate(resource.data, request.resource.data, id);
       allow update: if paymentAdmin()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amountSen','lastChangeId'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amountSen','paymentStatus','lastChangeId'])
         && request.resource.data.amountSen is int
         && request.resource.data.amountSen >= 0 && request.resource.data.amountSen <= 100000000
+        && request.resource.data.paidSen == resource.data.paidSen
+        && request.resource.data.paymentStatus in ['unconfirmed','partial','paid','overpaid','no_charge']
         && !exists(/databases/$(database)/documents/parkingCharges/$(id)/changes/$(request.resource.data.lastChangeId))
         && getAfter(/databases/$(database)/documents/parkingCharges/$(id)/changes/$(request.resource.data.lastChangeId)).data.afterSen == request.resource.data.amountSen;
       allow delete: if false;
