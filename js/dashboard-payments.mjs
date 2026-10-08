@@ -14,17 +14,22 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
   panel.setAttribute('aria-labelledby','registrationPaymentTitle');
   panel.innerHTML = `<section class="card payment-dialog"><div class="payment-panel-head"><div><h3 id="registrationPaymentTitle">Pengesahan Bayaran Parkir</h3><p>Admin dan pengawal boleh merekod bayaran. Pelarasan caj serta pembatalan kekal untuk admin sahaja.</p></div><button type="button" class="btn-ghost" data-close aria-label="Tutup panel pembayaran">Tutup</button></div>
     <p data-role-note></p>
-    <form data-load><label>ID pendaftaran <input name="registration" required autocomplete="off"></label> <button>Muat rekod</button></form>
+    <form data-load><label>ID pendaftaran <input name="registration" required readonly aria-readonly="true"></label> <button type="submit">Segar semula</button></form>
+    <div class="payment-tabs" role="tablist" aria-label="Bahagian pembayaran"><button type="button" role="tab" id="paymentTabButton" aria-controls="paymentTabPanel" aria-selected="true" data-tab="payment">Bayaran</button><button type="button" role="tab" id="receiptsTabButton" aria-controls="receiptsTabPanel" aria-selected="false" data-tab="receipts">Sejarah resit <span data-receipt-count>0</span></button></div>
+    <section id="paymentTabPanel" class="payment-tab-panel" role="tabpanel" aria-labelledby="paymentTabButton" data-pane="payment">
     <p data-summary role="status" aria-live="polite">Pilih pendaftaran untuk menyemak caj dan bayaran.</p>
     <form data-create hidden><h4>Keputusan admin</h4><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj rasmi (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab keputusan <input name="reason" required minlength="3" maxlength="500"></label> <button>Muktamadkan Caj</button></form>
     <div class="payment-totals" data-totals hidden></div>
     <form data-record hidden><h4>Rekod pembayaran</h4><p class="payment-form-hint">Masukkan amaun sebenar yang diterima dan nombor resit pembayaran.</p><label>Nombor resit pembayaran <input name="reference" required placeholder="Contoh: BC20261007" autocomplete="off"></label> <label>Amaun diterima (RM) <input name="amount" required inputmode="decimal" placeholder="0.00"></label><div class="payment-form-actions"><button type="button" class="payment-cancel" data-cancel-payment>Batal</button><button type="submit">Simpan rekod bayaran</button></div></form>
     <form data-adjust hidden><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj baharu (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab pelarasan <input name="reason" required maxlength="500"></label> <button>Laras caj</button></form>
-    <details class="payment-receipts"><summary>Sejarah resit <span data-receipt-count>0</span></summary><div data-receipts></div></details>
+    </section>
+    <section id="receiptsTabPanel" class="payment-tab-panel" role="tabpanel" aria-labelledby="receiptsTabButton" data-pane="receipts" hidden>
+    <div class="payment-receipts"><div data-receipts></div></div>
     <form data-split hidden><h4>Pembahagian resit terpilih</h4><p>Gantikan keseluruhan pembahagian. Satu baris: ID pendaftaran, amaun RM. Maksimum 8 pendaftaran.</p>
       <label>Pembahagian <textarea name="allocations" rows="4" required></textarea></label>
       <label>Sebab <input name="reason" required maxlength="500"></label> <button>Simpan pembahagian</button></form>
     <form data-void hidden><label>Sebab pembatalan resit <input name="reason" required maxlength="500"></label> <button>Batalkan rekod resit terpilih</button><p>Pembatalan rekod bukan pemulangan wang.</p></form>
+    </section>
     <form data-cancel hidden><h4>Pembatalan sebelum masuk</h4><label>Sebab pembatalan <input name="reason" required minlength="3" maxlength="500"></label> <button>Batalkan Pendaftaran</button><p>Hari percuma dan cooldown permohonan ini akan dipulihkan. Admin sahaja.</p></form></section>`;
   document.body.append(panel);
   const find = s => panel.querySelector(s);
@@ -131,8 +136,13 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
       ||panel.querySelector('[data-load] input[name="registration"]');
     (field||find('[data-close]')).focus({preventScroll:true});
   }
+  function selectTab(active){
+    panel.querySelectorAll('[data-tab]').forEach(tab=>tab.setAttribute('aria-selected',String(tab.dataset.tab===active)));
+    panel.querySelectorAll('[data-pane]').forEach(pane=>pane.hidden=pane.dataset.pane!==active);
+  }
   find('[data-close]').addEventListener('click',closePanel);
   find('[data-cancel-payment]').addEventListener('click',closePanel);
+  panel.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>selectTab(button.dataset.tab)));
   panel.addEventListener('click',event=>{if(event.target===panel)closePanel();});
   panel.addEventListener('keydown',event=>{
     if(event.key==='Escape'){event.preventDefault();closePanel();return;}
@@ -149,6 +159,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     previousBodyOverflow=document.body.style.overflow;
     panel.hidden=false;
     panel.classList.remove('hidden');
+    selectTab('payment');
     document.body.style.overflow='hidden';
     find('[data-load] input[name="registration"]').value=id;
     if(!allowed){tell('Akaun ini tiada hak pembayaran. Log masuk sebagai admin atau pengawal.');find('[data-close]').focus({preventScroll:true});return;}
