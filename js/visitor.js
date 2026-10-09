@@ -1253,9 +1253,11 @@ function _toDateOnly(v) {
 async function createResponseWithDedupe(payload){
   if (!window.__FIRESTORE) throw new Error('Firestore not available');
   const replaceAmendedVehicles = payload?.__replaceAmendedVehicles === true;
-  if (replaceAmendedVehicles) {
+  const requestedAmendResponseId = String(payload?.__amendResponseId || '').trim();
+  if (replaceAmendedVehicles || requestedAmendResponseId) {
     payload = Object.assign({}, payload);
     delete payload.__replaceAmendedVehicles;
+    delete payload.__amendResponseId;
   }
 
   const etaDate = payload && payload.eta && payload.eta.toDate ? payload.eta.toDate() : null;
@@ -1284,18 +1286,8 @@ async function createResponseWithDedupe(payload){
 
   async function writeDirectFallback(overridePayload = null) {
     const sourcePayload = overridePayload || payload;
-    let mappedId = '';
-    try { mappedId = String(localStorage.getItem(fallbackAmendKey) || ''); } catch (e) { mappedId = ''; }
-
-    // Under stricter response update rules, amend is safer by replacing old mapped doc
-    // with a new created doc rather than attempting update/merge on the old doc.
-    if (mappedId) {
-      try { await deleteDoc(doc(window.__FIRESTORE, 'responses', mappedId)); } catch (e) { /* ignore and proceed */ }
-    }
-
     const targetId = responseId;
     const targetRef = doc(window.__FIRESTORE, 'responses', targetId);
-    const isAmendFallback = !!mappedId;
     const fallbackPayload = Object.assign({}, sourcePayload, {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -1303,8 +1295,7 @@ async function createResponseWithDedupe(payload){
     // Keep fallback payload legacy-compatible for projects still on older rules.
     try { delete fallbackPayload.amendToken; } catch (e) { /* ignore */ }
     await setDoc(targetRef, fallbackPayload);
-    try { localStorage.setItem(fallbackAmendKey, targetId); } catch (e) { /* ignore */ }
-    return { success: true, id: targetId, fallback: true, amended: isAmendFallback, verificationCode, verificationExpiresAt };
+    return { success: true, id: targetId, fallback: true, amended: false, verificationCode, verificationExpiresAt };
   }
 
   const category = String(payload.category || '').trim();
@@ -1316,9 +1307,13 @@ async function createResponseWithDedupe(payload){
   const etdDate = payload && payload.etd && payload.etd.toDate ? payload.etd.toDate() : null;
   const etaEnd = _toDateOnly(etdDate) || etaStart;
   const amendToken = payload && payload.amendToken ? String(payload.amendToken) : getOrCreateAmendToken(hostUnitId, dateKey);
-  const fallbackAmendKey = `fallbackResponseId:${hostUnitId}:${dateKey}:${amendToken}`;
 
   if (dedupeTransactionUnavailable && !(category === 'Pelawat' && stayOver === 'Yes')) {
+    if (requestedAmendResponseId) {
+      const e = new Error('amendment_not_allowed');
+      e.code = 'AMENDMENT_NOT_ALLOWED';
+      throw e;
+    }
     try {
       return await writeDirectFallback();
     } catch (fallbackErr) {
@@ -1355,19 +1350,24 @@ async function createResponseWithDedupe(payload){
       let nextLock = null;
 
       const dedupeSnap = await tx.get(dedupeRef);
+      let lockSnap = null;
+      if (enforcePelawatLock && etaStart && etaEnd) {
+        lockSnap = await tx.get(lockRef);
+        lockData = lockSnap.exists() ? (lockSnap.data() || {}) : null;
+      }
       if (dedupeSnap.exists()) {
         const existing = dedupeSnap.data() || {};
         const existingTs = existing.createdAt && existing.createdAt.toDate ? existing.createdAt.toDate() : null;
         if (existingTs) {
           const ageMs = Date.now() - existingTs.getTime();
           if (ageMs < CLIENT_DEDUPE_WINDOW_MIN * 60 * 1000) {
-            if (existing.responseId && existing.amendToken === amendToken) {
-              targetRespId = existing.responseId;
+            if (requestedAmendResponseId && existing.responseId === requestedAmendResponseId && existing.amendToken === amendToken) {
+              targetRespId = requestedAmendResponseId;
               targetRespRef = doc(window.__FIRESTORE, 'responses', targetRespId);
               amended = true;
               attemptedAmendment = true;
               finalResponseId = targetRespId;
-            } else {
+            } else if (!requestedAmendResponseId) {
               const err = new Error('duplicate');
               err.code = 'DUPLICATE';
               throw err;
@@ -1377,28 +1377,25 @@ async function createResponseWithDedupe(payload){
       }
 
       if (enforcePelawatLock && etaStart && etaEnd) {
-        const lockSnap = await tx.get(lockRef);
-        lockData = lockSnap.exists() ? (lockSnap.data() || {}) : null;
         if (lockData) {
-          const lock = lockData;
-          const lockStart = _toDateOnly(lock.startDate && lock.startDate.toDate ? lock.startDate.toDate() : lock.startDate);
-          const lockEnd = _toDateOnly(lock.endDate && lock.endDate.toDate ? lock.endDate.toDate() : lock.endDate);
-          if (lockStart && lockEnd) {
-            const overlap = etaStart.getTime() <= lockEnd.getTime() && lockStart.getTime() <= etaEnd.getTime();
-            if (overlap) {
-              if (lock.responseId && lock.amendToken === amendToken) {
-                targetRespId = lock.responseId;
-                targetRespRef = doc(window.__FIRESTORE, 'responses', targetRespId);
-                amended = true;
-                attemptedAmendment = true;
-                finalResponseId = targetRespId;
-              } else {
-                const err = new Error('combine_vehicle_registration_required');
-                err.code = 'COMBINE_REQUIRED';
-                throw err;
-              }
+          if (requestedAmendResponseId) {
+            if (lockData.responseId === requestedAmendResponseId && lockData.amendToken === amendToken) {
+              targetRespId = requestedAmendResponseId;
+              targetRespRef = doc(window.__FIRESTORE, 'responses', targetRespId);
+              amended = true;
+              attemptedAmendment = true;
+              finalResponseId = targetRespId;
+            } else {
+              const err = new Error('amendment_not_allowed');
+              err.code = 'AMENDMENT_NOT_ALLOWED';
+              throw err;
             }
           }
+        }
+        if (requestedAmendResponseId && !lockData) {
+          const err = new Error('amendment_not_allowed');
+          err.code = 'AMENDMENT_NOT_ALLOWED';
+          throw err;
         }
 
         if (!amended && stayOver === 'Yes') {
@@ -1535,6 +1532,11 @@ async function createResponseWithDedupe(payload){
       e.code = 'COMBINE_REQUIRED';
       throw e;
     }
+    if (code === 'AMENDMENT_NOT_ALLOWED' || msg.includes('amendment_not_allowed')) {
+      const e = new Error('amendment_not_allowed');
+      e.code = 'AMENDMENT_NOT_ALLOWED';
+      throw e;
+    }
 
     // Backward-compatible safety net: if new transaction paths are denied by old rules,
     // still allow a direct response write so users can submit while rules are being deployed.
@@ -1582,9 +1584,8 @@ async function createResponseWithDedupe(payload){
   }
 }
 
-// Client-side duplicate protection: keep last-submission fingerprints in localStorage
-// so we can prevent accidental immediate re-submits (improves UX). This is a
-// convenience layer only; server-side checks are authoritative.
+// Client-side duplicate protection complements the Firestore transaction and
+// rules, which enforce the authoritative short-window dedupe.
 // Client-side guard: block rapid repeat submits within 2 minutes (matches server)
 const CLIENT_DEDUPE_WINDOW_MIN = 2;
 function clientIsoDateOnlyKey(d) {
@@ -4047,15 +4048,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        // attempt create with server-side dedupe transaction
+        // create response and dedupe key atomically in a Firestore transaction
         // create response (atomic) and dedupe key inside a transaction to avoid duplicates
         if (manageEditMode) {
           payload.__replaceAmendedVehicles = true;
+          payload.__amendResponseId = lastSubmissionSnapshot.responseId;
           if (isVerificationCode(manageVerificationCode)) payload.verificationCode = manageVerificationCode;
         }
         const resp = await createResponseWithDedupe(payload);
         if (resp && resp.fallback) {
-          // we succeeded but without dedupe enforcement (callable not available or blocked)
+          // fallback succeeded without Firestore transaction dedupe enforcement
           // mark in local cache so subsequent accidental resubmits are blocked by client
           try { clientMarkSubmission(_fingerprint); } catch(e) {}
         } else {

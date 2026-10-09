@@ -6,7 +6,7 @@ import {quoteFromUnitState} from '../js/unit-cooldown.mjs';
 import {createRegistrationVerification,verificationExpiryDate,isVerificationCode} from '../js/registration-verification.mjs';
 
 const source=readFileSync(new URL('../js/visitor.js',import.meta.url),'utf8');
-const body=source.slice(source.indexOf('async function createResponseWithDedupe(payload){'),source.indexOf('// Client-side duplicate protection:'));
+const body=source.slice(source.indexOf('async function createResponseWithDedupe(payload){'),source.indexOf('// Client-side duplicate protection'));
 const stamp=value=>({toDate:()=>new Date(value)});
 const verificationHelpers={createRegistrationVerification,verificationExpiryDate,isVerificationCode};
 test('maintenance-only counter without endDate is not submitted as complete prior state',()=>{
@@ -99,11 +99,31 @@ test('amendment completes all Firestore reads before any write',async()=>{
     })};
   vm.createContext(context);
   vm.runInContext(body,context);
-  const result=await context.createResponseWithDedupe({hostUnit:'B2-15-9',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',unitArrearsAmount:0,vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-B'],status:'Pending'});
+  const result=await context.createResponseWithDedupe({hostUnit:'B2-15-9',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',__amendResponseId:'existing-response',unitArrearsAmount:0,vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-B'],status:'Pending'});
   assert.equal(result.amended,true);
   assert.equal(operations.includes('read:responses'),false);
   const firstWrite=operations.findIndex(item=>item.startsWith('write:'));
   assert.equal(operations.slice(firstWrite).some(item=>item.startsWith('read:')),false);
+});
+
+test('a new Pelawat registration on the same date stays separate regardless of the previous visit status',async()=>{
+  const writes=[];
+  const sameDay='2026-09-20';
+  const lock={unit:'B2-15-9',startDate:stamp(sameDay),endDate:stamp(sameDay),responseId:'morning-response',amendToken:'fixture'};
+  const context={...verificationHelpers,window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
+    clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'newvisit',doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,
+    dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),dedupeTransactionUnavailable:false,serverTimestamp:()=> 'SERVER_TIME',
+    Timestamp:{fromDate:d=>stamp(d)},computeArrearsCategory:()=>null,parkingStateFromLock:()=>null,parkingPriorStateFromLock:()=>null,quoteFromUnitState,
+    runTransaction:async(_db,callback)=>callback({
+      get:async ref=>ref.col==='dedupeKeys'?{exists:()=>false}:{exists:()=>ref.col==='overnightLocks',data:()=>lock},
+      set:(ref,data)=>writes.push({ref,data}),update:()=>{}
+    })};
+  vm.createContext(context);vm.runInContext(body,context);
+  const result=await context.createResponseWithDedupe({hostUnit:'B2-15-9',category:'Pelawat',stayOver:'No',eta:stamp(sameDay),etd:stamp(sameDay),amendToken:'fixture',vehicleNo:'EVENING-1',status:'Pending'});
+  assert.equal(result.amended,false);
+  assert.notEqual(result.id,'morning-response');
+  assert.equal(writes.find(w=>w.ref.col==='overnightLocks').data.responseId,result.id);
+  assert.equal(writes.some(w=>w.ref.col==='responses'),true);
 });
 
 test('local management replaces a plate without appending a third vehicle',async()=>{
@@ -122,7 +142,7 @@ test('local management replaces a plate without appending a third vehicle',async
       set:()=>{},update:(_ref,data)=>{updated=data;}
     })};
   vm.createContext(context);vm.runInContext(body,context);
-  await context.createResponseWithDedupe({hostUnit:'B2-15-9',hostName:'Host',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-20'),etd:stamp('2026-09-21'),amendToken:'fixture',vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-C'],vehicleRowsDetailed:[{plate:'CAR-A'},{plate:'CAR-C'}],status:'Pending',__replaceAmendedVehicles:true});
+  await context.createResponseWithDedupe({hostUnit:'B2-15-9',hostName:'Host',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-20'),etd:stamp('2026-09-21'),amendToken:'fixture',__amendResponseId:'existing-response',vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-C'],vehicleRowsDetailed:[{plate:'CAR-A'},{plate:'CAR-C'}],status:'Pending',__replaceAmendedVehicles:true});
   assert.deepEqual(Array.from(updated.vehicleNumbers),['CAR-A','CAR-C']);
   assert.equal(updated.__replaceAmendedVehicles,undefined);
 });
