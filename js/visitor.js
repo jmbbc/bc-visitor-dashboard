@@ -352,6 +352,8 @@ function safeSubmissionErrorDetail(error){
   return raw.replace(/[<>`]/g,'').slice(0,180);
 }
 
+const ADMIN_WHATSAPP_NUMBER = '601172248671';
+
 function showSubmissionErrorSupport(code, message, technicalDetail=''){
   const statusEl=document.getElementById('statusMsg');
   if(!statusEl)return;
@@ -379,8 +381,8 @@ function showSubmissionErrorSupport(code, message, technicalDetail=''){
     }catch(_error){copy.textContent='Tidak Dapat Disalin';}
   });
   const whatsapp=document.createElement('button');
-  whatsapp.type='button';whatsapp.className='btn submission-error-whatsapp';whatsapp.textContent='Hantar melalui WhatsApp';
-  whatsapp.addEventListener('click',()=>window.open(`https://wa.me/?text=${encodeURIComponent(report)}`,'_blank','noopener,noreferrer'));
+  whatsapp.type='button';whatsapp.className='btn submission-error-whatsapp';whatsapp.textContent='Hantar kepada Admin melalui WhatsApp';
+  whatsapp.addEventListener('click',()=>window.open(`https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent(report)}`,'_blank','noopener,noreferrer'));
   actions.append(copy,whatsapp);card.append(title,detail,actions);statusEl.appendChild(card);
 }
 
@@ -2296,7 +2298,7 @@ function normalizeForWaLink(raw){
 
 // Build WhatsApp URLs for admin notification (returns both app and web URLs; does NOT open them)
 function buildWhatsAppUrlForAdmin(payload){
-  const adminNumber = '601172248614'; // updated admin number (Malaysia) without plus
+  const adminNumber = ADMIN_WHATSAPP_NUMBER;
 
   // Format date to local timezone (dd/mm/yyyy) instead of UTC
   const formatLocalDate = (ts) => {

@@ -643,6 +643,53 @@ body.visitor-page {
   color: #fff !important;
 }
 
+.visitor-page .visitor-admin-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 18px 0 8px;
+  padding: 16px 18px;
+  border: 1px solid #cfe7d8;
+  border-radius: 16px;
+  background: linear-gradient(115deg, #f3fbf5, #fff);
+}
+
+.visitor-page .visitor-admin-help-copy {
+  display: grid;
+  gap: 3px;
+  color: #164e3d;
+}
+
+.visitor-page .visitor-admin-help-copy span {
+  color: var(--visitor-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.visitor-page .visitor-admin-help-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: #15803d;
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.visitor-page .visitor-admin-help-link:hover { background: #166534; }
+
+@media (max-width: 560px) {
+  .visitor-page .visitor-admin-help { align-items: stretch; flex-direction: column; }
+  .visitor-page .visitor-admin-help-link { width: 100%; }
+}
+
 .visitor-page .section-options {
   border-top: 3px solid #64748b;
 }
