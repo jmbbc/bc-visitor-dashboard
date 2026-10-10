@@ -353,6 +353,7 @@ function safeSubmissionErrorDetail(error){
 }
 
 const ADMIN_WHATSAPP_NUMBER = '601172248671';
+const SECURITY_WHATSAPP_NUMBER = '601172248614';
 
 function showSubmissionErrorSupport(code, message, technicalDetail=''){
   const statusEl=document.getElementById('statusMsg');
@@ -2286,7 +2287,7 @@ function showSubCategoryHelp() {
   }
 }
 
-/* ---------- WhatsApp quick-send helpers (admin link) ---------- */
+/* ---------- WhatsApp quick-send helpers (security notification) ---------- */
 function normalizeForWaLink(raw){
   if (!raw) return null;
   let p = String(raw).trim().replace(/[\s\-().]/g,'');
@@ -2296,9 +2297,9 @@ function normalizeForWaLink(raw){
   return p; // e.g., 60123456789
 }
 
-// Build WhatsApp URLs for admin notification (returns both app and web URLs; does NOT open them)
-function buildWhatsAppUrlForAdmin(payload){
-  const adminNumber = ADMIN_WHATSAPP_NUMBER;
+// Build WhatsApp URLs for security notification (returns both app and web URLs; does NOT open them)
+function buildWhatsAppUrlForSecurity(payload){
+  const securityNumber = SECURITY_WHATSAPP_NUMBER;
 
   // Format date to local timezone (dd/mm/yyyy) instead of UTC
   const formatLocalDate = (ts) => {
@@ -2454,9 +2455,9 @@ function buildWhatsAppUrlForAdmin(payload){
   const blockSeparator = '\n------------------------------\n';
   const text = encodeURIComponent(blocks.join(blockSeparator));
   // Web URL (works in browsers)
-  const waWebUrl = `https://wa.me/${adminNumber}?text=${text}`;
+  const waWebUrl = `https://wa.me/${securityNumber}?text=${text}`;
   // App URL (prefer opening the WhatsApp app directly where supported). Include phone so recipient is prefilled.
-  const waAppUrl = `whatsapp://send?phone=${adminNumber}&text=${text}`;
+  const waAppUrl = `whatsapp://send?phone=${securityNumber}&text=${text}`;
   return { waAppUrl, waWebUrl };
 }
 
@@ -2483,7 +2484,7 @@ function openUrlInNewWindow(url){
 // Try opening WhatsApp notification (app first, then web). If both fail, render a persistent button and helpful hint.
 function openWhatsAppNotification(payload){
   try {
-    const { waAppUrl, waWebUrl } = buildWhatsAppUrlForAdmin(payload);
+    const { waAppUrl, waWebUrl } = buildWhatsAppUrlForSecurity(payload);
     let opened = false;
     if (waAppUrl) {
       const ok = openUrlInNewWindow(waAppUrl);
@@ -2506,7 +2507,7 @@ function openWhatsAppNotification(payload){
         a.rel = 'noopener noreferrer';
         a.className = 'btn btn-ghost';
         a.textContent = 'Hantar Notifikasi ke WhatsApp';
-        a.setAttribute('aria-label', 'Buka WhatsApp untuk hantar notifikasi kepada pentadbir');
+        a.setAttribute('aria-label', 'Buka WhatsApp untuk hantar notifikasi kepada pihak keselamatan');
         statusEl.appendChild(a);
 
         // Guidance shown to all users when automatic open is blocked
@@ -2514,7 +2515,7 @@ function openWhatsAppNotification(payload){
         hint.className = 'small muted';
         hint.style.marginTop = '8px';
         hint.style.lineHeight = '1.35';
-        hint.innerHTML = 'Jika WhatsApp tidak dibuka secara automatik (contoh: iPhone/Safari), <strong>tekan butang di atas</strong> untuk buka WhatsApp dan hantar mesej kepada pentadbir.';
+        hint.innerHTML = 'Jika WhatsApp tidak dibuka secara automatik (contoh: iPhone/Safari), <strong>tekan butang di atas</strong> untuk buka WhatsApp dan hantar mesej kepada pihak keselamatan.';
         statusEl.appendChild(hint);
       }
     }

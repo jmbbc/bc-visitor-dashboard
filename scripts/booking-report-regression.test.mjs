@@ -24,6 +24,10 @@ test('visitor submission errors expose a phone-friendly reference code', () => {
   assert.match(visitor, /Salin Maklumat Ralat/);
   assert.match(visitor, /Hantar kepada Admin melalui WhatsApp/);
   assert.match(visitor, /ADMIN_WHATSAPP_NUMBER = '601172248671'/);
+  assert.match(visitor, /SECURITY_WHATSAPP_NUMBER = '601172248614'/);
+  assert.match(visitor, /function buildWhatsAppUrlForSecurity\(payload\)/);
+  assert.match(visitor, /const securityNumber = SECURITY_WHATSAPP_NUMBER/);
+  assert.match(visitor, /function showSubmissionErrorSupport[\s\S]*?wa\.me\/\$\{ADMIN_WHATSAPP_NUMBER\}/);
   assert.match(visitor, /https:\/\/wa\.me\/\$\{ADMIN_WHATSAPP_NUMBER\}\?text=/);
   assert.match(visitor, /mockError'\)===\s*'1'/);
   assert.match(visitor, /paparan simulasi sahaja/);
