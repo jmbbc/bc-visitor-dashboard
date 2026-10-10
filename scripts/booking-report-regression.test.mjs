@@ -22,8 +22,9 @@ test('visitor submission errors expose a phone-friendly reference code', () => {
   assert.match(visitor, /Kod rujukan: VF-QUOTA/);
   assert.match(visitor, /showSubmissionErrorSupport\('VF-QUOTA',message,safeSubmissionErrorDetail\(err\)\)/);
   assert.match(visitor, /Salin Maklumat Ralat/);
-  assert.match(visitor, /Hantar melalui WhatsApp/);
-  assert.match(visitor, /https:\/\/wa\.me\/\?text=/);
+  assert.match(visitor, /Hantar kepada Admin melalui WhatsApp/);
+  assert.match(visitor, /ADMIN_WHATSAPP_NUMBER = '601172248671'/);
+  assert.match(visitor, /https:\/\/wa\.me\/\$\{ADMIN_WHATSAPP_NUMBER\}\?text=/);
   assert.match(visitor, /mockError'\)===\s*'1'/);
   assert.match(visitor, /paparan simulasi sahaja/);
   assert.ok(!visitor.includes('.at('), 'visitor form must remain compatible with older iPhone Safari');
