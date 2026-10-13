@@ -2856,6 +2856,9 @@ form .form-row label,
   box-shadow: none !important;
 }
 
+/* Close the preceding mobile-only block before report styles. */
+}
+
 /* Keep the weekly parking calendar as the report's primary view. */
 #pageParking #parkingReportSummary { display: none !important; }
 
@@ -2864,7 +2867,7 @@ form .form-row label,
 #parkingWeekCalendar .parking-plate-chip { padding: 3px 5px; font-size: 11px; line-height: 1.25; border-radius: 5px; }
 #parkingWeekCalendar .parking-plate-chip small { display: block; margin-top: 2px; font-family: inherit; font-size: 9px; font-weight: 500; }
 #parkingWeekCalendar .parking-payment-paid { background: #ecfdf5; border-color: #a7f3d0; color: #166534; }
-#parkingWeekCalendar .parking-payment-pending { background: #fff1f2; border-color: #fda4af; color: #9f1239; }
+#parkingWeekCalendar .parking-payment-pending { background: #ffe4e6; border-color: #fda4af; color: #9f1239; }
 #parkingWeekCalendar .parking-payment-unknown { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
 
 #parkingWeekCalendar .parking-registration-payment + .parking-registration-payment { margin-top: 5px; }
