@@ -1227,3 +1227,34 @@ body.visitor-page {
   .visitor-page .form-section-header { align-items: center; }
   .visitor-page .form-section .section-title { font-size: 0.98rem !important; }
 }
+
+.visitor-page .category-policy-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  text-align: left;
+}
+.visitor-page .category-policy-table caption {
+  margin-bottom: 8px;
+  color: var(--visitor-navy);
+  font-weight: 700;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.visitor-page .category-policy-table th,
+.visitor-page .category-policy-table td {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(180, 83, 9, 0.15);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.visitor-page .category-policy-table th {
+  width: 5.25rem;
+  padding-right: 10px;
+  font-weight: 600;
+}
+.visitor-page .category-policy-table td { white-space: pre-line; }
+.visitor-page .category-policy-hint {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+}

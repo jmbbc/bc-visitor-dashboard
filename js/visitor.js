@@ -3091,15 +3091,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateCategoryPolicyNote(category = categoryEl?.value?.trim() || '', subCategory = subCategoryEl?.value?.trim() || '') {
       if (!categoryPolicyNoteEl) return;
-      const notices = [];
-      if (['Kontraktor', 'Penghantaran Barang', 'Pindah Rumah'].includes(category)) {
-        notices.push('Peringatan waktu operasi: kerja Kontraktor, Penghantaran Barang dan Pindah Rumah tidak dibenarkan pada hari Ahad atau cuti hujung minggu, atau selepas jam 6:00 petang. Sila rancang kerja mengikut waktu operasi. Ini peringatan sahaja; borang masih boleh dihantar untuk semakan.');
-      }
-      if ((category === 'Kontraktor' && subCategory === 'Renovasi') || category === 'Pindah Rumah') {
-        notices.push('Untuk Renovasi dan Pindah Rumah, deposit RM250 perlu dibayar dan borang berkaitan perlu diisi di pejabat pengurusan. Borang dalam talian ini juga perlu dilengkapkan untuk rekod keselamatan.');
-      }
-      categoryPolicyNoteEl.textContent = notices.join(' ');
-      categoryPolicyNoteEl.classList.toggle('hidden', notices.length === 0);
+      const relevant = ['Kontraktor', 'Penghantaran Barang', 'Pindah Rumah'].includes(category);
+      categoryPolicyNoteEl.replaceChildren();
+      categoryPolicyNoteEl.classList.toggle('hidden', !relevant);
+      if (!relevant) return;
+
+      const needsOfficePermit = (category === 'Kontraktor' && subCategory === 'Renovasi') || category === 'Pindah Rumah';
+      const table = document.createElement('table');
+      table.className = 'category-policy-table';
+      const caption = document.createElement('caption');
+      caption.textContent = subCategory ? `${category} > ${subCategory}` : category;
+      table.appendChild(caption);
+      const body = document.createElement('tbody');
+      const rows = [
+        ['Masa kerja', 'Isnin–Jumaat: 9:00 pagi–6:00 petang\nSabtu: 9:00 pagi–1:00 tengah hari\nAhad / Cuti Umum: Tidak dibenarkan'],
+        ['Borang', needsOfficePermit
+          ? '1. Borang pelawat dalam talian\n2. Isi borang dan dapatkan kebenaran di pejabat pengurusan'
+          : 'Borang pelawat dalam talian']
+      ];
+      if (needsOfficePermit) rows.push(['Deposit', 'RM250.00 — bayar di pejabat pengurusan']);
+      rows.forEach(([label, value]) => {
+        const row = document.createElement('tr');
+        const heading = document.createElement('th');
+        heading.scope = 'row';
+        heading.textContent = label;
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        row.append(heading, cell);
+        body.appendChild(row);
+      });
+      table.appendChild(body);
+      const hint = document.createElement('p');
+      hint.className = 'category-policy-hint';
+      hint.textContent = 'Peringatan sahaja; borang masih boleh dihantar.';
+      categoryPolicyNoteEl.append(table, hint);
     }
 
     function setEtdNote(mode) {
