@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {explainParkingCharge as explain,malaysiaDate} from '../js/charge-explanation-model.mjs';
+import {POLICY_VERSION} from '../js/parking-policy.mjs';
+const record={id:'R1',hostUnit:'B1-3-2',unitCategory:'Kategori 1',vehicleNo:'ABC123',eta:'2026-10-10T00:00:00+08:00',etd:'2026-10-12T00:00:00+08:00',parkingQuote:{policyVersion:POLICY_VERSION,mainStartDay:4,mainEndDay:6,mainTotalSen:1500}};
+test('reconstructs same-cycle snapshot and partial payment without reading current category',()=>{const r=explain(record,{amountSen:1500,paidSen:500});assert.equal(r.total,15);assert.equal(r.paid,5);assert.deepEqual(r.days.map(d=>d[3]),[5,5,5]);assert.match(r.reason,/hari ke-4/)});
+test('uses Malaysian date boundaries and rejects missing dates',()=>{assert.equal(malaysiaDate('2026-10-09T17:00:00Z'),'2026-10-10');assert.equal(malaysiaDate(null),'')});
+test('adjusted charge keeps official amount separate from original daily sum',()=>{const r=explain(record,{amountSen:1000,paidSen:500});assert.equal(r.total,10);assert.equal(r.days.reduce((n,d)=>n+d[3],0),15);assert.match(r.reason,/pelarasan/)});
+test('unknown policy, missing snapshot and mismatched totals never invent a breakdown',()=>{for(const change of [{policyVersion:'old'},{mainTotalSen:1234},{mainEndDay:9}])assert.equal(explain({...record,parkingQuote:{...record.parkingQuote,...change}},{amountSen:1500,paidSen:0}).days.length,0);assert.equal(explain({...record,parkingQuote:null},null).total,null)});
+test('category 3 applies RM15 per day from saved category',()=>{const r=explain({...record,unitCategory:'Kategori 3',parkingQuote:{...record.parkingQuote,mainTotalSen:4500}},{amountSen:4500,paidSen:4500});assert.deepEqual(r.days.map(d=>d[3]),[15,15,15])});
+test('review flag hides definitive breakdown and missing paid total stays unknown',()=>{assert.equal(explain({...record,parkingReviewRequired:true},{amountSen:1500,paidSen:0}).days.length,0);assert.equal(explain(record,{amountSen:1500}).paid,null)});
