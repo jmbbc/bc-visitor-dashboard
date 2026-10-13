@@ -4881,30 +4881,35 @@ document.addEventListener('DOMContentLoaded', ()=>{
             td.innerHTML = '<span class="parking-empty-day">—</span>';
           } else {
             td.className = 'has-parking';
-            td.innerHTML = Array.from(dayData.ids).map((id) => {
+            Array.from(dayData.ids).forEach((id) => {
               const record = recordsById.get(id);
               const payment = weekPaymentStates.get(id) || {state:'unknown', label:'Belum disahkan'};
               const plates = record ? collectVehiclesFromResponse(record) : [];
-              return (plates.length ? plates : ['Tiada nombor']).map(plate => `<span class="parking-plate-chip parking-payment-${payment.state}" title="Bayaran pendaftaran ${escapeHtml(id)}"><span>${escapeHtml(plate)}</span><small>${escapeHtml(payment.label)}</small></span>`).join('');
-            }).join('') || '<span class="parking-plate-chip parking-payment-unknown"><small>Belum disahkan</small></span>';
-            if (!DASHBOARD_PREVIEW_MODE) {
-              // A day may contain multiple registrations. Never silently edit
-              // the first record when the guard selected a different vehicle.
-              const details = document.createElement('details');
-              const summary = document.createElement('summary');
-              summary.textContent = `${dayData.ids.size} pendaftaran`;
-              details.appendChild(summary);
-              Array.from(dayData.ids).forEach((id) => {
-                const record = pelawat.find(r => r.id === id);
+              const group = document.createElement('div');
+              group.className = 'parking-registration-payment';
+              group.innerHTML = (plates.length ? plates : ['Tiada nombor']).map(plate => `<span class="parking-plate-chip parking-payment-${payment.state}">${escapeHtml(plate)}</span>`).join('');
+              if (!DASHBOARD_PREVIEW_MODE) {
+                const details = document.createElement('details');
+                details.className = 'parking-payment-details parking-payment-text-' + payment.state;
+                const summary = document.createElement('summary');
+                summary.textContent = payment.label;
+                summary.title = 'Buka butiran pendaftaran';
+                details.appendChild(summary);
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'btn-ghost';
-                button.textContent = record ? `${record.visitorName || 'Pelawat'} — ${collectVehiclesFromResponse(record).join(', ')}` : id;
+                button.textContent = record ? (record.visitorName || 'Pelawat') : id;
                 button.addEventListener('click', () => openEditModalFor(id));
                 details.appendChild(button);
-              });
-              td.appendChild(details);
-            }
+                group.appendChild(details);
+              } else {
+                const status = document.createElement('div');
+                status.className = 'parking-payment-details parking-payment-text-' + payment.state;
+                status.textContent = payment.label;
+                group.appendChild(status);
+              }
+              td.appendChild(group);
+            });
           }
           tr.appendChild(td);
         });
