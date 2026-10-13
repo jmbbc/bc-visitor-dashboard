@@ -9,3 +9,12 @@ test('adjusted charge keeps official amount separate from original daily sum',()
 test('unknown policy, missing snapshot and mismatched totals never invent a breakdown',()=>{for(const change of [{policyVersion:'old'},{mainTotalSen:1234},{mainEndDay:9}])assert.equal(explain({...record,parkingQuote:{...record.parkingQuote,...change}},{amountSen:1500,paidSen:0}).days.length,0);assert.equal(explain({...record,parkingQuote:null},null).total,null)});
 test('category 3 applies RM15 per day from saved category',()=>{const r=explain({...record,unitCategory:'Kategori 3',parkingQuote:{...record.parkingQuote,mainTotalSen:4500}},{amountSen:4500,paidSen:4500});assert.deepEqual(r.days.map(d=>d[3]),[15,15,15])});
 test('review flag hides definitive breakdown and missing paid total stays unknown',()=>{assert.equal(explain({...record,parkingReviewRequired:true},{amountSen:1500,paidSen:0}).days.length,0);assert.equal(explain(record,{amountSen:1500}).paid,null)});
+test('empty category label uses original arrears snapshot, including prepaid negative balances',()=>{
+  const r=explain({...record,unitCategory:'',unitArrearsAmount:-679.4,parkingQuote:{...record.parkingQuote,mainStartDay:11,mainEndDay:13,mainTotalSen:5000}},{amountSen:5000,paidSen:0});
+  assert.deepEqual(r.days.map(d=>d[3]),[15,15,20]);assert.equal(r.total,50);assert.match(r.category,/Kategori 1/);
+});
+test('fallback never uses prior category or treats missing arrears as zero',()=>{
+  assert.equal(explain({...record,unitCategory:'',parkingPriorState:{category:1}},null).days.length,0);
+  const r=explain({...record,unitCategory:'',unitArrearsAmount:500,parkingQuote:{...record.parkingQuote,mainTotalSen:4500}}, {amountSen:4500,paidSen:0});
+  assert.deepEqual(r.days.map(d=>d[3]),[15,15,15]);
+});

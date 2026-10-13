@@ -1,4 +1,4 @@
-import {datesInclusive, dailyRateSen, POLICY_VERSION} from './parking-policy.mjs';
+import {datesInclusive, dailyRateSen, arrearsCategory, POLICY_VERSION} from './parking-policy.mjs';
 export function malaysiaDate(value) {
   if (!value) return '';
   const date=value?.toDate?value.toDate():new Date(value);
@@ -9,7 +9,9 @@ export function malaysiaDate(value) {
 }
 export function explainParkingCharge(record, charge) {
   const quote=record.parkingQuote || {};
-  const cat=Number(String(record.unitCategory || '').match(/[123]/)?.[0]);
+  const labelledCategory=Number(String(record.unitCategory || '').match(/^(?:Kategori\s*)?([123])$/i)?.[1]);
+  const cat=[1,2,3].includes(labelledCategory)?labelledCategory:
+    (typeof record.unitArrearsAmount==='number' && Number.isFinite(record.unitArrearsAmount)?arrearsCategory(record.unitArrearsAmount):null);
   const valid=n=>Number.isSafeInteger(n)&&n>=0;
   const quoted=valid(quote.mainTotalSen)?quote.mainTotalSen:null;
   const amount=charge&&valid(charge.amountSen)?charge.amountSen:(!record.parkingReviewRequired&&quoted===0?0:null);

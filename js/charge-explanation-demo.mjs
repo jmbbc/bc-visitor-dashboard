@@ -1,4 +1,4 @@
-import {explainParkingCharge, malaysiaDate} from './charge-explanation-model.mjs';
+import {explainParkingCharge, malaysiaDate} from './charge-explanation-model.mjs?v=20261013-2';
 // Read-only admin tool; preview uses fixtures and never reads Firebase.
 const params = new URLSearchParams(location.search);
 const preview=params.get('preview')==='1';
