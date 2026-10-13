@@ -75,7 +75,8 @@ test('read ceiling fails explicitly rather than showing a truncated report', asy
 test('weekly usage alone does not label a unit as violating SOP', () => {
   assert.ok(!dashboard.includes('<span>Melebihi had</span>'));
   assert.ok(!dashboard.includes("tr.className = 'is-over-limit'"));
-  assert.ok(dashboard.includes('Caj dan status pembayaran belum disahkan'));
+  assert.ok(dashboard.includes('Kelabu: belum disahkan'));
+  assert.ok(dashboard.includes('Status bayaran bagi keseluruhan pendaftaran'));
 });
 
 test('non-portfolio units are excluded from the arrears list and its totals', () => {

@@ -12,6 +12,7 @@ import {
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import {weeklyParkingPayment} from './parking-week-payment.mjs?v=20261013-1';
 import {normalizeVerificationCode,isVerificationCode} from './registration-verification.mjs?v=20260919-1';
 
 const DASHBOARD_PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
@@ -4775,6 +4776,33 @@ document.addEventListener('DOMContentLoaded', ()=>{
       renderParkingWeekCalendar.page = pageNumber;
       const visibleUnits = filteredUnits.slice((pageNumber - 1) * pageSize, pageNumber * pageSize);
       const overLimitCount = allUnits.filter((item) => item.daySet.size > 3).length;
+      // Read only registrations on this page, once each per render. No global charge scan.
+      const weekPaymentStates = new Map();
+      const visibleIds = Array.from(new Set(visibleUnits.flatMap(item => Array.from(item.registrations))));
+      const recordsById = new Map(pelawat.map(record => [record.id, record]));
+      if (DASHBOARD_PREVIEW_MODE) {
+        const demoCharges = new Map([
+          ['preview-a', {amountSen:3000, paidSen:3000}],
+          ['preview-b', {amountSen:3000, paidSen:1000}],
+          ['preview-c', {amountSen:0, paidSen:0}]
+        ]);
+        visibleIds.forEach(id => weekPaymentStates.set(id, weeklyParkingPayment(recordsById.get(id), demoCharges.get(id) || null)));
+      }
+      if (!DASHBOARD_PREVIEW_MODE && visibleIds.length <= 200) {
+        let nextPaymentIndex = 0;
+        await Promise.all(Array.from({length:Math.min(6, visibleIds.length)}, async () => {
+          while (nextPaymentIndex < visibleIds.length) {
+            const id = visibleIds[nextPaymentIndex++];
+            try {
+              const charge = await getDoc(doc(window.__FIRESTORE, 'parkingCharges', id));
+              weekPaymentStates.set(id, weeklyParkingPayment(recordsById.get(id), charge.exists() ? charge.data() : null));
+            } catch (error) {
+              weekPaymentStates.set(id, weeklyParkingPayment(recordsById.get(id), null, false));
+            }
+          }
+        }));
+      }
+
 
       const header = document.createElement('div');
       header.style.display = 'flex'; header.style.justifyContent='space-between'; header.style.alignItems='center'; header.style.gap='8px';
@@ -4820,7 +4848,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       const usageNote = document.createElement('p');
       usageNote.className = 'small muted';
       usageNote.style.padding = '0 16px';
-      usageNote.textContent = 'Jumlah hari berdasarkan pendaftaran, bukan pengesahan kehadiran. Lebih 3 hari bukan semestinya pelanggaran SOP. Caj dan status pembayaran belum disahkan dalam paparan ini.';
+      usageNote.textContent = (DASHBOARD_PREVIEW_MODE ? 'PRATONTON — data contoh. ' : '') + 'Jumlah hari berdasarkan pendaftaran, bukan pengesahan kehadiran. Lebih 3 hari bukan semestinya pelanggaran SOP. Hijau: selesai atau percuma. Merah jambu: berbaki. Kelabu: belum disahkan. Status bayaran bagi keseluruhan pendaftaran, bukan pengesahan kehadiran.';
       calWrap.appendChild(usageNote);
       const toolbar = document.createElement('div');
       toolbar.className = 'parking-monitor-toolbar';
@@ -4853,8 +4881,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
             td.innerHTML = '<span class="parking-empty-day">—</span>';
           } else {
             td.className = 'has-parking';
-            const plates = Array.from(dayData.plates).sort();
-            td.innerHTML = plates.length ? plates.map((plate) => `<span class="parking-plate-chip">${escapeHtml(plate)}</span>`).join('') : '<span class="parking-plate-chip">Tiada nombor</span>';
+            td.innerHTML = Array.from(dayData.ids).map((id) => {
+              const record = recordsById.get(id);
+              const payment = weekPaymentStates.get(id) || {state:'unknown', label:'Belum disahkan'};
+              const plates = record ? collectVehiclesFromResponse(record) : [];
+              return (plates.length ? plates : ['Tiada nombor']).map(plate => `<span class="parking-plate-chip parking-payment-${payment.state}" title="Bayaran pendaftaran ${escapeHtml(id)}"><span>${escapeHtml(plate)}</span><small>${escapeHtml(payment.label)}</small></span>`).join('');
+            }).join('') || '<span class="parking-plate-chip parking-payment-unknown"><small>Belum disahkan</small></span>';
             if (!DASHBOARD_PREVIEW_MODE) {
               // A day may contain multiple registrations. Never silently edit
               // the first record when the guard selected a different vehicle.
