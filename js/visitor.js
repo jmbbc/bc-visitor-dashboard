@@ -3086,7 +3086,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const etdEl = document.getElementById('etd');
     const etdNoteEl = document.getElementById('etdNote');
     const defaultEtdNote = 'Tarikh keluar boleh dipilih sehingga 2 hari selepas Tarikh masuk (maks. 3 hari termasuk tarikh masuk)';
-    const renovasiEtdNote = '1. Untuk kerja Renovasi, pemohon perlu mengisi 2 borang iaitu :-<br>a) Permit to Work (PTW) di pejabat pengurusan. Caj deposit RM 250 akan dikenakan.<br>b) Borang kebenaran masuk secara online untuk rekod keselamatan.<br><br>2. Untuk tarikh keluar, sila pilih tarikh anggaran bila kerja-kerja Renovasi selesai sama seperti tarikh yang diisi di dalam Borang Permit to Work (PTW).';
+    const renovasiEtdNote = 'Untuk tarikh keluar, sila pilih tarikh anggaran kerja Renovasi selesai, selaras dengan tarikh dalam Borang Permit to Work (PTW).';
+    const categoryPolicyNoteEl = document.getElementById('categoryPolicyNote');
+
+    function updateCategoryPolicyNote(category = categoryEl?.value?.trim() || '', subCategory = subCategoryEl?.value?.trim() || '') {
+      if (!categoryPolicyNoteEl) return;
+      const notices = [];
+      if (['Kontraktor', 'Penghantaran Barang', 'Pindah Rumah'].includes(category)) {
+        notices.push('Peringatan waktu operasi: kerja Kontraktor, Penghantaran Barang dan Pindah Rumah tidak dibenarkan pada hari Ahad atau cuti hujung minggu, atau selepas jam 6:00 petang. Sila rancang kerja mengikut waktu operasi. Ini peringatan sahaja; borang masih boleh dihantar untuk semakan.');
+      }
+      if ((category === 'Kontraktor' && subCategory === 'Renovasi') || category === 'Pindah Rumah') {
+        notices.push('Untuk Renovasi dan Pindah Rumah, deposit RM250 perlu dibayar dan borang berkaitan perlu diisi di pejabat pengurusan. Borang dalam talian ini juga perlu dilengkapkan untuk rekod keselamatan.');
+      }
+      categoryPolicyNoteEl.textContent = notices.join(' ');
+      categoryPolicyNoteEl.classList.toggle('hidden', notices.length === 0);
+    }
 
     function setEtdNote(mode) {
       if (!etdNoteEl) return;
@@ -3566,6 +3580,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     categoryEl?.addEventListener('change', (ev) => {
       const v = ev.target.value?.trim() || '';
+      updateCategoryPolicyNote(v, '');
 
       // If empty/default -> hide sub-category and company (and stayOver). For Pelawat Khas, we still need ETA (tarikh masuk) but ETD not applicable.
       if (!v) {
@@ -3668,7 +3683,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try { renderCategorySectionNote(); } catch(e) { /* ignore */ }
     });
 
-    subCategoryEl?.addEventListener('change', () => { showSubCategoryHelp(); const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); updatePaymentSummary(); });
+    subCategoryEl?.addEventListener('change', () => { showSubCategoryHelp(); const cat = categoryEl?.value?.trim() || ''; updateCategoryPolicyNote(cat); updateEtdState(cat); updatePaymentSummary(); });
     stayOverEl?.addEventListener('change', () => { const cat = categoryEl?.value?.trim() || ''; updateEtdState(cat); updateVehicleControlsForCategory(cat); refreshAllVehicleDateFields(); updatePaymentSummary(); });
     addVehicleBtn?.addEventListener('click', () => {
       if (addVehicleBtn.disabled) return;
@@ -3729,6 +3744,7 @@ document.addEventListener('DOMContentLoaded', () => {
     etdEl?.addEventListener('change', () => { refreshAllVehicleDateFields(); updatePaymentSummary(); });
 
     const initCat = categoryEl?.value?.trim() || '';
+    updateCategoryPolicyNote(initCat);
     // If initial category is empty/default or Pelawat or Pelawat Khas, hide both sub-category and company
     if (!initCat || initCat === 'Pelawat' || initCat === 'Pelawat Khas') {
       // hide sub-category and helper
@@ -4077,6 +4093,7 @@ document.addEventListener('DOMContentLoaded', () => {
         enableWhatsAppAction(payload, true);
         const repeatPreset = (repeatModeEl && repeatModeEl.checked) ? captureRepeatPreset() : null;
         form.reset();
+        updateCategoryPolicyNote('', '');
         setManageEditMode(false);
         if (repeatModeEl) repeatModeEl.checked = !!repeatPreset;
         syncRepeatModeActionState();
@@ -4222,6 +4239,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // clear handler
     clearBtn?.addEventListener('click', () => {
       form.reset();
+        updateCategoryPolicyNote('', '');
       setManageEditMode(false);
       syncRepeatModeActionState();
       saveRepeatModePreference();

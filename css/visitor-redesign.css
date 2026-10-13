@@ -41,6 +41,19 @@ body.visitor-page {
   font-weight: 400;
 }
 
+.visitor-page .category-policy-note {
+  grid-column: 1 / -1;
+  margin: 0 0 16px;
+  padding: 13px 16px;
+  border: 1px solid rgba(180, 83, 9, 0.2);
+  border-left: 4px solid var(--visitor-amber);
+  border-radius: 12px;
+  color: #713f12;
+  background: var(--visitor-warm);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
 .visitor-page .container {
   max-width: 1040px;
   padding: 0;
