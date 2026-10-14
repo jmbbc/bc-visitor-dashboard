@@ -11,3 +11,9 @@ Pecahan harian dibina hanya apabila versi polisi, kategori snapshot, hari mula/a
 Preview: `dashboard.html?preview=1&page=charges`. Data contoh kekal berasingan daripada Firebase. Ayat penjelasan penduduk dan butang salin belum dimuktamadkan.
 
 Ujian: `node --test scripts/*.test.mjs` (124 lulus ketika pelaksanaan). Ujian admin dengan data live masih perlu dibuat selepas penerbitan.
+## Kalendar bulanan
+Kalendar menggabungkan permohonan Pelawat bermalam yang meliputi bulan dipilih, termasuk permohonan bermula bulan sebelumnya. Satu tarikh boleh mempunyai beberapa pendaftaran; setiap satu dipaparkan berasingan apabila tarikh diklik. Permohonan dibatalkan tidak dimasukkan.
+
+Jumlah pada kalendar ialah kiraan asal kenderaan utama yang boleh disahkan daripada snapshot, bukan jumlah bayaran atau caj rasmi selepas pelarasan. Rekod tidak lengkap dan kenderaan tambahan ditanda semakan; jumlah disahkan tidak dianggap jumlah penuh. Klik tarikh membaca caj rasmi bagi setiap pendaftaran hari itu dan menunjukkan jumlah/baki seluruh pendaftaran.
+
+Pertukaran bulan menggunakan sejarah unit yang sudah dimuat. Had carian kekal 201 rekod; tiada query semua unit atau listener automatik. Carian semula menyegarkan cache caj. Ujian kalendar merangkumi rentas bulan, beberapa pendaftaran sehari, deduplikasi, pembatalan dan pecahan yang belum disahkan.

@@ -2,7 +2,7 @@ import {explainParkingCharge, malaysiaDate} from './charge-explanation-model.mjs
 // Read-only admin tool; preview uses fixtures and never reads Firebase.
 const params = new URLSearchParams(location.search);
 const preview=params.get('preview')==='1';
-if (!preview || params.get('page') === 'charges') {
+if (preview && params.get('page') === 'charges') {
   const fixtures = [
     {unit:'B1-3-2',id:'DEMO-101',plate:'VFS 1418',category:'Kategori 1',from:'2026-10-10',to:'2026-10-12',paid:5,reason:'Tiga hari percuma sudah digunakan pada 7–9 Oktober. Sambungan ini masih dalam kitaran sama; hari ke-4 hingga ke-6 dikenakan RM5 sehari.',days:[['10/10/2026','Hari ke-4','Kelayakan percuma sudah digunakan',5],['11/10/2026','Hari ke-5','Sambungan kitaran sama',5],['12/10/2026','Hari ke-6','Sambungan kitaran sama',5]]},
     {unit:'B1-3-2',id:'DEMO-100',plate:'VFS 1418',category:'Kategori 1',from:'2026-10-07',to:'2026-10-09',paid:0,reason:'Permohonan pertama dalam kitaran ini menggunakan tiga hari percuma.',days:[['07/10/2026','Hari pertama','Kelayakan percuma',0],['08/10/2026','Hari kedua','Kelayakan percuma',0],['09/10/2026','Hari ketiga','Kelayakan percuma',0]]},
