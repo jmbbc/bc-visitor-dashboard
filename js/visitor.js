@@ -2,7 +2,7 @@
 import {
   collection, serverTimestamp, Timestamp, doc, setDoc, deleteDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-import {nextFreeParkingDate,quoteFromUnitState} from './unit-cooldown.mjs?v=20260917-2';
+import {nextFreeParkingDate,quoteFromUnitState} from './unit-cooldown.mjs?v=20261015-1';
 import {createRegistrationVerification,verificationExpiryDate,isVerificationCode} from './registration-verification.mjs?v=20260919-1';
 
 /* ---------- full units array (from your List.csv) ---------- */
@@ -462,7 +462,7 @@ function parkingStateFromLock(unit, lock){
   if(!lock) return null;
   if(!Number.isInteger(lock.mainUsageDays)||![1,2,3].includes(Number(lock.parkingCategory))||!lock.cycleStart||!(lock.lastAnyEnd||lock.endDate)) return {legacyMissingUsage:true};
   const key=(value)=>value?.toDate?dateKeyForPolicy(value.toDate()):dateKeyForPolicy(value instanceof Date?value:new Date(value));
-  return {unitId:unit,category:Number(lock.parkingCategory),cycleStart:key(lock.cycleStart),mainUsageDays:lock.mainUsageDays,lastMainEnd:key(lock.lastMainEnd||lock.endDate),lastAnyEnd:key(lock.lastAnyEnd||lock.endDate)};
+  return {pendingUsageCorrection:lock.parkingReviewRequired===true&&!!lock.parkingCorrectionResponseId,unitId:unit,category:Number(lock.parkingCategory),cycleStart:key(lock.cycleStart),mainUsageDays:lock.mainUsageDays,lastMainEnd:key(lock.lastMainEnd||lock.endDate),lastAnyEnd:key(lock.lastAnyEnd||lock.endDate)};
 }
 
 function parkingPriorStateFromLock(unit, lock){

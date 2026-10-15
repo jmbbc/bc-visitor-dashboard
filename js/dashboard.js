@@ -2839,7 +2839,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     const inlineStyle = catStyleMap[catClass] || 'background:#e5e7eb;color:#0f172a; border:1px solid rgba(0,0,0,0.06);font-size:10px;padding:6px 8px;border-radius:8px;min-height:28px;min-width:96px;max-width:110px;display:inline-flex;align-items:center;justify-content:center;line-height:1.2;box-shadow:0 1px 3px rgba(15,23,42,0.12);text-align:center;';
     const categoryPillHtml = `<div class="cat-stack"><span class="cat-badge ${catClass}" style="${inlineStyle}">${escapeHtml(categoryDisplay)}</span>${subCategoryHtml}</div>`;
     const statusClass = ['Checked In','Approved'].includes(r.status) ? 'pill-in' : (r.status === 'Checked Out' ? 'pill-out' : 'pill-pending');
-    const registrationStatusLabel = ({'Pending Payment':'Menunggu bayaran','Approved':'Diluluskan','Checked In':'Sudah masuk','Checked Out':'Sudah keluar','Cancelled Before Entry':'Dibatalkan sebelum masuk'})[r.status] || r.status || 'Pending';
+    const registrationStatusLabel = r.parkingUnused ? 'Tidak menggunakan parkir' : ({'Pending Payment':'Menunggu bayaran','Approved':'Diluluskan','Checked In':'Sudah masuk','Checked Out':'Sudah keluar','Cancelled Before Entry':'Dibatalkan sebelum masuk'})[r.status] || r.status || 'Pending';
 
     // Unit category + arrears/payment computation (used by two columns)
     const live = unitsCache[r.hostUnit] || {};
@@ -2927,6 +2927,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       <td><div class="reg-status-stack"><span class="status-pill ${statusClass}">${escapeHtml(registrationStatusLabel)}</span><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span>${badge}</div></td>
       <td><div class="actions registration-actions">
         <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
+        ${dashboardHasAdminClaim && !DASHBOARD_PREVIEW_MODE && r.category==='Pelawat' && String(r.stayOver).toLowerCase()==='yes' && ['Pending','Pending Payment','Approved'].includes(r.status) && !r.parkingUnused ? `<button class="btn btn-ghost" data-action="unused" data-id="${escapeHtml(r.id)}">Tidak menggunakan parkir</button>` : ''}
         <button class="btn btn-ghost" data-action="edit" data-id="${r.id}" title="Edit tarikh atau status">✏️ Edit</button>
         <button class="btn" data-action="in" data-id="${r.id}" ${['Pending Payment','Cancelled Before Entry','Checked Out'].includes(r.status)?'disabled':''}>✓ Masuk</button>
         <button class="btn btn-ghost" data-action="out" data-id="${r.id}" ${r.status!=='Checked In'?'disabled':''}>↗ Keluar</button>
@@ -2948,6 +2949,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
         window.dispatchEvent(new CustomEvent('dashboard:open-payment', { detail: { registrationId: id } }));
         return;
       }
+      if (action === 'unused') { window.dispatchEvent(new CustomEvent('dashboard:open-payment', {detail:{registrationId:id,mode:'unused'}})); return; }
       if (action === 'edit') { openEditModalFor(id); return; }
       await doStatusUpdate(id, action === 'in' ? 'Checked In' : 'Checked Out');
     });
@@ -4577,7 +4579,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       }
 
       // filter only Pelawat category who are staying over (Bermalam)
-      const pelawatRows = rows.filter(r => determineCategory(r) === 'Pelawat' && String((r.stayOver || '').toLowerCase()) === 'yes');
+      const pelawatRows = rows.filter(r => r.status!=='Cancelled Before Entry' && !r.parkingUnused && determineCategory(r) === 'Pelawat' && String((r.stayOver || '').toLowerCase()) === 'yes');
 
       const total = pelawatRows.length;
       const assigned = pelawatRows.filter(r => r.parkingLot && String(r.parkingLot).trim()).length;
@@ -4707,6 +4709,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
       // Only Pelawat category AND staying over (Bermalam) AND overlaps the rendered week window
       const pelawatAll = rows.filter(r => {
+        if(r.status==='Cancelled Before Entry'||r.parkingUnused)return false;
         if (determineCategory(r) !== 'Pelawat') return false;
         if (String((r.stayOver || '').toLowerCase()) !== 'yes') return false;
         const eta = r.eta && r.eta.toDate ? r.eta.toDate() : (r.eta ? new Date(r.eta) : null);

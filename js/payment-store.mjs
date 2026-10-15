@@ -67,6 +67,7 @@ export function createPaymentStore({db, auth, sdk}) {
         const settled=chargeData.amountSen>0 && Number(chargeData.paidSen||0)<chargeData.amountSen && paidSen>=chargeData.amountSen;
         const responseRef=doc(db,'responses',chargeId),response=await tx.get(responseRef);
         if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
+        if(response.data().parkingUnused===true)throw new Error('Pendaftaran tidak menggunakan parkir; bayaran baharu tidak dibenarkan.');
         const lockRef=doc(db,'overnightLocks',`unit-${response.data().hostUnit}`),lock=await tx.get(lockRef);
         const paymentStatus=paidSen>chargeData.amountSen?'overpaid':paidSen===chargeData.amountSen?'paid':'partial';
         tx.set(ref, {chargeId, reference:id, amountSen, state:'active', createdBy:by, createdAt:serverTimestamp()});

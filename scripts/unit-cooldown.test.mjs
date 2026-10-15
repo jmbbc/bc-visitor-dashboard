@@ -93,3 +93,48 @@ test('category 2 counter beyond day 30 remains payable and does not block regist
   assert.equal(result.totalSen,20500);
   assert.equal(result.nextState.mainUsageDays,42);
 });
+
+test('category 2 exact October example resets only on 21 October',()=>{
+  const first=quoteFromUnitState({unitId:'TEST-2',category:2,start:'2026-10-15',end:'2026-10-17'});
+  assert.deepEqual(first.lines.map(l=>l.amountSen),[0,500,500]);assert.equal(first.totalSen,1000);
+  assert.equal(nextFreeParkingDate({category:2,lastAnyEnd:'2026-10-17'}),'2026-10-21');
+  const saved=JSON.stringify(first.nextState);
+  const early=quoteFromUnitState({unitId:'TEST-2',category:2,state:first.nextState,start:'2026-10-20',end:'2026-10-20'});
+  assert.equal(early.lines[0].day,4);assert.equal(early.totalSen,500);
+  const second=quoteFromUnitState({unitId:'TEST-2',category:2,state:first.nextState,start:'2026-10-21',end:'2026-10-23'});
+  assert.deepEqual(second.lines.map(l=>l.day),[1,2,3]);assert.deepEqual(second.lines.map(l=>l.amountSen),[0,500,500]);
+  assert.equal(second.nextState.cycleStart,'2026-10-21');assert.equal(second.nextState.mainUsageDays,3);assert.equal(JSON.stringify(first.nextState),saved);
+});
+test('category 2 additional vehicle ending on 18 October delays new entitlement to 22 October',()=>{
+  const state={unitId:'TEST-2',category:2,mainUsageDays:3,cycleStart:'2026-10-15',lastAnyEnd:'2026-10-18'};
+  const on21=quoteFromUnitState({unitId:'TEST-2',category:2,state,start:'2026-10-21',end:'2026-10-21'});
+  const on22=quoteFromUnitState({unitId:'TEST-2',category:2,state,start:'2026-10-22',end:'2026-10-22'});
+  assert.equal(on21.lines[0].day,4);assert.equal(on21.totalSen,500);assert.equal(on22.lines[0].day,1);assert.equal(on22.totalSen,0);
+});
+test('category 1 restores three free days after exact October cooldown',()=>{
+  const first=quoteFromUnitState({unitId:'TEST-1',category:1,start:'2026-10-15',end:'2026-10-17'});
+  assert.deepEqual(first.lines.map(l=>l.amountSen),[0,0,0]);assert.equal(first.totalSen,0);
+  const early=quoteFromUnitState({unitId:'TEST-1',category:1,state:first.nextState,start:'2026-10-20',end:'2026-10-20'});
+  assert.equal(early.lines[0].day,4);assert.equal(early.totalSen,500);
+  const fresh=quoteFromUnitState({unitId:'TEST-1',category:1,state:first.nextState,start:'2026-10-21',end:'2026-10-23'});
+  assert.deepEqual(fresh.lines.map(l=>l.day),[1,2,3]);assert.deepEqual(fresh.lines.map(l=>l.amountSen),[0,0,0]);
+  assert.equal(fresh.nextState.cycleStart,'2026-10-21');assert.equal(fresh.nextState.mainUsageDays,3);
+  const next=quoteFromUnitState({unitId:'TEST-1',category:1,state:fresh.nextState,start:'2026-10-24',end:'2026-10-24'});
+  assert.equal(next.lines[0].day,4);assert.equal(next.totalSen,500);
+});
+test('category 1 to 2 at month boundary continues day count using new category rates',()=>{
+  const state={unitId:'TEST-TRANSITION',category:1,mainUsageDays:3,cycleStart:'2026-10-29',lastAnyEnd:'2026-10-31'};
+  const original=JSON.stringify(state);
+  const result=quoteFromUnitState({unitId:state.unitId,category:2,state,start:'2026-11-01',end:'2026-11-03'});
+  assert.equal(result.status,'quoted');assert.deepEqual(result.lines.map(l=>l.day),[4,5,6]);assert.deepEqual(result.lines.map(l=>l.amountSen),[500,1000,1000]);assert.equal(result.totalSen,2500);
+  assert.equal(result.nextState.category,2);assert.equal(result.nextState.cycleStart,'2026-10-29');assert.equal(result.nextState.mainUsageDays,6);assert.equal(JSON.stringify(state),original);
+});
+test('category 1 to 2 after three complete cooldown days starts fresh category 2 entitlement',()=>{
+  const state={unitId:'TEST-TRANSITION',category:1,mainUsageDays:3,cycleStart:'2026-10-29',lastAnyEnd:'2026-10-31'};
+  const result=quoteFromUnitState({unitId:state.unitId,category:2,state,start:'2026-11-04',end:'2026-11-06'});
+  assert.deepEqual(result.lines.map(l=>l.day),[1,2,3]);assert.deepEqual(result.lines.map(l=>l.amountSen),[0,500,500]);assert.equal(result.nextState.cycleStart,'2026-11-04');
+});
+test('category 1 to 2 overlapping dates still require review',()=>{
+  const state={unitId:'TEST-TRANSITION',category:1,mainUsageDays:3,cycleStart:'2026-10-29',lastAnyEnd:'2026-10-31'};
+  assert.equal(quoteFromUnitState({unitId:state.unitId,category:2,state,start:'2026-10-31',end:'2026-11-02'}).status,'requires_review');
+});

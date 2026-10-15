@@ -13,6 +13,7 @@ export function nextFreeParkingDate({category,lastAnyEnd}) {
 export function quoteFromUnitState({unitId, category, state = null, start, end, lastAnyEnd = end}) {
   const unit=String(unitId || '').trim().toUpperCase();
   const requested=datesInclusive(start,end);
+  if(state?.pendingUsageCorrection)return {status:'requires_review',reason:'parking_usage_correction',totalSen:null};
   if(!unit || ![1,2,3].includes(category)) throw new Error('Unit atau kategori tidak sah.');
   if(requested.length>30) throw new Error('Maksimum 30 hari bagi satu permohonan.');
   // Category 3 has no free entitlement or cooldown balance: every requested
@@ -47,7 +48,9 @@ export function quoteFromUnitState({unitId, category, state = null, start, end, 
     if(start<=state.lastAnyEnd) return {status:'requires_review',reason:'overlapping_or_out_of_order',totalSen:null};
     if(start<nextFreeKey){
       categoryOneTransitionException=category===1&&[2,3].includes(state.category);
-      if(state.category!==category&&!categoryOneTransitionException)return {status:'requires_review',reason:'category_transition',totalSen:null};
+      // New applications use Category 2 rates without resetting an active Category 1 cycle.
+      const categoryOneToTwoContinuation=state.category===1&&category===2;
+      if(state.category!==category&&!categoryOneTransitionException&&!categoryOneToTwoContinuation)return {status:'requires_review',reason:'category_transition',totalSen:null};
       // Category 3 has no free entitlement. Moving from category 3 to 1
       // starts a fresh category-1 entitlement immediately. Category 2 to 1
       // keeps the same counter, but benefits from category 1's three free days.

@@ -80,9 +80,22 @@ service cloud.firestore {
         || (isAdmin() && isValidOvernightLock(request.resource.data, lockId)
           && isAdminParkingReviewUpdate(resource.data, request.resource.data));
       allow update: if isPaidCooldownReset(resource.data, request.resource.data);
+      allow update: if isAdmin() && isValidOvernightLock(request.resource.data, lockId)
+        && isUnusedParkingCorrection(request.resource.data);
+
       allow delete, list: if false;
     }
 
+    function isUnusedParkingCorrection(data) {
+      let responsePath = /databases/$(database)/documents/responses/$(data.parkingCorrectionResponseId);
+      return data.parkingCorrectionResponseId is string
+        && existsAfter(responsePath)
+        && getAfter(responsePath).data.hostUnit == data.unit
+        && getAfter(responsePath).data.parkingUnused == true
+        && getAfter(responsePath).data.parkingUnusedBy == request.auth.uid
+        && getAfter(responsePath).data.parkingUnusedAt == request.time
+        && data.parkingReviewedBy == request.auth.uid && data.parkingReviewedAt == request.time;
+    }
     function isPaidCooldownReset(oldData, newData) {
       let chargePath = /databases/$(database)/documents/parkingCharges/$(oldData.responseId);
       let responsePath = /databases/$(database)/documents/responses/$(oldData.responseId);
@@ -214,7 +227,8 @@ service cloud.firestore {
 
     function isStaffPaymentUpdate(oldData, newData, id) {
       let receiptPath = /databases/$(database)/documents/parkingReceipts/$(newData.lastReceiptId);
-      return newData.diff(oldData).affectedKeys().hasOnly(['paidSen','paymentStatus','lastReceiptId'])
+      return getAfter(/databases/$(database)/documents/responses/$(id)).data.get('parkingUnused', false) == false
+        && newData.diff(oldData).affectedKeys().hasOnly(['paidSen','paymentStatus','lastReceiptId'])
         && newData.paidSen is int && newData.paidSen > oldData.get('paidSen', 0)
         && newData.paymentStatus in ['partial','paid','overpaid']
         && existsAfter(receiptPath)
@@ -246,6 +260,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['chargeId','reference','amountSen','state','createdBy','createdAt'])
         && request.resource.data.chargeId is string
         && exists(/databases/$(database)/documents/parkingCharges/$(request.resource.data.chargeId))
+        && getAfter(/databases/$(database)/documents/responses/$(request.resource.data.chargeId)).data.get('parkingUnused', false) == false
         && request.resource.data.reference == id
         && request.resource.data.amountSen is int
         && request.resource.data.amountSen > 0 && request.resource.data.amountSen <= 100000000
@@ -311,9 +326,11 @@ service cloud.firestore {
           'amendToken',
           'verificationCode','verificationExpiresAt',
           'parkingQuote','parkingReviewRequired','parkingReviewReason','parkingPriorState',
+          'parkingUnused','parkingUnusedReason','parkingUnusedBy','parkingUnusedAt',
           // unit snapshot fields
           'unitCategory','unitArrears','unitArrearsAmount','unitLastUpdatedAt'
         ])
+        && (!('parkingUnused' in data) || (isAdmin() && data.parkingUnused == true && data.status == 'Cancelled Before Entry' && data.parkingUnusedReason is string && data.parkingUnusedReason.size() >= 3 && data.parkingUnusedReason.size() <= 400 && data.parkingUnusedBy is string && data.parkingUnusedAt is timestamp))
         // type checks
         && (data.hostUnit is string)
         && (data.hostUnitFound is bool || !('hostUnitFound' in data))
@@ -423,7 +440,7 @@ service cloud.firestore {
 
     function isValidOvernightLock(data, lockId) {
       return data is map
-        && data.keys().hasOnly(['unit','startDate','endDate','category','stayOver','responseId','updatedAt','amendToken','parkingCategory','cycleStart','mainUsageDays','lastMainEnd','lastAnyEnd','parkingPolicyVersion','parkingReviewRequired','parkingStateMigratedAt','parkingReviewedAt','parkingReviewedBy'])
+        && data.keys().hasOnly(['unit','startDate','endDate','category','stayOver','responseId','updatedAt','amendToken','parkingCategory','cycleStart','mainUsageDays','lastMainEnd','lastAnyEnd','parkingPolicyVersion','parkingReviewRequired','parkingStateMigratedAt','parkingReviewedAt','parkingReviewedBy','parkingCorrectionResponseId'])
         && (data.unit is string)
         && (data.startDate is timestamp)
         && (data.endDate is timestamp)

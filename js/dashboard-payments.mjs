@@ -1,7 +1,8 @@
 import * as sdk from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 import {onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 import './firebase-init.js';
-import {createPaymentStore} from './payment-store.mjs?v=20261007-2';
+import {createUnusedParkingStore} from './parking-unused-store.mjs?v=20261015-1';
+import {createPaymentStore} from './payment-store.mjs?v=20261015-1';
 import {parseRinggit} from './parking-payments.mjs';
 
 if (new URLSearchParams(location.search).get('preview') !== '1') {
@@ -21,7 +22,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     <form data-create hidden><h4>Keputusan admin</h4><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj rasmi (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab keputusan <input name="reason" required minlength="3" maxlength="500"></label> <button>Muktamadkan Caj</button></form>
     <div class="payment-totals" data-totals hidden></div>
     <form data-record hidden><h4>Rekod pembayaran</h4><p class="payment-form-hint">Masukkan amaun sebenar yang diterima dan nombor resit pembayaran.</p><label>Nombor resit pembayaran <input name="reference" required placeholder="Contoh: BC20261007" autocomplete="off"></label> <label>Amaun diterima (RM) <input name="amount" required inputmode="decimal" placeholder="0.00"></label><div class="payment-form-actions"><button type="button" class="payment-cancel" data-cancel-payment>Batal</button><button type="submit">Simpan rekod bayaran</button></div></form>
-    <form data-adjust hidden><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj baharu (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab pelarasan <input name="reason" required maxlength="500"></label> <button>Laras caj</button></form>
+    <form data-adjust hidden><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj baharu (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab pelarasan <input name="reason" required maxlength="500"></label> <button>Laras caj</button></form><form data-unused hidden><h4>Tidak Menggunakan Parkir</h4><p>Admin telah mengesahkan seluruh permohonan tidak digunakan. Rekod dikekalkan untuk audit. Caj belum berbayar akan dibatalkan; counter dipulihkan jika sejarah lengkap. Caj permohonan selepasnya ditanda untuk semakan.</p><label>Sebab / remark <textarea name="reason" required minlength="3" maxlength="400" rows="2"></textarea></label><label>Taip ID pendaftaran untuk sahkan <input name="confirmId" required autocomplete="off"></label><button type="submit">Sahkan Tidak Menggunakan Parkir</button></form>
     </section>
     <section id="receiptsTabPanel" class="payment-tab-panel" role="tabpanel" aria-labelledby="receiptsTabButton" data-pane="receipts" hidden>
     <div class="payment-receipts"><div data-receipts></div></div>
@@ -34,6 +35,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
   document.body.append(panel);
   const find = s => panel.querySelector(s);
   const store = createPaymentStore({db:window.__FIRESTORE, auth:window.__AUTH, sdk});
+  const unusedStore=createUnusedParkingStore({db:window.__FIRESTORE,auth:window.__AUTH,sdk});
   let registration = '', loaded = null, selected = null, isAdmin = false, allowed = false, busy = false;
   let previousFocus = null, previousBodyOverflow = '';
   const rm = n => (n/100).toFixed(2);
@@ -41,7 +43,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
   const tell = message => {find('[data-summary]').textContent = message;};
   function clear() {
     registration = ''; loaded = null; selected = null;
-    ['create','record','adjust','split','void','cancel'].forEach(key => find(`[data-${key}]`).hidden = true);
+    ['create','record','adjust','split','void','cancel','unused'].forEach(key => find(`[data-${key}]`).hidden = true);
     find('[data-receipts]').replaceChildren();
     find('[data-receipt-count]').textContent='0';
     find('[data-totals]').hidden=true;
@@ -53,11 +55,13 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     if (window.__AUTH.currentUser !== loadingUser) return;
     registration = id; loaded = result;
     const hasCharge=!!result.charge,response=result.response||{},quote=response.parkingQuote||{};
-    find('[data-create]').hidden = hasCharge || !isAdmin;
-    find('[data-record]').hidden = !hasCharge;
+    find('[data-create]').hidden = hasCharge || !isAdmin||response.parkingUnused===true;
+    find('[data-record]').hidden = !hasCharge||response.parkingUnused===true;
     find('[data-adjust]').hidden = !hasCharge || !isAdmin;
     const eta=response.eta?.toDate?response.eta.toDate():null;
     find('[data-cancel]').hidden=!isAdmin||!eta||eta.getTime()<=Date.now()||['Checked In','Checked Out','Cancelled Before Entry'].includes(response.status);
+    find('[data-unused]').hidden=!isAdmin||response.category!=='Pelawat'||String(response.stayOver).toLowerCase()!=='yes'||!['Pending','Pending Payment','Approved'].includes(response.status)||response.parkingUnused===true;
+    if(response.parkingUnused)tell('Tidak menggunakan parkir: '+(response.parkingUnusedReason||''));
     const originalAmount=Number(response.unitArrearsAmount),originalCategory=Number.isFinite(originalAmount)?(originalAmount<=1?1:originalAmount<=400?2:3):null;
     const selectedCategory=originalCategory||result.currentCategory||1;
     find('[data-create] select[name="category"]').value=String(selectedCategory);
@@ -122,6 +126,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     await load(id);
   });
   handle('void',async data=>{const id=registration; await store.voidReceipt({reference:selected.reference,reason:data.reason}); await load(id);});
+  handle('unused',async data=>{const id=registration;const result=await unusedStore.markUnused({registrationId:id,reason:data.reason,confirmId:data.confirmId});await load(id);tell('Rekod ditanda tidak menggunakan parkir. '+(result.restored?'Counter dipulihkan.':'Unit dihantar untuk semakan counter.')+' '+result.affected+' pendaftaran selepasnya perlu semakan caj.');});
   handle('cancel',async data=>{const id=registration;await store.cancelBeforeEntry({registrationId:id,reason:data.reason});await load(id);});
   function closePanel(){
     if(panel.hidden||busy)return;
@@ -164,7 +169,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     find('[data-load] input[name="registration"]').value=id;
     if(!allowed){tell('Akaun ini tiada hak pembayaran. Log masuk sebagai admin atau pengawal.');find('[data-close]').focus({preventScroll:true});return;}
     try {await load(id);} catch(error) {tell(error.message || 'Rekod bayaran gagal dimuat.');}
-    focusPaymentField();
+    if(event.detail?.mode==='unused'&&!find('[data-unused]').hidden){find('[data-unused] textarea').focus();find('[data-unused]').scrollIntoView({block:'nearest'});}else focusPaymentField();
   });
   onAuthStateChanged(window.__AUTH,async user=>{
     clear(); allowed=false; isAdmin=false;

@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {planUnusedParking} from '../js/parking-unused-policy.mjs';
+import {quoteFromUnitState} from '../js/unit-cooldown.mjs';
+import {createUnusedParkingStore} from '../js/parking-unused-store.mjs';
+const r=(id,start,end,day,total)=>({id,hostUnit:'TEST',category:'Pelawat',stayOver:'Yes',status:'Pending Payment',unitCategory:'Kategori 1',eta:start+'T00:00:00+08:00',etd:end+'T00:00:00+08:00',parkingPriorState:{exists:false},parkingQuote:{mainStartDay:day,mainTotalSen:total}});
+test('unused latest registration restores previous counter and cooldown end',()=>{const plan=planUnusedParking([r('a','2026-10-01','2026-10-03',1,0),r('b','2026-10-04','2026-10-06',4,1500)],'b');assert.equal(plan.complete,true);assert.equal(plan.state.mainUsageDays,3);assert.equal(plan.state.lastAnyEnd,'2026-10-03');assert.deepEqual(plan.affected,[])});
+test('historical no-show rebases remaining use and flags later charges without changing amounts',()=>{const records=[r('a','2026-10-01','2026-10-03',1,0),r('b','2026-10-04','2026-10-06',4,1500)];const before=JSON.stringify(records),plan=planUnusedParking(records,'a');assert.equal(plan.state.mainUsageDays,3);assert.deepEqual(plan.affected,['b']);assert.equal(JSON.stringify(records),before)});
+test('only registration unused produces zero active usage',()=>{const plan=planUnusedParking([r('a','2026-10-01','2026-10-03',1,0)],'a');assert.equal(plan.complete,true);assert.equal(plan.state,null)});
+test('checked-in and cancelled records cannot be marked unused',()=>{for(const status of ['Checked In','Checked Out','Cancelled Before Entry'])assert.throws(()=>planUnusedParking([{...r('a','2026-10-01','2026-10-03',1,0),status}],'a'))});
+test('incomplete prior history requires review instead of inventing a fresh cycle',()=>{const record={...r('a','2026-10-01','2026-10-03',4,1500),parkingPriorState:null};assert.equal(planUnusedParking([record],'a').complete,false)});
+test('unresolved usage correction blocks automatic quotes even for category 3',()=>{for(const category of [1,2,3])assert.equal(quoteFromUnitState({unitId:'TEST',category,start:'2026-10-10',end:'2026-10-12',state:{pendingUsageCorrection:true}}).status,'requires_review')});
+test('guard is rejected before any database access',async()=>{const store=createUnusedParkingStore({db:{},auth:{currentUser:{getIdTokenResult:async()=>({claims:{guard:true}})}},sdk:{}});await assert.rejects(store.markUnused({registrationId:'a',reason:'Tidak hadir',confirmId:'a'}),/Admin sahaja/)});

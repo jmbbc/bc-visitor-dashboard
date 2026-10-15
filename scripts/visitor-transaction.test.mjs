@@ -146,3 +146,56 @@ test('local management replaces a plate without appending a third vehicle',async
   assert.deepEqual(Array.from(updated.vehicleNumbers),['CAR-A','CAR-C']);
   assert.equal(updated.__replaceAmendedVehicles,undefined);
 });
+
+for(const pending of [true,false])test(`category 2 transaction persists fresh cycle after full cooldown with old payment ${pending?'pending':'settled'}`,async()=>{
+  const state={unitId:'TEST-2',category:2,mainUsageDays:3,cycleStart:'2026-10-15',lastMainEnd:'2026-10-17',lastAnyEnd:'2026-10-17'};
+  const oldCharge={registrationId:'old-registration',amountSen:1000,paidSen:pending?0:1000,paymentStatus:pending?'unconfirmed':'paid'};
+  const oldChargeCopy=JSON.stringify(oldCharge),writes=[],reads=[];
+  const lock={...state,startDate:stamp('2026-10-15'),endDate:stamp('2026-10-17'),responseId:'old-registration'};
+  const context={...verificationHelpers,window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
+    clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'fixture-category2',doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,
+    dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),dedupeTransactionUnavailable:false,serverTimestamp:()=> 'SERVER_TIME',Timestamp:{fromDate:d=>stamp(d)},computeArrearsCategory:()=>2,
+    parkingStateFromLock:()=>state,parkingPriorStateFromLock:()=>({exists:true,category:2,mainUsageDays:3}),quoteFromUnitState,
+    runTransaction:async(_db,callback)=>callback({get:async ref=>{reads.push(ref);return {exists:()=>ref.col==='overnightLocks',data:()=>lock}},set:(ref,data)=>writes.push({ref,data})})};
+  vm.createContext(context);vm.runInContext(body,context);
+  const result=await context.createResponseWithDedupe({hostUnit:'TEST-2',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-10-21'),etd:stamp('2026-10-23'),amendToken:'fixture-category2',unitArrearsAmount:100,vehicleNo:'TESTCAR',status:'Pending'});
+  assert.equal(result.success,true);
+  const next=writes.find(w=>w.ref.col==='overnightLocks').data,response=writes.find(w=>w.ref.col==='responses').data,newCharge=writes.find(w=>w.ref.col==='parkingCharges');
+  assert.equal(next.cycleStart.toDate().toISOString().slice(0,10),'2026-10-21');assert.equal(next.mainUsageDays,3);assert.equal(next.parkingCategory,2);
+  assert.equal(response.parkingQuote.mainStartDay,1);assert.equal(response.parkingQuote.mainEndDay,3);assert.equal(response.parkingQuote.mainTotalSen,1000);
+  assert.equal(response.status,'Pending Payment');assert.equal(newCharge.data.amountSen,1000);assert.equal(newCharge.data.paidSen,0);
+  assert.ok(!writes.some(w=>w.ref.id==='old-registration'));assert.ok(!reads.some(r=>r.col==='parkingCharges'));
+  assert.equal(JSON.stringify(oldCharge),oldChargeCopy);
+});
+test('category 1 pending old charge does not block saving three new free days',async()=>{
+  const state={unitId:'TEST-1',category:1,mainUsageDays:6,cycleStart:'2026-10-12',lastMainEnd:'2026-10-17',lastAnyEnd:'2026-10-17'};
+  const lock={...state,startDate:stamp('2026-10-15'),endDate:stamp('2026-10-17'),responseId:'old-unpaid'};
+  const writes=[],reads=[];
+  const context={...verificationHelpers,window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
+    clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'fixture-category1',doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,
+    dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),dedupeTransactionUnavailable:false,serverTimestamp:()=> 'SERVER_TIME',Timestamp:{fromDate:d=>stamp(d)},computeArrearsCategory:()=>1,
+    parkingStateFromLock:()=>state,parkingPriorStateFromLock:()=>({exists:true,category:1,mainUsageDays:6}),quoteFromUnitState,
+    runTransaction:async(_db,callback)=>callback({get:async ref=>{reads.push(ref);return {exists:()=>ref.col==='overnightLocks',data:()=>lock}},set:(ref,data)=>writes.push({ref,data})})};
+  vm.createContext(context);vm.runInContext(body,context);
+  const result=await context.createResponseWithDedupe({hostUnit:'TEST-1',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-10-21'),etd:stamp('2026-10-23'),amendToken:'fixture-category1',unitArrearsAmount:0,vehicleNo:'TESTCAR',status:'Pending'});
+  assert.equal(result.success,true);
+  const next=writes.find(w=>w.ref.col==='overnightLocks').data,response=writes.find(w=>w.ref.col==='responses').data;
+  assert.equal(next.cycleStart.toDate().toISOString().slice(0,10),'2026-10-21');assert.equal(next.mainUsageDays,3);
+  assert.equal(response.parkingQuote.mainStartDay,1);assert.equal(response.parkingQuote.mainEndDay,3);assert.equal(response.parkingQuote.mainTotalSen,0);
+  assert.ok(!writes.some(w=>w.ref.col==='parkingCharges'));assert.ok(!writes.some(w=>w.ref.id==='old-unpaid'));assert.ok(!reads.some(r=>r.col==='parkingCharges'));
+});
+test('category 1 to 2 continuation saves new rates without rewriting earlier registrations',async()=>{
+  const writes=[],state={unitId:'TEST-TRANSITION',category:1,mainUsageDays:3,cycleStart:'2026-10-29',lastAnyEnd:'2026-10-31'};
+  const lock={...state,startDate:stamp('2026-10-29'),endDate:stamp('2026-10-31'),responseId:'old-category1'};
+  const context={...verificationHelpers,window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,
+    clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'fixture-transition',doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,
+    dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),dedupeTransactionUnavailable:false,serverTimestamp:()=> 'SERVER_TIME',Timestamp:{fromDate:d=>stamp(d)},computeArrearsCategory:()=>2,
+    parkingStateFromLock:()=>state,parkingPriorStateFromLock:()=>({exists:true,category:1,mainUsageDays:3}),quoteFromUnitState,
+    runTransaction:async(_db,callback)=>callback({get:async ref=>({exists:()=>ref.col==='overnightLocks',data:()=>lock}),set:(ref,data)=>writes.push({ref,data})})};
+  vm.createContext(context);vm.runInContext(body,context);
+  await context.createResponseWithDedupe({hostUnit:state.unitId,category:'Pelawat',stayOver:'Yes',eta:stamp('2026-11-01'),etd:stamp('2026-11-03'),amendToken:'fixture-transition',unitArrearsAmount:100,vehicleNo:'TESTCAR',status:'Pending'});
+  const next=writes.find(w=>w.ref.col==='overnightLocks').data,response=writes.find(w=>w.ref.col==='responses').data,charge=writes.find(w=>w.ref.col==='parkingCharges').data;
+  assert.equal(next.parkingCategory,2);assert.equal(next.mainUsageDays,6);assert.equal(next.cycleStart.toDate().toISOString().slice(0,10),'2026-10-29');assert.equal(next.parkingReviewRequired,false);
+  assert.equal(response.parkingQuote.mainStartDay,4);assert.equal(response.parkingQuote.mainEndDay,6);assert.equal(response.parkingQuote.mainTotalSen,2500);assert.equal(response.status,'Pending Payment');assert.equal(charge.amountSen,2500);
+  assert.ok(!writes.some(w=>w.ref.id==='old-category1'));
+});
