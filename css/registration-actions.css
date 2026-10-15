@@ -5,7 +5,8 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  gap: 4px !important;
+  gap: 5px !important;
+  align-items: stretch !important;
   box-sizing: border-box;
 }
 .registration-table .registration-actions button {
@@ -21,3 +22,4 @@
 .registration-table .registration-actions [data-action="unused"] {
   grid-column: 1 / -1;
 }
+.registration-table .registration-actions [data-action="delete"] { grid-column: 1 / -1; }

@@ -2926,8 +2926,8 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       <td><div class="reg-category-layout">${categoryPillHtml}<div class="reg-finance-grid"><div class="reg-finance-item ${arrearsFinanceClass}"><span class="label">Tunggakan</span><span class="value">${arrearsValueHtml}</span></div><div class="reg-finance-item ${chargeFinanceClass}"><span class="label">Caj parkir</span><span class="value">${chargeValueHtml}</span></div></div></div></td>
       <td><div class="reg-status-stack"><span class="status-pill ${statusClass}">${escapeHtml(registrationStatusLabel)}</span><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span>${badge}</div></td>
       <td><div class="actions registration-actions">
-        <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
         ${dashboardHasAdminClaim && !DASHBOARD_PREVIEW_MODE && r.category==='Pelawat' && String(r.stayOver).toLowerCase()==='yes' && ['Pending','Pending Payment','Approved'].includes(r.status) && !r.parkingUnused ? `<button class="btn btn-ghost" data-action="unused" data-id="${escapeHtml(r.id)}">Tidak menggunakan parkir</button>` : ''}
+        <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
         <button class="btn btn-ghost" data-action="edit" data-id="${r.id}" title="Edit tarikh atau status">✏️ Edit</button>
         <button class="btn" data-action="in" data-id="${r.id}" ${['Pending Payment','Cancelled Before Entry','Checked Out'].includes(r.status)?'disabled':''}>✓ Masuk</button>
         <button class="btn btn-ghost" data-action="out" data-id="${r.id}" ${r.status!=='Checked In'?'disabled':''}>↗ Keluar</button>
