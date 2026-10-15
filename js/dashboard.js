@@ -2875,7 +2875,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
         const visitorCat = (r.category || '').trim();
         if (visitorCat === 'Pelawat' || visitorCat === 'Kontraktor') {
           const cat = computeArrearsCategory(amount);
-          const quotedTotal = r.parkingQuote && Number.isFinite(Number(r.parkingQuote.mainTotalSen)) ? Number(r.parkingQuote.mainTotalSen) / 100 : null;
+          const quotedTotal = r.parkingUnused ? 0 : r.parkingQuote && Number.isFinite(Number(r.parkingQuote.mainTotalSen)) ? Number(r.parkingQuote.mainTotalSen) / 100 : null;
           const charge = Number.isFinite(quotedTotal) ? {total:quotedTotal} : computeChargeForDates(cat, r.eta, r.etd);
           if (charge && typeof charge.total === 'number') {
             paymentHtml = `<div class="payment-block"><div class="line-strong">Jumlah pembayaran :</div><div class="line-strong">RM ${formatAmount(charge.total)}</div></div>`;
@@ -2889,7 +2889,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     } catch(e) { /* ignore */ }
     const unitCategoryHtml = `${badge}${paymentHtml}`;
 
-    const quotedMainSen = r.parkingQuote && Number.isFinite(Number(r.parkingQuote.mainTotalSen))
+    const quotedMainSen = r.parkingUnused ? 0 : r.parkingQuote && Number.isFinite(Number(r.parkingQuote.mainTotalSen))
       ? Number(r.parkingQuote.mainTotalSen)
       : null;
     if (!arrears && arrearsAmountDisplay === null) arrearsAmountDisplay = 0;

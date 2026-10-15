@@ -1,13 +1,15 @@
 # Admin: Tidak Menggunakan Parkir — 15 Oktober 2026
 
-Versi pertama membetulkan seluruh permohonan Pelawat bermalam yang tidak digunakan. Admin memilih tindakan dalam Senarai Pendaftaran, memasukkan remark 3–400 aksara dan menaip ID pendaftaran tepat. Rekod asal dikekalkan; status operasi dibatalkan dan medan parkingUnused serta identiti/tarikh admin disimpan.
+Admin membetulkan seluruh permohonan Pelawat bermalam dengan remark dan pengesahan ID. Rekod dan sebab dikekalkan untuk audit. Rekod sudah masuk/keluar, mempunyai bayaran/resit, lock tiada atau sejarah melebihi 100 rekod tidak diproses automatik.
 
-Rekod checked-in/checked-out, bayaran diterima, resit berkaitan, lock tiada, queue sedia ada pending atau lebih 100 rekod sejarah ditolak. Caj belum berbayar menjadi RM0 melalui event pelarasan; amaun lama dan sebab kekal dalam audit. Tiada refund automatik.
+Caj permohonan tidak digunakan menjadi RM0. Sistem membina semula kitaran menggunakan kategori snapshot dan cooldown tiga hari penuh. Sejarah lama sebelum kitaran baharu yang mempunyai cooldown lengkap tidak menghalang pembetulan kitaran semasa.
 
-Sejarah unit dibaca secara terhad dan setiap rekod dibaca semula dalam transaksi. Counter serta tarikh cooldown dibina semula menggunakan kategori snapshot dan permohonan lain yang masih sah. Permohonan selepasnya yang mempunyai kiraan berbeza ditanda untuk semakan caj; amaun/resitnya tidak diubah. Jika sejarah tidak lengkap, lock ditanda pending dan queue semakan dibuat. Permohonan visitor baharu tidak menggunakan counter pending itu untuk memberi caj automatik.
+Permohonan susulan dengan satu kenderaan dan caj belum berbayar dikira semula bersama caj rasmi, snapshot harian dan snapshot kitaran terdahulu dalam transaksi yang sama. Amaun sebelum/selepas disimpan dalam jurnal caj; snapshot sebelum/selepas disimpan dalam audit. Status Pending Payment menjadi Pending jika tiada caj. Rekod berbayar, pelarasan manual, kenderaan tambahan atau sebab semakan lain kekal untuk semakan admin. Tiada refund automatik.
 
-Laporan mingguan dan kalendar bulanan mengecualikan rekod dibatalkan. Status senarai memaparkan Tidak menggunakan parkir. Kenderaan/tarikh/check-in yang hanya sebahagiannya digunakan tidak termasuk versi pertama.
+Jika sejarah tidak lengkap, queue dan counter ditanda untuk semakan. Queue pembetulan penggunaan sedia ada boleh diselesaikan apabila pengiraan semula lengkap; queue atas sebab lain tidak dipintas.
 
-148 ujian automatik lulus. Enam senario emulator Firestore pada projek demo-parking-unused lulus: pemulihan terbaru, audit/zero-charge, resit baharu ditolak, bayaran separa ditolak, pengawal ditolak, pembetulan sejarah dan queue incomplete. (Senario pemulihan serta audit diuji bersama.)
+Kalendar bulanan mengekalkan remark tidak digunakan pada setiap tarikh check-in hingga check-out tetapi mengecualikannya daripada jumlah caj/penggunaan. Kalendar dimuat semula selepas tindakan berjaya. Laporan mingguan mengecualikan permohonan tidak digunakan.
 
-Perubahan melibatkan Firebase Rules. Rules baharu dan frontend perlu diterbitkan bersama; kod sahaja tidak mengaktifkan tindakan pada live. Tiada data live diubah semasa pelaksanaan. Polisi kategori 1 ke 2 dan ujian cooldown yang masih tempatan perlu dipilih secara berasingan ketika commit.
+150 ujian automatik dan 10 senario emulator menguji pemulihan counter, audit, caj susulan, perlindungan bayaran/pelarasan/kenderaan tambahan, akses pengawal dan pembetulan terdahulu yang mempunyai queue.
+
+Kes B3-2-5 disahkan pada live: pembetulan 4–6 Oktober diikuti caj 8–9 Oktober RM0, 11–12 Oktober RM5, 13–15 Oktober RM20. Skrip scripts/repair-unused-charges.mjs ialah dry run secara lalai; --apply menjalankan pembetulan yang telah disahkan dan mesti digunakan hanya dengan kebenaran admin. Peraturan Firebase yang diperlukan telah diterbitkan.

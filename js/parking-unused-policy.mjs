@@ -4,18 +4,28 @@ const cat=r=>{const n=Number(String(r.unitCategory||'').match(/^(?:Kategori\s*)?
 export function planUnusedParking(records,targetId){
  const target=records.find(r=>r.id===targetId);if(!target)throw Error('Rekod tidak ditemui.');
  if(target.category!=='Pelawat'||String(target.stayOver).toLowerCase()!=='yes')throw Error('Tindakan ini hanya untuk parkir bermalam.');
- if(!['Pending','Pending Payment','Approved'].includes(target.status))throw Error('Rekod sudah masuk, keluar atau dibatalkan; perlu semakan berasingan.');
- const active=records.filter(r=>r.category==='Pelawat'&&String(r.stayOver).toLowerCase()==='yes'&&!r.parkingUnused&&r.status!=='Cancelled Before Entry').sort((a,b)=>malaysiaDate(a.eta).localeCompare(malaysiaDate(b.eta))||String(a.id).localeCompare(String(b.id)));
+ if(!target.parkingUnused&&!['Pending','Pending Payment','Approved'].includes(target.status))throw Error('Rekod sudah masuk, keluar atau dibatalkan; perlu semakan berasingan.');
+ let active=records.filter(r=>r.category==='Pelawat'&&String(r.stayOver).toLowerCase()==='yes'&&!r.parkingUnused&&r.status!=='Cancelled Before Entry').sort((a,b)=>malaysiaDate(a.eta).localeCompare(malaysiaDate(b.eta))||String(a.id).localeCompare(String(b.id)));
+ // A confirmed full cooldown before the correction isolates older legacy history.
+ const usageEnd=r=>(r.vehicleRowsDetailed||[]).reduce((end,row)=>row.endDate>end?row.endDate:end,malaysiaDate(r.etd||r.eta));
+ let anchor=0,previousEnd='';
+ for(let i=0;i<active.length;i++){
+  const row=active[i],start=malaysiaDate(row.eta);
+  if(i>0&&start<=malaysiaDate(target.eta)&&row.parkingQuote?.mainStartDay===1&&(Date.parse(start)-Date.parse(previousEnd))/86400000>=4)anchor=i;
+  if(usageEnd(row)>previousEnd)previousEnd=usageEnd(row);
+ }
+ active=active.slice(anchor);
  const first=active[0];let state=null;const prior=first?.parkingPriorState;
  if(prior?.exists===true)state={unitId:target.hostUnit,category:prior.category,mainUsageDays:prior.mainUsageDays,cycleStart:malaysiaDate(prior.cycleStart),lastMainEnd:malaysiaDate(prior.lastMainEnd),lastAnyEnd:malaysiaDate(prior.lastAnyEnd)};
  else if(first&&prior?.exists!==false&&first.parkingQuote?.mainStartDay!==1)return {complete:false,affected:active.filter(r=>malaysiaDate(r.eta)>=malaysiaDate(target.eta)&&r.id!==targetId).map(r=>r.id),reason:'Sejarah awal atau snapshot kitaran tidak lengkap.'};
- const affected=[];let latest=null;
+ const affected=[],corrections=[];let latest=null;
  for(const r of active){if(r.id===targetId)continue;const category=cat(r);if(!category)return {complete:false,affected:active.filter(x=>x.id!==targetId&&malaysiaDate(x.eta)>=malaysiaDate(target.eta)).map(x=>x.id),reason:'Kategori snapshot tidak lengkap.'};
   const start=malaysiaDate(r.eta),end=malaysiaDate(r.etd||r.eta);const lastAnyEnd=(r.vehicleRowsDetailed||[]).reduce((v,row)=>row.endDate>v?row.endDate:v,end);
   let q;try{q=quoteFromUnitState({unitId:target.hostUnit,category,state,start,end,lastAnyEnd})}catch{return {complete:false,affected:active.filter(x=>x.id!==targetId&&malaysiaDate(x.eta)>=malaysiaDate(target.eta)).map(x=>x.id),reason:'Tarikh atau kitaran tidak lengkap.'}};
   if(q.status!=='quoted')return {complete:false,affected:active.filter(x=>x.id!==targetId&&malaysiaDate(x.eta)>=malaysiaDate(target.eta)).map(x=>x.id),reason:'Sejarah bertindih atau memerlukan semakan kategori.'};
   if(malaysiaDate(r.eta)>=malaysiaDate(target.eta)&&(q.totalSen!==r.parkingQuote?.mainTotalSen||q.lines[0].day!==r.parkingQuote?.mainStartDay))affected.push(r.id);
+  if(malaysiaDate(r.eta)>=malaysiaDate(target.eta))corrections.push({id:r.id,quote:{policyVersion:q.policyVersion,mainStartDay:q.lines[0].day,mainEndDay:q.lines.at(-1).day,mainTotalSen:q.totalSen},priorState:state?{exists:true,...state}:{exists:false}});
   state=q.nextState;latest=r;
  }
- return {complete:true,state,latest,affected};
+ return {complete:true,state,latest,affected,corrections};
 }
