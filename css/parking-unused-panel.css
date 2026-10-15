@@ -1,0 +1,25 @@
+/* Dedicated unused-parking mode and contained form fields. */
+#registrationPaymentPanel .payment-dialog, #registrationPaymentPanel .payment-dialog * { box-sizing: border-box; }
+#registrationPaymentPanel .payment-dialog form { min-width: 0; max-width: 100%; }
+#registrationPaymentPanel .payment-dialog label { min-width: 0; }
+#registrationPaymentPanel .payment-dialog :is(input,textarea,select) { min-width: 0; max-width: 100%; }
+#registrationPaymentPanel .payment-dialog textarea { resize: vertical; }
+#registrationPaymentPanel[data-mode="unused"] .payment-tabs,
+#registrationPaymentPanel[data-mode="unused"] [data-load],
+#registrationPaymentPanel[data-mode="unused"] [data-totals],
+#registrationPaymentPanel[data-mode="unused"] [data-create],
+#registrationPaymentPanel[data-mode="unused"] [data-record],
+#registrationPaymentPanel[data-mode="unused"] [data-adjust],
+#registrationPaymentPanel[data-mode="unused"] [data-pane="receipts"],
+#registrationPaymentPanel[data-mode="unused"] [data-role-note] { display: none !important; }
+#registrationPaymentPanel[data-mode="payment"] [data-unused] { display: none !important; }
+#registrationPaymentPanel[data-mode="unused"] .payment-dialog { width: min(520px, calc(100vw - 24px)); }
+#registrationPaymentPanel[data-mode="unused"] [data-unused] { display: grid; grid-template-columns: minmax(0,1fr); gap: 12px; margin: 10px 14px 14px; padding: 14px; }
+#registrationPaymentPanel[data-mode="unused"] [data-unused] h4 { display: none; }
+#registrationPaymentPanel[data-mode="unused"] [data-unused] p { font-size: 11px; line-height: 1.5; margin: 0; }
+#registrationPaymentPanel[data-mode="unused"] [data-unused] label { font-size: 11px; }
+#registrationPaymentPanel[data-mode="unused"] [data-unused] :is(input,textarea) { display: block; width: 100%; min-height: 36px; padding: 8px 10px; font-size: 12px; }
+#registrationPaymentPanel[data-mode="unused"] [data-unused] textarea { min-height: 76px; }
+#registrationPaymentPanel[data-mode="unused"] [data-unused-reference] { background: #f1f5f9; }
+#registrationPaymentPanel[data-mode="unused"] [data-unused] button { white-space: normal; width: 100%; font-size: 12px; }
+@media(max-width:480px) { #registrationPaymentPanel[data-mode="unused"] [data-unused] { margin: 8px 10px 10px; padding: 11px; } }

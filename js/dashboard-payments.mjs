@@ -22,7 +22,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     <form data-create hidden><h4>Keputusan admin</h4><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj rasmi (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab keputusan <input name="reason" required minlength="3" maxlength="500"></label> <button>Muktamadkan Caj</button></form>
     <div class="payment-totals" data-totals hidden></div>
     <form data-record hidden><h4>Rekod pembayaran</h4><p class="payment-form-hint">Masukkan amaun sebenar yang diterima dan nombor resit pembayaran.</p><label>Nombor resit pembayaran <input name="reference" required placeholder="Contoh: BC20261007" autocomplete="off"></label> <label>Amaun diterima (RM) <input name="amount" required inputmode="decimal" placeholder="0.00"></label><div class="payment-form-actions"><button type="button" class="payment-cancel" data-cancel-payment>Batal</button><button type="submit">Simpan rekod bayaran</button></div></form>
-    <form data-adjust hidden><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj baharu (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab pelarasan <input name="reason" required maxlength="500"></label> <button>Laras caj</button></form><form data-unused hidden><h4>Tidak Menggunakan Parkir</h4><p>Admin telah mengesahkan seluruh permohonan tidak digunakan. Rekod dikekalkan untuk audit. Caj belum berbayar akan dibatalkan; counter dipulihkan jika sejarah lengkap. Caj permohonan selepasnya ditanda untuk semakan.</p><label>Sebab / remark <textarea name="reason" required minlength="3" maxlength="400" rows="2"></textarea></label><label>Taip ID pendaftaran untuk sahkan <input name="confirmId" required autocomplete="off"></label><button type="submit">Sahkan Tidak Menggunakan Parkir</button></form>
+    <form data-adjust hidden><label>Kategori akhir <select name="category" required><option value="1">Kategori 1</option><option value="2">Kategori 2</option><option value="3">Kategori 3</option></select></label> <label>Caj baharu (RM) <input name="amount" required inputmode="decimal"></label> <label>Sebab pelarasan <input name="reason" required maxlength="500"></label> <button>Laras caj</button></form><form data-unused hidden><h4>Tidak Menggunakan Parkir</h4><p>Admin telah mengesahkan seluruh permohonan tidak digunakan. Rekod dikekalkan untuk audit. Caj belum berbayar akan dibatalkan; counter dipulihkan jika sejarah lengkap. Caj permohonan selepasnya ditanda untuk semakan.</p><label>ID pendaftaran <input data-unused-reference readonly aria-readonly="true"></label><label>Sebab / remark <textarea name="reason" required minlength="3" maxlength="400" rows="2"></textarea></label><label>Taip ID pendaftaran untuk sahkan <input name="confirmId" required autocomplete="off"></label><button type="submit">Sahkan Tidak Menggunakan Parkir</button></form>
     </section>
     <section id="receiptsTabPanel" class="payment-tab-panel" role="tabpanel" aria-labelledby="receiptsTabButton" data-pane="receipts" hidden>
     <div class="payment-receipts"><div data-receipts></div></div>
@@ -54,6 +54,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     const result = await store.readRegistration(id);
     if (window.__AUTH.currentUser !== loadingUser) return;
     registration = id; loaded = result;
+    find('[data-unused-reference]').value=id;
     const hasCharge=!!result.charge,response=result.response||{},quote=response.parkingQuote||{};
     find('[data-create]').hidden = hasCharge || !isAdmin||response.parkingUnused===true;
     find('[data-record]').hidden = !hasCharge||response.parkingUnused===true;
@@ -62,6 +63,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     find('[data-cancel]').hidden=!isAdmin||!eta||eta.getTime()<=Date.now()||['Checked In','Checked Out','Cancelled Before Entry'].includes(response.status);
     find('[data-unused]').hidden=!isAdmin||response.category!=='Pelawat'||String(response.stayOver).toLowerCase()!=='yes'||!['Pending','Pending Payment','Approved'].includes(response.status)||response.parkingUnused===true;
     if(response.parkingUnused)tell('Tidak menggunakan parkir: '+(response.parkingUnusedReason||''));
+    if(panel.dataset.mode==='unused'){tell(response.parkingUnused?'Permohonan ini sudah ditanda tidak menggunakan parkir.':find('[data-unused]').hidden?'Tindakan ini tidak tersedia untuk status pendaftaran ini.':'Isi sebab dan taip ID pendaftaran tepat untuk mengesahkan. Rekod berbayar atau berresit akan ditolak.'); return; }
     const originalAmount=Number(response.unitArrearsAmount),originalCategory=Number.isFinite(originalAmount)?(originalAmount<=1?1:originalAmount<=400?2:3):null;
     const selectedCategory=originalCategory||result.currentCategory||1;
     find('[data-create] select[name="category"]').value=String(selectedCategory);
@@ -160,6 +162,10 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
   });
   window.addEventListener('dashboard:open-payment',async event=>{
     const id=String(event.detail?.registrationId || '').trim();
+    const unusedMode=event.detail?.mode==='unused';
+    panel.dataset.mode=unusedMode?'unused':'payment';
+    find('#registrationPaymentTitle').textContent=unusedMode?'Tidak Menggunakan Parkir':'Pengesahan Bayaran Parkir';
+    find('.payment-panel-head p').textContent=unusedMode?'Sahkan seluruh permohonan tidak digunakan dan rekodkan sebab untuk audit.':'Admin dan pengawal boleh merekod bayaran. Pelarasan caj serta pembatalan kekal untuk admin sahaja.';
     previousFocus=document.activeElement;
     previousBodyOverflow=document.body.style.overflow;
     panel.hidden=false;
