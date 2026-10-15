@@ -17,6 +17,8 @@ export function createUnusedParkingStore({db,auth,sdk}){
    const laterIds=rows.filter(r=>r.id!==id&&r.category==='Pelawat'&&String(r.stayOver).toLowerCase()==='yes'&&!r.parkingUnused&&r.status!=='Cancelled Before Entry').map(r=>r.id);
    const laterCharges=await Promise.all(laterIds.map(key=>tx.get(doc(db,'parkingCharges',key))));
    const laterMap=new Map(laterIds.map((key,i)=>[key,laterCharges[i]]));
+   const journals=new Map();
+   await Promise.all(laterIds.map(async key=>{const data=laterMap.get(key).exists()?laterMap.get(key).data():null;if(data?.lastChangeId)journals.set(key,await tx.get(doc(db,'parkingCharges',key,'changes',data.lastChangeId)));}));
    const c=charge.exists()?charge.data():null;if(c&&(!Number.isSafeInteger(c.paidSen)||c.paidSen!==0||c.lastReceiptId||['paid','partial','overpaid'].includes(c.paymentStatus)))throw Error('Bayaran sudah direkod atau data bayaran tidak lengkap; pembetulan dihentikan.');
    const plan=planUnusedParking(rows,id),by=user.uid,stamp=serverTimestamp();
    tx.update(targetRef,{status:'Cancelled Before Entry',parkingUnused:true,parkingUnusedReason:reason.trim(),parkingUnusedBy:by,parkingUnusedAt:stamp,parkingReviewRequired:!plan.complete,updatedAt:stamp});
@@ -27,7 +29,10 @@ export function createUnusedParkingStore({db,auth,sdk}){
     const extra=(row.vehicleNumbers||[]).filter(Boolean).length>1||(row.vehicleRowsDetailed||[]).length>1;
     const paid=old&&(!Number.isSafeInteger(old.paidSen)||old.paidSen!==0||old.lastReceiptId||['paid','partial','overpaid'].includes(old.paymentStatus));
     const changed=old&&(old.amountSen!==correction.quote.mainTotalSen||row.parkingQuote?.mainStartDay!==correction.quote.mainStartDay);
-    const manual=changed&&(old.lastChangeId||old.amountSen!==row.parkingQuote?.mainTotalSen);
+    const journalSnapshot=journals.get(row.id),journal=journalSnapshot?.exists()?journalSnapshot.data():null;
+    const sameTime=(a,b)=>a&&b&&a.seconds===b.seconds&&a.nanoseconds===b.nanoseconds;
+    const automatic=journal&&/^Kiraan semula selepas tidak menggunakan parkir [A-Za-z0-9_-]+$/.test(journal.reason||'')&&journal.afterSen===old.amountSen&&old.amountSen===row.parkingQuote?.mainTotalSen&&sameTime(journal.at,row.parkingQuote.calculatedAt);
+    const manual=changed&&((old.lastChangeId&&!automatic)||old.amountSen!==row.parkingQuote?.mainTotalSen);
     if(extra||paid||manual||(row.parkingReviewRequired&&row.parkingReviewReason!=='usage_correction_requires_charge_review')){unresolved.push(row.id);continue;}
     const prior=correction.priorState;
     const toTimestamp=value=>Timestamp.fromDate(new Date(value+'T00:00:00+08:00'));

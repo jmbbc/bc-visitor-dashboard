@@ -13,3 +13,5 @@ Kalendar bulanan mengekalkan remark tidak digunakan pada setiap tarikh check-in 
 150 ujian automatik dan 10 senario emulator menguji pemulihan counter, audit, caj susulan, perlindungan bayaran/pelarasan/kenderaan tambahan, akses pengawal dan pembetulan terdahulu yang mempunyai queue.
 
 Kes B3-2-5 disahkan pada live: pembetulan 4–6 Oktober diikuti caj 8–9 Oktober RM0, 11–12 Oktober RM5, 13–15 Oktober RM20. Skrip scripts/repair-unused-charges.mjs ialah dry run secara lalai; --apply menjalankan pembetulan yang telah disahkan dan mesti digunakan hanya dengan kebenaran admin. Peraturan Firebase yang diperlukan telah diterbitkan.
+
+Pembetulan berulang: jurnal automatik dikenal pasti melalui sebab sistem, amaun jurnal yang sama dengan snapshot, serta cap masa jurnal yang sepadan dengan calculatedAt. Ia boleh dikira semula; pelarasan manual kekal dilindungi. Senario emulator ke-11 mengesahkan pembatalan 11–12 Oktober selepas pembatalan 4–6 Oktober memberi 13–15 Oktober RM0. Rekod live B3-2-5 telah dipulihkan dengan audit.
