@@ -4658,7 +4658,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
     return { start: days[0], days };
   }
 
+  let parkingWeekRenderSequence = 0;
   async function renderParkingWeekCalendar(dateStr, opts = {}){
+    const renderSequence = ++parkingWeekRenderSequence;
     const useCacheOnly = !!opts.useCacheOnly;
     console.info('[parking] renderParkingWeekCalendar called', dateStr, 'useCacheOnly?', useCacheOnly);
     try{
@@ -4702,6 +4704,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
             query(col, where('parkingUsageEnd','>=', Timestamp.fromDate(from)), orderBy('parkingUsageEnd','asc'), limit(maxRows + 1))
           ];
           const snapshots = await Promise.all(requests.map(q => getDocs(q)));
+          if (renderSequence !== parkingWeekRenderSequence) return;
           if (snapshots.some(snap => snap.size > maxRows)) {
             throw new Error('Laporan melebihi had bacaan. Data tidak dipaparkan untuk mengelakkan laporan tidak lengkap.');
           }
@@ -4737,9 +4740,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
       const pelawat = pelawatAll.filter(r => matchedUnits.has(String(r.hostUnit || '').trim().toUpperCase()));
 
       // build calendar container
-      let calWrap = document.getElementById('parkingWeekCalendar');
-      if (!calWrap){ calWrap = document.createElement('div'); calWrap.id = 'parkingWeekCalendar'; calWrap.className = 'card parking-monitor'; calWrap.style.marginTop = '12px'; }
-      calWrap.innerHTML = '';
+      // Build off-screen: overlapping requests must never append to a shared node.
+      const calWrap = document.createElement('div');
+      calWrap.id = 'parkingWeekCalendar'; calWrap.className = 'card parking-monitor'; calWrap.style.marginTop = '12px';
 
       const dayKeys = wr.days.map(dayKey);
       const unitMap = new Map();
@@ -4783,7 +4786,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       if (!DASHBOARD_PREVIEW_MODE && visibleIds.length <= 200) {
         let nextPaymentIndex = 0;
         await Promise.all(Array.from({length:Math.min(6, visibleIds.length)}, async () => {
-          while (nextPaymentIndex < visibleIds.length) {
+          while (nextPaymentIndex < visibleIds.length && renderSequence === parkingWeekRenderSequence) {
             const id = visibleIds[nextPaymentIndex++];
             try {
               const charge = await getDoc(doc(window.__FIRESTORE, 'parkingCharges', id));
@@ -4795,6 +4798,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         }));
       }
 
+      if (renderSequence !== parkingWeekRenderSequence) return;
 
       const header = document.createElement('div');
       header.style.display = 'flex'; header.style.justifyContent='space-between'; header.style.alignItems='center'; header.style.gap='8px';
@@ -4911,14 +4915,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
       }
 
       // insert calendar after summary or top of page
+      if (renderSequence !== parkingWeekRenderSequence) return;
       const existingCal = document.getElementById('parkingWeekCalendar');
-      if (!existingCal) {
+      if (existingCal) existingCal.replaceWith(calWrap);
+      else {
         const header = page.querySelector('.card.card-tight');
         if (header) header.parentNode.insertBefore(calWrap, header.nextSibling);
         else page.appendChild(calWrap);
       }
 
     } catch(err){
+      if (renderSequence !== parkingWeekRenderSequence) return;
       console.error('[parking] renderParkingWeekCalendar err', err);
       const staleCalendar = document.getElementById('parkingWeekCalendar');
       if (staleCalendar) staleCalendar.remove();

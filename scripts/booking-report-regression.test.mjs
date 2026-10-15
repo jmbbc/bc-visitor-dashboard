@@ -41,6 +41,7 @@ async function fetchFixtureRows(records, overflow = false) {
   const end = dashboard.indexOf('weekResponseCache[weekKey] = rows;', start);
   assert.ok(start > 0 && end > start);
   const context = {
+    renderSequence:1, parkingWeekRenderSequence:1,
     from: new Date('2026-09-07'), to: new Date('2026-09-14'), col: {},
     Timestamp: {fromDate: d => d},
     where: (field, op, value) => ({field, op, value}),
