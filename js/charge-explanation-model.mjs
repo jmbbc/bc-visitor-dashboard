@@ -18,6 +18,14 @@ export function explainParkingCharge(record, charge) {
   const paid=charge&&valid(charge.paidSen)?charge.paidSen:(amount===0?0:null);
   const base={id:record.id,unit:record.hostUnit,plate:(Array.isArray(record.vehicleNumbers)?record.vehicleNumbers:[record.vehicleNo]).filter(Boolean).join(', ')||'Tiada nombor',category:cat?`Kategori ${cat} (snapshot asal)`:'Kategori belum disahkan',from:malaysiaDate(record.eta),to:malaysiaDate(record.etd||record.eta),paid:paid==null?null:paid/100,total:amount==null?null:amount/100,days:[],reason:'Snapshot kiraan tidak lengkap. Pecahan harian perlu semakan; amaun rasmi tidak diubah.'};
   if(record.parkingReviewRequired)return {...base,reason:'Pendaftaran ditandakan perlu semakan kategori/kitaran. Pecahan harian tidak dianggap muktamad.'};
+  if(record.parkingLedgerVersion==='unit-vehicle-days-1'&&Array.isArray(record.parkingDailyBreakdown)){
+    const lines=record.parkingDailyBreakdown;
+    if(!lines.length||lines.length>90||lines.some(l=>!/^\d{4}-\d{2}-\d{2}$/.test(l.date)||!valid(l.amountSen)||!Number.isInteger(l.day)||l.day<1||!['main','additional'].includes(l.role)||![1,2,3].includes(l.category)||typeof l.plate!=='string'||typeof l.ownerId!=='string'||typeof l.shared!=='boolean'||(l.shared&&l.amountSen!==0)||(!l.shared&&l.ownerId!==record.id)))return base;
+    if(lines.reduce((n,l)=>n+l.amountSen,0)!==quoted)return base;
+    const byDate=new Map();for(const l of lines){if(!byDate.has(l.date))byDate.set(l.date,[]);byDate.get(l.date).push(l);}
+    const days=[...byDate].sort(([a],[b])=>a.localeCompare(b)).map(([date,items])=>[date,'Hari ke-'+items[0].day,items.map(l=>l.plate+': '+(l.shared?'Dikira dalam '+l.ownerId:l.role==='main'?'Kenderaan utama':'Kenderaan tambahan')).join('; '),items.reduce((n,l)=>n+l.amountSen,0)/100]);
+    return {...base,from:days[0][0],to:days.at(-1)[0],days,reason:'Plat dan tarikh sama dikira sekali. Kenderaan utama ditentukan oleh permohonan yang dihantar dahulu; plat lain pada tarikh sama dikira sebagai tambahan.'};
+  }
   if(quote.policyVersion!==POLICY_VERSION||![1,2,3].includes(cat))return base;
   try {
     const dates=datesInclusive(base.from,base.to);

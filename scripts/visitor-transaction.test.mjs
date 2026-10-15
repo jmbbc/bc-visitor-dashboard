@@ -47,7 +47,7 @@ for(const oldDays of [0,2])test(`overnight transaction builds response and prior
   const response=writes.find(w=>w.ref.col==='responses').data;
   assert.equal(response.parkingPriorState.mainUsageDays,oldDays);
   assert.equal(response.parkingQuote.mainStartDay,oldDays+1);
-  assert.equal(writes.some(w=>w.ref.col==='parkingCharges'),oldDays>0);
+  assert.equal(writes.some(w=>w.ref.col==='parkingCharges'),false);assert.equal(response.parkingReviewReason,'automatic_ledger_pending');assert.ok(writes.some(w=>w.ref.col==='parkingLedgerQueue'));
 });
 
 test('new category 3 registration preserves category 1 counter and remains rules-compatible',async()=>{
@@ -163,7 +163,7 @@ for(const pending of [true,false])test(`category 2 transaction persists fresh cy
   const next=writes.find(w=>w.ref.col==='overnightLocks').data,response=writes.find(w=>w.ref.col==='responses').data,newCharge=writes.find(w=>w.ref.col==='parkingCharges');
   assert.equal(next.cycleStart.toDate().toISOString().slice(0,10),'2026-10-21');assert.equal(next.mainUsageDays,3);assert.equal(next.parkingCategory,2);
   assert.equal(response.parkingQuote.mainStartDay,1);assert.equal(response.parkingQuote.mainEndDay,3);assert.equal(response.parkingQuote.mainTotalSen,1000);
-  assert.equal(response.status,'Pending Payment');assert.equal(newCharge.data.amountSen,1000);assert.equal(newCharge.data.paidSen,0);
+  assert.equal(response.status,'Pending');assert.equal(newCharge,undefined);assert.equal(response.parkingReviewReason,'automatic_ledger_pending');assert.ok(writes.some(w=>w.ref.col==='parkingLedgerQueue'));
   assert.ok(!writes.some(w=>w.ref.id==='old-registration'));assert.ok(!reads.some(r=>r.col==='parkingCharges'));
   assert.equal(JSON.stringify(oldCharge),oldChargeCopy);
 });
@@ -194,8 +194,8 @@ test('category 1 to 2 continuation saves new rates without rewriting earlier reg
     runTransaction:async(_db,callback)=>callback({get:async ref=>({exists:()=>ref.col==='overnightLocks',data:()=>lock}),set:(ref,data)=>writes.push({ref,data})})};
   vm.createContext(context);vm.runInContext(body,context);
   await context.createResponseWithDedupe({hostUnit:state.unitId,category:'Pelawat',stayOver:'Yes',eta:stamp('2026-11-01'),etd:stamp('2026-11-03'),amendToken:'fixture-transition',unitArrearsAmount:100,vehicleNo:'TESTCAR',status:'Pending'});
-  const next=writes.find(w=>w.ref.col==='overnightLocks').data,response=writes.find(w=>w.ref.col==='responses').data,charge=writes.find(w=>w.ref.col==='parkingCharges').data;
+  const next=writes.find(w=>w.ref.col==='overnightLocks').data,response=writes.find(w=>w.ref.col==='responses').data,charge=writes.find(w=>w.ref.col==='parkingCharges');
   assert.equal(next.parkingCategory,2);assert.equal(next.mainUsageDays,6);assert.equal(next.cycleStart.toDate().toISOString().slice(0,10),'2026-10-29');assert.equal(next.parkingReviewRequired,false);
-  assert.equal(response.parkingQuote.mainStartDay,4);assert.equal(response.parkingQuote.mainEndDay,6);assert.equal(response.parkingQuote.mainTotalSen,2500);assert.equal(response.status,'Pending Payment');assert.equal(charge.amountSen,2500);
+  assert.equal(response.parkingQuote.mainStartDay,4);assert.equal(response.parkingQuote.mainEndDay,6);assert.equal(response.parkingQuote.mainTotalSen,2500);assert.equal(response.status,'Pending');assert.equal(charge,undefined);assert.equal(response.parkingReviewReason,'automatic_ledger_pending');
   assert.ok(!writes.some(w=>w.ref.id==='old-category1'));
 });

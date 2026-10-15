@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {groupParkingDay} from '../js/parking-day-groups.mjs';
+const item=(id,plate,state='paid',label='Percuma')=>({id,plates:[plate],payment:{state,label}});
+test('plate variants group once while preserving both registrations',()=>{const g=groupParkingDay([item('a','VM 4200'),item('b','vm4200')]);assert.equal(g.length,1);assert.equal(g[0].items.length,2);assert.equal(g[0].plate,'VM4200');assert.equal(g[0].payment.state,'paid')});
+test('different plates remain separate and unknown payment prevents green confirmation',()=>{const g=groupParkingDay([item('a','CAR1'),item('b','CAR1','unknown','Belum disahkan'),item('c','CAR2')]);assert.equal(g.length,2);assert.equal(g[0].payment.state,'unknown')});
+test('shared plate sums distinct outstanding registration balances once',()=>{const a=item('a','CAR1','pending','Baki RM5.00'),b=item('b','CAR1','pending','Baki RM10.00');const g=groupParkingDay([a,a,b]);assert.equal(g[0].payment.label,'Baki RM15.00')});

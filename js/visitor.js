@@ -707,7 +707,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     const reviewNotice=quote.status==='requires_review'
       ? '<div class="pay-alert">Tarikh ini bertindih atau tidak mengikut urutan rekod unit. Anggaran caj tetap RM15 sehari, tetapi pendaftaran memerlukan semakan admin.</div>'
       : '';
-    summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),reviewNotice,'<div class="pay-grid">',infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)',arrearsAmountDisplay),infoRow('Kiraan kenderaan utama',`Hari ${quote.lines[0].day}–${quote.lines[quote.lines.length-1].day} kitaran unit`),infoRow('Kenderaan tambahan',`RM ${extraVehicleAmount.toFixed(2)}`),'</div>',renderFreeParkingEligibility(quote),'<div class="pay-total-wrap">',`<div class="pay-grand-total">${quote.status==='requires_review'?'Anggaran jumlah perlu bayar':'Jumlah perlu bayar'}: <strong>RM ${total.toFixed(2)}</strong></div>`,renderPaymentCollectionInfo(total),`<ul class="arrears-payment-list pay-daily-list">${quote.lines.map(line=>`<li>${line.date} (Hari ${line.day}) : <strong>${line.amountSen?`RM ${(line.amountSen/100).toFixed(2)}`:'Percuma'}</strong></li>`).join('')}</ul>`,'</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
+    summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),reviewNotice,'<p class="pay-note-line">Caj muktamad diselaraskan selepas sejarah unit dan kenderaan digabungkan. Jangan buat bayaran berdasarkan anggaran ini.</p>','<div class="pay-grid">',infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)',arrearsAmountDisplay),infoRow('Kiraan kenderaan utama',`Hari ${quote.lines[0].day}–${quote.lines[quote.lines.length-1].day} kitaran unit`),infoRow('Kenderaan tambahan',`RM ${extraVehicleAmount.toFixed(2)}`),'</div>',renderFreeParkingEligibility(quote),'<div class="pay-total-wrap">',`<div class="pay-grand-total">Anggaran jumlah perlu bayar: <strong>RM ${total.toFixed(2)}</strong></div>`,renderPaymentCollectionInfo(total),`<ul class="arrears-payment-list pay-daily-list">${quote.lines.map(line=>`<li>${line.date} (Hari ${line.day}) : <strong>${line.amountSen?`RM ${(line.amountSen/100).toFixed(2)}`:'Percuma'}</strong></li>`).join('')}</ul>`,'</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
     return;
   }
 
@@ -1438,7 +1438,11 @@ async function createResponseWithDedupe(payload){
           parkingPolicyVersion: parkingDecision.policyVersion,
           parkingReviewRequired: false
         });
-        else if (parkingDecision?.status === 'requires_review') nextLock.parkingReviewRequired = true;
+        else if (parkingDecision?.status === 'requires_review') {
+          nextLock.parkingReviewRequired = true;
+          const oldEnd=lockData?.lastAnyEnd?.toDate?lockData.lastAnyEnd.toDate():null;
+          if(!oldEnd||oldEnd<etaEnd)nextLock.lastAnyEnd=Timestamp.fromDate(etaEnd);
+        }
       }
 
       if (nextLock) tx.set(lockRef, nextLock, { merge: true });
@@ -1485,9 +1489,16 @@ async function createResponseWithDedupe(payload){
         }
       }
 
+      if (!amended && enforcePelawatLock && stayOver === 'Yes') {
+        docPayload.parkingUsageEnd = Timestamp.fromDate((payload.vehicleRowsDetailed||[]).reduce((latest,row)=>{const end=row.endDate?dateFromInputDateOnly(row.endDate):null;return end&&end>latest?end:latest;},etaEnd));
+        docPayload.parkingReviewRequired = true;
+        docPayload.parkingReviewReason = 'automatic_ledger_pending';
+        docPayload.status = 'Pending';
+        tx.set(doc(window.__FIRESTORE,'parkingLedgerQueue',hostUnitId),{unit:hostUnitId,responseId:targetRespId,requestedAt:serverTimestamp(),status:'pending'});
+      }
       if (!amended) {
         tx.set(targetRespRef, docPayload);
-        if (parkingDecision?.status === 'quoted' && parkingDecision.totalSen > 0) {
+        if (parkingDecision?.status === 'quoted' && parkingDecision.totalSen > 0 && !docPayload.parkingReviewRequired) {
           attemptedParkingCharge = true;
           tx.set(doc(window.__FIRESTORE, 'parkingCharges', targetRespId), {
             registrationId: targetRespId,
@@ -1521,6 +1532,7 @@ async function createResponseWithDedupe(payload){
           if (amendedPayload[key] === undefined) delete amendedPayload[key];
         });
         tx.update(targetRespRef, amendedPayload);
+        if(enforcePelawatLock&&stayOver==='Yes')tx.set(doc(window.__FIRESTORE,'parkingLedgerQueue',hostUnitId),{unit:hostUnitId,responseId:targetRespId,requestedAt:serverTimestamp(),status:'pending'});
       }
     });
     return { success: true, id: finalResponseId, fallback: false, amended, verificationCode, verificationExpiresAt };

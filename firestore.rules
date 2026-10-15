@@ -60,6 +60,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /parkingLedgerQueue/{unitId} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin() || (request.resource.data.keys().hasOnly(['unit','responseId','requestedAt','status'])
+        && request.resource.data.unit == unitId && request.resource.data.status == 'pending'
+        && request.resource.data.responseId is string && request.resource.data.requestedAt == request.time
+        && existsAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId))
+        && getAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId)).data.hostUnit == unitId
+        && getAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId)).data.category == 'Pelawat'
+        && getAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId)).data.stayOver == 'Yes'
+        && ((getAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId)).data.createdAt == request.time
+          && getAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId)).data.parkingReviewReason == 'automatic_ledger_pending')
+          || (exists(/databases/$(database)/documents/responses/$(request.resource.data.responseId))
+            && getAfter(/databases/$(database)/documents/responses/$(request.resource.data.responseId)).data.updatedAt == request.time)));
+      allow delete: if false;
+    }
     // Dedupe keys for transaction-based duplicate prevention (public create/update only with linked response in same request)
     match /dedupeKeys/{keyId} {
       allow get: if true;
@@ -325,7 +340,7 @@ service cloud.firestore {
           'subCategoryHelp','status','createdAt','updatedAt',
           'amendToken',
           'verificationCode','verificationExpiresAt',
-          'parkingQuote','parkingReviewRequired','parkingReviewReason','parkingPriorState',
+          'parkingQuote','parkingReviewRequired','parkingReviewReason','parkingPriorState','parkingDailyBreakdown','parkingLedgerVersion','parkingUsageEnd',
           'parkingUnused','parkingUnusedReason','parkingUnusedBy','parkingUnusedAt',
           // unit snapshot fields
           'unitCategory','unitArrears','unitArrearsAmount','unitLastUpdatedAt'
@@ -364,6 +379,8 @@ service cloud.firestore {
         && (data.parkingReviewReason is string || !('parkingReviewReason' in data))
         && (data.parkingPriorState is map || !('parkingPriorState' in data))
         && (!('parkingPriorState' in data) || isValidParkingPriorState(data.parkingPriorState))
+        && (!('parkingUsageEnd' in data) || data.parkingUsageEnd is timestamp)
+        && (!('parkingDailyBreakdown' in data) || (data.parkingDailyBreakdown is list && data.parkingDailyBreakdown.size() <= 90 && data.parkingLedgerVersion == 'unit-vehicle-days-1' && (isAdmin() || (resource != null && data.parkingDailyBreakdown == resource.data.parkingDailyBreakdown && data.parkingLedgerVersion == resource.data.parkingLedgerVersion))))
         // unit snapshot optional types
         && (data.unitCategory is string || !('unitCategory' in data))
         && (data.unitArrears is bool || !('unitArrears' in data))

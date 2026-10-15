@@ -2,6 +2,7 @@
 export function weeklyParkingPayment(registration, charge, verified = true) {
   const unknown = {state:'unknown', label:'Belum disahkan'};
   if (!verified) return unknown;
+  if(registration.parkingReviewReason==='automatic_ledger_pending')return {state:'unknown',label:'Menunggu kiraan'};
   if (charge) {
     const {amountSen, paidSen} = charge;
     if (!Number.isSafeInteger(amountSen) || amountSen < 0 || !Number.isSafeInteger(paidSen) || paidSen < 0) return unknown;

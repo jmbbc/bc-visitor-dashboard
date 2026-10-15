@@ -1,3 +1,5 @@
+import {registrationVehicles} from './parking-unit-ledger.mjs?v=20261015-merge-1';
+import {groupParkingDay} from './parking-day-groups.mjs?v=20261015-merge-1';
 // js/dashboard.js — full patched version with parking save fixes, deterministic doc IDs,
 // and assignLotTransaction (Firestore transaction) for atomic parking assignment.
 //
@@ -12,7 +14,7 @@ import {
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-import {weeklyParkingPayment} from './parking-week-payment.mjs?v=20261013-1';
+import {weeklyParkingPayment} from './parking-week-payment.mjs?v=20261015-merge-1';
 import {normalizeVerificationCode,isVerificationCode} from './registration-verification.mjs?v=20260919-1';
 
 const DASHBOARD_PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
@@ -630,6 +632,8 @@ let activeCategoryFilter = '';
 const responseCache = { date: null, rows: [] };
 // weekCache keyed by week start date (yyyy-mm-dd) -> rows for that week
 const weekResponseCache = Object.create(null);
+let parkingLedgerRefreshTimer;
+window.addEventListener('dashboard:parking-usage-corrected',()=>{Object.keys(weekResponseCache).forEach(key=>delete weekResponseCache[key]);clearTimeout(parkingLedgerRefreshTimer);parkingLedgerRefreshTimer=setTimeout(()=>{if(document.getElementById('pageParking')?.getClientRects().length)window.__renderParkingWeekCalendar?.();},200);});
 const ARREARS_SNAPSHOT_TZ = 'Asia/Kuala_Lumpur';
 const ARREARS_SNAPSHOT_LOCAL_KEY = 'dashboard:outstandingSnapshots:v1';
 const arrearsTrendState = {
@@ -2898,7 +2902,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     let paymentStatusLabel = '—';
     let paymentStatusClass = 'payment-status-none';
     if (r.parkingReviewRequired === true) {
-      paymentStatusLabel = 'Perlu semakan';
+      paymentStatusLabel = r.parkingReviewReason==='automatic_ledger_pending'?'Menunggu kiraan':'Perlu semakan';
       paymentStatusClass = 'payment-status-review';
     } else if (r.status === 'Pending Payment') {
       paymentStatusLabel = 'Menunggu bayaran';
@@ -4680,6 +4684,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
             { id:'preview-a', hostUnit:'A-10-01', category:'Pelawat', stayOver:'Yes', vehicleNo:'VBC 1288', eta:makeDate(0), etd:makeDate(3) },
             { id:'preview-b', hostUnit:'B-03-02', category:'Pelawat', stayOver:'Yes', vehicleNo:'WXY 5510', eta:makeDate(1), etd:makeDate(2) },
             { id:'preview-c', hostUnit:'C-08-06', category:'Pelawat', stayOver:'Yes', vehicleNumbers:['ABC 9081','QRS 72'], eta:makeDate(4), etd:makeDate(4) },
+            { id:'preview-e', hostUnit:'E-02-06', category:'Pelawat', stayOver:'Yes', vehicleNo:'VM 4200', eta:makeDate(1), etd:makeDate(2) },
+            { id:'preview-f', hostUnit:'E-02-06', category:'Pelawat', stayOver:'Yes', vehicleNo:'VM4200', eta:makeDate(2), etd:makeDate(3) },
             { id:'preview-d', hostUnit:'D-12-03', category:'Pelawat', stayOver:'Yes', vehicleNo:'JTU 3309', eta:makeDate(2), etd:makeDate(6) }
           ];
           weekResponseCache[weekKey] = rows;
@@ -4692,7 +4698,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
           const maxRows = 2000;
           const requests = [
             query(col, where('eta','>=', Timestamp.fromDate(from)), where('eta','<', Timestamp.fromDate(to)), orderBy('eta','asc'), limit(maxRows + 1)),
-            query(col, where('etd','>=', Timestamp.fromDate(from)), orderBy('etd','asc'), limit(maxRows + 1))
+            query(col, where('etd','>=', Timestamp.fromDate(from)), orderBy('etd','asc'), limit(maxRows + 1)),
+            query(col, where('parkingUsageEnd','>=', Timestamp.fromDate(from)), orderBy('parkingUsageEnd','asc'), limit(maxRows + 1))
           ];
           const snapshots = await Promise.all(requests.map(q => getDocs(q)));
           if (snapshots.some(snap => snap.size > maxRows)) {
@@ -4712,12 +4719,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if(r.status==='Cancelled Before Entry'||r.parkingUnused)return false;
         if (determineCategory(r) !== 'Pelawat') return false;
         if (String((r.stayOver || '').toLowerCase()) !== 'yes') return false;
-        const eta = r.eta && r.eta.toDate ? r.eta.toDate() : (r.eta ? new Date(r.eta) : null);
-        const etd = r.etd && r.etd.toDate ? r.etd.toDate() : (r.etd ? new Date(r.etd) : eta);
-        if (!eta) return false;
-        const end = etd || eta;
-        // overlap condition: starts before week end AND ends on/after week start
-        return eta.getTime() < to.getTime() && end.getTime() >= from.getTime();
+        return registrationVehicles(r).some(v=>new Date(v.start+'T00:00:00')<to&&new Date(v.end+'T00:00:00')>=from);
       });
 
       // Filter by plate/unit search term (case-insensitive). Matches vehicleNo or any vehicleNumbers.
@@ -4745,23 +4747,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
         const unit = String(registration.hostUnit || 'Unit tidak dinyatakan').trim().toUpperCase();
         if (!unitMap.has(unit)) unitMap.set(unit, { unit, days: new Map(), daySet: new Set(), registrations: new Set() });
         const bucket = unitMap.get(unit);
-        const eta = toJsDateSafe(registration.eta);
-        const etd = toJsDateSafe(registration.etd) || eta;
-        if (!eta) return;
-        const plates = collectVehiclesFromResponse(registration);
-        const cursor = dayStart(eta < from ? from : eta);
-        const lastDay = dayStart(etd);
-        while (cursor <= lastDay && cursor < to) {
-          const key = dayKey(cursor);
-          if (dayKeys.includes(key)) {
-            if (!bucket.days.has(key)) bucket.days.set(key, { plates: new Set(), ids: new Set() });
-            const dayBucket = bucket.days.get(key);
-            plates.forEach((plate) => dayBucket.plates.add(plate));
-            if (registration.id) dayBucket.ids.add(registration.id);
-            bucket.daySet.add(key);
-            if (registration.id) bucket.registrations.add(registration.id);
-          }
-          cursor.setDate(cursor.getDate() + 1);
+        for(const vehicle of registrationVehicles(registration)){
+          const cursor=dayStart(new Date(vehicle.start+'T00:00:00')),lastDay=dayStart(new Date(vehicle.end+'T00:00:00'));
+          while(cursor<=lastDay&&cursor<to){const key=dayKey(cursor);if(dayKeys.includes(key)){if(!bucket.days.has(key))bucket.days.set(key,{plates:new Set(),ids:new Set()});const dayBucket=bucket.days.get(key);dayBucket.plates.add(vehicle.plate);if(registration.id)dayBucket.ids.add(registration.id);bucket.daySet.add(key);if(registration.id)bucket.registrations.add(registration.id);}cursor.setDate(cursor.getDate()+1);}
         }
       });
 
@@ -4787,7 +4775,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
         const demoCharges = new Map([
           ['preview-a', {amountSen:3000, paidSen:3000}],
           ['preview-b', {amountSen:3000, paidSen:1000}],
-          ['preview-c', {amountSen:0, paidSen:0}]
+          ['preview-c', {amountSen:0, paidSen:0}],
+          ['preview-e', {amountSen:500,paidSen:0}],['preview-f', {amountSen:500,paidSen:0}]
         ]);
         visibleIds.forEach(id => weekPaymentStates.set(id, weeklyParkingPayment(recordsById.get(id), demoCharges.get(id) || null)));
       }
@@ -4884,34 +4873,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
             td.innerHTML = '<span class="parking-empty-day">—</span>';
           } else {
             td.className = 'has-parking';
-            Array.from(dayData.ids).forEach((id) => {
-              const record = recordsById.get(id);
-              const payment = weekPaymentStates.get(id) || {state:'unknown', label:'Belum disahkan'};
-              const plates = record ? collectVehiclesFromResponse(record) : [];
-              const group = document.createElement('div');
-              group.className = 'parking-registration-payment';
-              group.innerHTML = (plates.length ? plates : ['Tiada nombor']).map(plate => `<span class="parking-plate-chip parking-payment-${payment.state}">${escapeHtml(plate)}</span>`).join('');
-              if (!DASHBOARD_PREVIEW_MODE) {
-                const details = document.createElement('details');
-                details.className = 'parking-payment-details parking-payment-text-' + payment.state;
-                const summary = document.createElement('summary');
-                summary.textContent = payment.label;
-                summary.title = 'Buka butiran pendaftaran';
-                details.appendChild(summary);
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'btn-ghost';
-                button.textContent = record ? (record.visitorName || 'Pelawat') : id;
-                button.addEventListener('click', () => openEditModalFor(id));
-                details.appendChild(button);
-                group.appendChild(details);
-              } else {
-                const status = document.createElement('div');
-                status.className = 'parking-payment-details parking-payment-text-' + payment.state;
-                status.textContent = payment.label;
-                group.appendChild(status);
-              }
-              td.appendChild(group);
+            const dayGroups=groupParkingDay(Array.from(dayData.ids).map(id=>{const record=recordsById.get(id);return {id,record,plates:record?registrationVehicles(record).filter(v=>v.start<=key&&v.end>=key).map(v=>v.plate):[],payment:weekPaymentStates.get(id)||{state:'unknown',label:'Belum disahkan'}};}));
+            dayGroups.forEach(item=>{
+              const group=document.createElement('div'),payment=item.payment;group.className='parking-registration-payment';
+              const chip=document.createElement('span');chip.className='parking-plate-chip parking-payment-'+payment.state;chip.textContent=item.plate;group.append(chip);
+              const details=document.createElement('details');details.className='parking-payment-details parking-payment-text-'+payment.state;
+              const summary=document.createElement('summary');summary.textContent=payment.label;details.append(summary);
+              if(item.items.length>1){const count=document.createElement('small');count.textContent=item.items.length+' permohonan · tarikh dikira sekali';details.append(count);}
+              for(const source of item.items){const button=document.createElement('button');button.type='button';button.className='btn-ghost';button.textContent=source.record?(source.record.visitorName||'Pelawat'):source.id;if(!DASHBOARD_PREVIEW_MODE)button.addEventListener('click',()=>openEditModalFor(source.id));else button.disabled=true;details.append(button);}
+              group.append(details);td.append(group);
             });
           }
           tr.appendChild(td);
