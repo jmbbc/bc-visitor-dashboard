@@ -1,3 +1,4 @@
+import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 // Firestore adapter, intentionally not enabled by the production dashboard yet.
 // SDK injection allows emulator use without importing production configuration.
 export function createPaymentStore({db, auth, sdk}) {
@@ -30,6 +31,7 @@ export function createPaymentStore({db, auth, sdk}) {
         const response=await tx.get(responseRef);
         if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
         const existing = await tx.get(ref);
+        if(amountSen>0&&isParkingExempt(response.data()))throw Error('Jenis kenderaan ini tidak dikenakan caj parkir.');
         const old=response.data(),lockRef=doc(db,'overnightLocks',`unit-${old.hostUnit}`),lock=await tx.get(lockRef);
         if (existing.exists()) {
           if (existing.data().amountSen !== amountSen) throw new Error('Caj sudah wujud dengan amaun berbeza.');
@@ -67,6 +69,7 @@ export function createPaymentStore({db, auth, sdk}) {
         const settled=chargeData.amountSen>0 && Number(chargeData.paidSen||0)<chargeData.amountSen && paidSen>=chargeData.amountSen;
         const responseRef=doc(db,'responses',chargeId),response=await tx.get(responseRef);
         if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
+        if(isParkingExempt(response.data()))throw Error('Jenis kenderaan ini tidak dikenakan caj parkir. Semak caj lama dengan admin.');
         if(response.data().parkingUnused===true)throw new Error('Pendaftaran tidak menggunakan parkir; bayaran baharu tidak dibenarkan.');
         const lockRef=doc(db,'overnightLocks',`unit-${response.data().hostUnit}`),lock=await tx.get(lockRef);
         const paymentStatus=paidSen>chargeData.amountSen?'overpaid':paidSen===chargeData.amountSen?'paid':'partial';
@@ -96,6 +99,7 @@ export function createPaymentStore({db, auth, sdk}) {
         const responseData=response.exists()?response.data():{},lockRef=doc(db,'overnightLocks',`unit-${responseData.hostUnit||''}`),lock=await tx.get(lockRef);
         if (!old.exists() || old.data().amountSen !== expectedAmountSen) throw new Error('Caj telah berubah. Muat semula sebelum pelarasan.');
         if(!response.exists())throw new Error('Pendaftaran tidak dijumpai.');
+        if(amountSen>0&&isParkingExempt(responseData))throw Error('Jenis kenderaan ini tidak dikenakan caj parkir.');
         tx.set(event, {beforeSen:old.data().amountSen, afterSen:amountSen, reason:reason.trim(), by, at:serverTimestamp()});
         const paidSen=Number(oldCharge.paidSen||0),settledNow=oldCharge.amountSen>0&&paidSen>=amountSen&&amountSen>0&&responseData.status==='Pending Payment';
         const paymentStatus=paidSen>amountSen?'overpaid':paidSen===amountSen&&amountSen>0?'paid':amountSen===0?'no_charge':paidSen>0?'partial':'unconfirmed';

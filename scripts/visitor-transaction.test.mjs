@@ -1,3 +1,4 @@
+import {parkingVehicleClass,isParkingExempt} from '../js/parking-vehicle-type.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -8,7 +9,7 @@ import {createRegistrationVerification,verificationExpiryDate,isVerificationCode
 const source=readFileSync(new URL('../js/visitor.js',import.meta.url),'utf8');
 const body=source.slice(source.indexOf('async function createResponseWithDedupe(payload){'),source.indexOf('// Client-side duplicate protection'));
 const stamp=value=>({toDate:()=>new Date(value)});
-const verificationHelpers={createRegistrationVerification,verificationExpiryDate,isVerificationCode};
+const verificationHelpers={createRegistrationVerification,verificationExpiryDate,isVerificationCode,parkingVehicleClass,isParkingExempt};
 test('maintenance-only counter without endDate is not submitted as complete prior state',()=>{
   const helperSource=source.slice(source.indexOf('function parkingPriorStateFromLock'),source.indexOf('function renderPaymentUpdateNotice'));
   const context={parkingStateFromLock:()=>({category:1,mainUsageDays:0}),String};
@@ -42,7 +43,7 @@ for(const oldDays of [0,2])test(`overnight transaction builds response and prior
     })};
   vm.createContext(context);
   vm.runInContext(body,context);
-  const result=await context.createResponseWithDedupe({hostUnit:'B2-15-9',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',unitArrearsAmount:0,vehicleNo:'TEST',status:'Pending'});
+  const result=await context.createResponseWithDedupe({vehicleType:'Kereta / 4x4',hostUnit:'B2-15-9',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',unitArrearsAmount:0,vehicleNo:'TEST',status:'Pending'});
   assert.equal(result.success,true);
   const response=writes.find(w=>w.ref.col==='responses').data;
   assert.equal(response.parkingPriorState.mainUsageDays,oldDays);
@@ -61,7 +62,7 @@ test('new category 3 registration preserves category 1 counter and remains rules
     parkingStateFromLock:()=>state,parkingPriorStateFromLock:(_unit,data)=>({exists:true,category:data.category,mainUsageDays:data.mainUsageDays}),quoteFromUnitState,
     runTransaction:async(_db,callback)=>callback({get:async ref=>({exists:()=>ref.col==='overnightLocks',data:()=>lock}),set:(ref,data)=>writes.push({ref,data})})};
   vm.createContext(context);vm.runInContext(body,context);
-  await context.createResponseWithDedupe({hostUnit:'A-1-1',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',unitArrearsAmount:500,vehicleNo:'TEST',status:'Pending'});
+  await context.createResponseWithDedupe({vehicleType:'Kereta / 4x4',hostUnit:'A-1-1',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',unitArrearsAmount:500,vehicleNo:'TEST',status:'Pending'});
   const nextLock=writes.find(w=>w.ref.col==='overnightLocks').data;
   const response=writes.find(w=>w.ref.col==='responses').data;
   assert.equal(nextLock.parkingCategory,3);
@@ -99,7 +100,7 @@ test('amendment completes all Firestore reads before any write',async()=>{
     })};
   vm.createContext(context);
   vm.runInContext(body,context);
-  const result=await context.createResponseWithDedupe({hostUnit:'B2-15-9',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',__amendResponseId:'existing-response',unitArrearsAmount:0,vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-B'],status:'Pending'});
+  const result=await context.createResponseWithDedupe({vehicleType:'Kereta / 4x4',hostUnit:'B2-15-9',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-14'),etd:stamp('2026-09-16'),amendToken:'fixture',__amendResponseId:'existing-response',unitArrearsAmount:0,vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-B'],status:'Pending'});
   assert.equal(result.amended,true);
   assert.equal(operations.includes('read:responses'),false);
   const firstWrite=operations.findIndex(item=>item.startsWith('write:'));
@@ -119,7 +120,7 @@ test('a new Pelawat registration on the same date stays separate regardless of t
       set:(ref,data)=>writes.push({ref,data}),update:()=>{}
     })};
   vm.createContext(context);vm.runInContext(body,context);
-  const result=await context.createResponseWithDedupe({hostUnit:'B2-15-9',category:'Pelawat',stayOver:'No',eta:stamp(sameDay),etd:stamp(sameDay),amendToken:'fixture',vehicleNo:'EVENING-1',status:'Pending'});
+  const result=await context.createResponseWithDedupe({vehicleType:'Kereta / 4x4',hostUnit:'B2-15-9',category:'Pelawat',stayOver:'No',eta:stamp(sameDay),etd:stamp(sameDay),amendToken:'fixture',vehicleNo:'EVENING-1',status:'Pending'});
   assert.equal(result.amended,false);
   assert.notEqual(result.id,'morning-response');
   assert.equal(writes.find(w=>w.ref.col==='overnightLocks').data.responseId,result.id);
@@ -142,7 +143,7 @@ test('local management replaces a plate without appending a third vehicle',async
       set:()=>{},update:(_ref,data)=>{updated=data;}
     })};
   vm.createContext(context);vm.runInContext(body,context);
-  await context.createResponseWithDedupe({hostUnit:'B2-15-9',hostName:'Host',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-20'),etd:stamp('2026-09-21'),amendToken:'fixture',__amendResponseId:'existing-response',vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-C'],vehicleRowsDetailed:[{plate:'CAR-A'},{plate:'CAR-C'}],status:'Pending',__replaceAmendedVehicles:true});
+  await context.createResponseWithDedupe({vehicleType:'Kereta / 4x4',hostUnit:'B2-15-9',hostName:'Host',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-09-20'),etd:stamp('2026-09-21'),amendToken:'fixture',__amendResponseId:'existing-response',vehicleNo:'CAR-A',vehicleNumbers:['CAR-A','CAR-C'],vehicleRowsDetailed:[{plate:'CAR-A'},{plate:'CAR-C'}],status:'Pending',__replaceAmendedVehicles:true});
   assert.deepEqual(Array.from(updated.vehicleNumbers),['CAR-A','CAR-C']);
   assert.equal(updated.__replaceAmendedVehicles,undefined);
 });
@@ -158,7 +159,7 @@ for(const pending of [true,false])test(`category 2 transaction persists fresh cy
     parkingStateFromLock:()=>state,parkingPriorStateFromLock:()=>({exists:true,category:2,mainUsageDays:3}),quoteFromUnitState,
     runTransaction:async(_db,callback)=>callback({get:async ref=>{reads.push(ref);return {exists:()=>ref.col==='overnightLocks',data:()=>lock}},set:(ref,data)=>writes.push({ref,data})})};
   vm.createContext(context);vm.runInContext(body,context);
-  const result=await context.createResponseWithDedupe({hostUnit:'TEST-2',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-10-21'),etd:stamp('2026-10-23'),amendToken:'fixture-category2',unitArrearsAmount:100,vehicleNo:'TESTCAR',status:'Pending'});
+  const result=await context.createResponseWithDedupe({vehicleType:'Kereta / 4x4',hostUnit:'TEST-2',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-10-21'),etd:stamp('2026-10-23'),amendToken:'fixture-category2',unitArrearsAmount:100,vehicleNo:'TESTCAR',status:'Pending'});
   assert.equal(result.success,true);
   const next=writes.find(w=>w.ref.col==='overnightLocks').data,response=writes.find(w=>w.ref.col==='responses').data,newCharge=writes.find(w=>w.ref.col==='parkingCharges');
   assert.equal(next.cycleStart.toDate().toISOString().slice(0,10),'2026-10-21');assert.equal(next.mainUsageDays,3);assert.equal(next.parkingCategory,2);
@@ -177,7 +178,7 @@ test('category 1 pending old charge does not block saving three new free days',a
     parkingStateFromLock:()=>state,parkingPriorStateFromLock:()=>({exists:true,category:1,mainUsageDays:6}),quoteFromUnitState,
     runTransaction:async(_db,callback)=>callback({get:async ref=>{reads.push(ref);return {exists:()=>ref.col==='overnightLocks',data:()=>lock}},set:(ref,data)=>writes.push({ref,data})})};
   vm.createContext(context);vm.runInContext(body,context);
-  const result=await context.createResponseWithDedupe({hostUnit:'TEST-1',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-10-21'),etd:stamp('2026-10-23'),amendToken:'fixture-category1',unitArrearsAmount:0,vehicleNo:'TESTCAR',status:'Pending'});
+  const result=await context.createResponseWithDedupe({vehicleType:'Kereta / 4x4',hostUnit:'TEST-1',category:'Pelawat',stayOver:'Yes',eta:stamp('2026-10-21'),etd:stamp('2026-10-23'),amendToken:'fixture-category1',unitArrearsAmount:0,vehicleNo:'TESTCAR',status:'Pending'});
   assert.equal(result.success,true);
   const next=writes.find(w=>w.ref.col==='overnightLocks').data,response=writes.find(w=>w.ref.col==='responses').data;
   assert.equal(next.cycleStart.toDate().toISOString().slice(0,10),'2026-10-21');assert.equal(next.mainUsageDays,3);
@@ -193,9 +194,14 @@ test('category 1 to 2 continuation saves new rates without rewriting earlier reg
     parkingStateFromLock:()=>state,parkingPriorStateFromLock:()=>({exists:true,category:1,mainUsageDays:3}),quoteFromUnitState,
     runTransaction:async(_db,callback)=>callback({get:async ref=>({exists:()=>ref.col==='overnightLocks',data:()=>lock}),set:(ref,data)=>writes.push({ref,data})})};
   vm.createContext(context);vm.runInContext(body,context);
-  await context.createResponseWithDedupe({hostUnit:state.unitId,category:'Pelawat',stayOver:'Yes',eta:stamp('2026-11-01'),etd:stamp('2026-11-03'),amendToken:'fixture-transition',unitArrearsAmount:100,vehicleNo:'TESTCAR',status:'Pending'});
+  await context.createResponseWithDedupe({vehicleType:'Kereta / 4x4',hostUnit:state.unitId,category:'Pelawat',stayOver:'Yes',eta:stamp('2026-11-01'),etd:stamp('2026-11-03'),amendToken:'fixture-transition',unitArrearsAmount:100,vehicleNo:'TESTCAR',status:'Pending'});
   const next=writes.find(w=>w.ref.col==='overnightLocks').data,response=writes.find(w=>w.ref.col==='responses').data,charge=writes.find(w=>w.ref.col==='parkingCharges');
   assert.equal(next.parkingCategory,2);assert.equal(next.mainUsageDays,6);assert.equal(next.cycleStart.toDate().toISOString().slice(0,10),'2026-10-29');assert.equal(next.parkingReviewRequired,false);
   assert.equal(response.parkingQuote.mainStartDay,4);assert.equal(response.parkingQuote.mainEndDay,6);assert.equal(response.parkingQuote.mainTotalSen,2500);assert.equal(response.status,'Pending');assert.equal(charge,undefined);assert.equal(response.parkingReviewReason,'automatic_ledger_pending');
   assert.ok(!writes.some(w=>w.ref.id==='old-category1'));
+});
+for(const vehicleType of ['Motosikal','Pejalan Kaki'])test(vehicleType+' overnight never charges or replaces an existing car counter/lock',async()=>{
+ const writes=[],lock={unit:'TEST',responseId:'car',amendToken:'car-token',stayOver:'Yes',startDate:stamp('2026-10-01'),endDate:stamp('2026-10-03'),parkingCategory:3,mainUsageDays:10,lastAnyEnd:stamp('2026-10-03')};
+ const context={...verificationHelpers,window:{__FIRESTORE:{}},Date,console,CLIENT_DEDUPE_WINDOW_MIN:2,clientIsoDateOnlyKey:d=>d.toISOString().slice(0,10),_shortId:()=> 'moto',doc:(_db,col,id)=>({col,id}),_toDateOnly:d=>d,dateFromInputDateOnly:d=>new Date(d+'T00:00:00Z'),dedupeTransactionUnavailable:false,serverTimestamp:()=> 'SERVER_TIME',Timestamp:{fromDate:d=>stamp(d)},computeArrearsCategory:()=>3,parkingStateFromLock:()=>{throw Error('Exempt must not quote from car state');},parkingPriorStateFromLock:()=>{throw Error('Exempt must not capture car state');},quoteFromUnitState,runTransaction:async(_db,callback)=>callback({get:async ref=>({exists:()=>ref.col==='overnightLocks',data:()=>lock}),set:(ref,data)=>writes.push({ref,data})})};
+ vm.createContext(context);vm.runInContext(body,context);await context.createResponseWithDedupe({hostUnit:'TEST',category:'Pelawat',stayOver:'Yes',vehicleType,vehicleNo:'MOTO1',eta:stamp('2026-10-04'),etd:stamp('2026-10-20'),amendToken:'motor',unitArrearsAmount:999});const response=writes.find(w=>w.ref.col==='responses').data;assert.equal(response.parkingQuote.mainTotalSen,0);assert.equal(response.parkingReviewRequired,false);assert.equal(response.parkingReviewReason,'vehicle_type_exempt');for(const col of ['parkingCharges','overnightLocks','parkingLedgerQueue'])assert.ok(!writes.some(w=>w.ref.col===col));
 });

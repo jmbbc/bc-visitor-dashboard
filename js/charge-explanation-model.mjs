@@ -1,3 +1,4 @@
+import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 import {datesInclusive, dailyRateSen, arrearsCategory, POLICY_VERSION} from './parking-policy.mjs';
 export function malaysiaDate(value) {
   if (!value) return '';
@@ -17,6 +18,7 @@ export function explainParkingCharge(record, charge) {
   const amount=charge&&valid(charge.amountSen)?charge.amountSen:(!record.parkingReviewRequired&&quoted===0?0:null);
   const paid=charge&&valid(charge.paidSen)?charge.paidSen:(amount===0?0:null);
   const base={id:record.id,unit:record.hostUnit,plate:(Array.isArray(record.vehicleNumbers)?record.vehicleNumbers:[record.vehicleNo]).filter(Boolean).join(', ')||'Tiada nombor',category:cat?`Kategori ${cat} (snapshot asal)`:'Kategori belum disahkan',from:malaysiaDate(record.eta),to:malaysiaDate(record.etd||record.eta),paid:paid==null?null:paid/100,total:amount==null?null:amount/100,days:[],reason:'Snapshot kiraan tidak lengkap. Pecahan harian perlu semakan; amaun rasmi tidak diubah.'};
+  if(isParkingExempt(record))return {...base,exempt:true,reason:amount>0?'Jenis kenderaan dikecualikan. Caj lama memerlukan semakan admin; amaun rasmi belum diubah.':'Jenis kenderaan tidak dikenakan caj dan tidak menggunakan hari percuma, cooldown atau slot kenderaan tambahan.'};
   if(record.parkingReviewRequired)return {...base,reason:'Pendaftaran ditandakan perlu semakan kategori/kitaran. Pecahan harian tidak dianggap muktamad.'};
   if(record.parkingLedgerVersion==='unit-vehicle-days-1'&&Array.isArray(record.parkingDailyBreakdown)){
     const lines=record.parkingDailyBreakdown;

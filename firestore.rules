@@ -204,6 +204,7 @@ service cloud.firestore {
         // Inspect the post-transaction document rather than requiring it to
         // exist before the atomic write starts.
         && existsAfter(/databases/$(database)/documents/responses/$(id))
+        && (request.resource.data.amountSen == 0 || !isExemptParkingVehicle(getAfter(/databases/$(database)/documents/responses/$(id)).data))
         && request.resource.data.amountSen is int
         && request.resource.data.amountSen >= 0 && request.resource.data.amountSen <= 100000000
         && ((paymentAdmin() && request.resource.data.createdBy == request.auth.uid) || request.resource.data.createdBy == 'visitor-form')
@@ -215,6 +216,7 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amountSen','paymentStatus','lastChangeId'])
         && request.resource.data.amountSen is int
         && request.resource.data.amountSen >= 0 && request.resource.data.amountSen <= 100000000
+        && (request.resource.data.amountSen == 0 || !isExemptParkingVehicle(getAfter(/databases/$(database)/documents/responses/$(id)).data))
         && request.resource.data.paidSen == resource.data.paidSen
         && request.resource.data.paymentStatus in ['unconfirmed','partial','paid','overpaid','no_charge']
         && !exists(/databases/$(database)/documents/parkingCharges/$(id)/changes/$(request.resource.data.lastChangeId))
@@ -233,16 +235,21 @@ service cloud.firestore {
       }
     }
 
+    function isExemptParkingVehicle(data) {
+      return data.get('category','Pelawat') == 'Pelawat' && data.get('vehicleType', '').lower().replace(' ', '') in ['motosikal','pejalankaki'];
+    }
     function isVisitorFormCharge(id) {
       return request.resource.data.createdBy == 'visitor-form'
         && existsAfter(/databases/$(database)/documents/responses/$(id))
+        && !isExemptParkingVehicle(getAfter(/databases/$(database)/documents/responses/$(id)).data)
         && getAfter(/databases/$(database)/documents/responses/$(id)).data.status == 'Pending Payment'
         && getAfter(/databases/$(database)/documents/responses/$(id)).data.parkingQuote.mainTotalSen == request.resource.data.amountSen;
     }
 
     function isStaffPaymentUpdate(oldData, newData, id) {
       let receiptPath = /databases/$(database)/documents/parkingReceipts/$(newData.lastReceiptId);
-      return getAfter(/databases/$(database)/documents/responses/$(id)).data.get('parkingUnused', false) == false
+      return !isExemptParkingVehicle(getAfter(/databases/$(database)/documents/responses/$(id)).data)
+        && getAfter(/databases/$(database)/documents/responses/$(id)).data.get('parkingUnused', false) == false
         && newData.diff(oldData).affectedKeys().hasOnly(['paidSen','paymentStatus','lastReceiptId'])
         && newData.paidSen is int && newData.paidSen > oldData.get('paidSen', 0)
         && newData.paymentStatus in ['partial','paid','overpaid']
@@ -275,6 +282,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['chargeId','reference','amountSen','state','createdBy','createdAt'])
         && request.resource.data.chargeId is string
         && exists(/databases/$(database)/documents/parkingCharges/$(request.resource.data.chargeId))
+        && !isExemptParkingVehicle(getAfter(/databases/$(database)/documents/responses/$(request.resource.data.chargeId)).data)
         && getAfter(/databases/$(database)/documents/responses/$(request.resource.data.chargeId)).data.get('parkingUnused', false) == false
         && request.resource.data.reference == id
         && request.resource.data.amountSen is int

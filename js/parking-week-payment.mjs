@@ -1,7 +1,10 @@
+import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 // Weekly report uses official cumulative charge totals, never operational status.
 export function weeklyParkingPayment(registration, charge, verified = true) {
   const unknown = {state:'unknown', label:'Belum disahkan'};
   if (!verified) return unknown;
+  if(isParkingExempt(registration))return charge?.amountSen>0?{state:'unknown',label:'Semak pengecualian'}:{state:'paid',label:'Tidak dikenakan caj'};
+  if(registration.parkingReviewReason==='vehicle_type_exempt')return {state:'unknown',label:'Menunggu kiraan'};
   if(registration.parkingReviewReason==='automatic_ledger_pending')return {state:'unknown',label:'Menunggu kiraan'};
   if (charge) {
     const {amountSen, paidSen} = charge;

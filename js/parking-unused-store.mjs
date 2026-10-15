@@ -1,3 +1,3 @@
-import {createUnitParkingLedgerStore} from './parking-unit-ledger-store.mjs?v=20261015-merge-1';
-import {createUnusedParkingStore as createLegacyStore} from './parking-unused-legacy-store.mjs?v=20261015-merge-1';
+import {createUnitParkingLedgerStore} from './parking-unit-ledger-store.mjs?v=20261015-type-1';
+import {createUnusedParkingStore as createLegacyStore} from './parking-unused-legacy-store.mjs?v=20261015-type-1';
 export function createUnusedParkingStore(options){const ledger=createUnitParkingLedgerStore(options),legacy=createLegacyStore(options);return {async markUnused(data){const {sdk,db,auth}=options;if(!auth.currentUser||(await auth.currentUser.getIdTokenResult()).claims.admin!==true)throw Error('Admin sahaja.');const s=await sdk.getDoc(sdk.doc(db,'responses',data.registrationId));if(!s.exists())throw Error('Rekod tidak ditemui.');try{return await ledger.reconcile({unit:s.data().hostUnit,unusedId:data.registrationId,reason:data.reason,confirmId:data.confirmId});}catch(error){if(/^(Snapshot awal|Kategori asal|Nombor kenderaan|Kitaran memerlukan|Tempoh kenderaan|Pecahan melebihi)/.test(error.message))return legacy.markUnused(data);throw error;}}};}

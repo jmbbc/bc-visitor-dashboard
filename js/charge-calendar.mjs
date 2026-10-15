@@ -1,5 +1,5 @@
-import {calendarForUnit} from './charge-calendar-model.mjs?v=20261015-merge-1';
-import {explainParkingCharge,malaysiaDate} from './charge-explanation-model.mjs?v=20261015-merge-1';
+import {calendarForUnit} from './charge-calendar-model.mjs?v=20261015-type-1';
+import {explainParkingCharge,malaysiaDate} from './charge-explanation-model.mjs?v=20261015-type-1';
 if(new URLSearchParams(location.search).get('preview')!=='1'){
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const rm=n=>'RM'+n.toFixed(2);
   function init(){

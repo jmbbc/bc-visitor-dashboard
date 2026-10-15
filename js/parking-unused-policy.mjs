@@ -1,3 +1,4 @@
+import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 import {quoteFromUnitState} from './unit-cooldown.mjs';
 import {malaysiaDate} from './charge-explanation-model.mjs';
 const cat=r=>{const n=Number(String(r.unitCategory||'').match(/^(?:Kategori\s*)?([123])$/i)?.[1]);return [1,2,3].includes(n)?n:typeof r.unitArrearsAmount==='number'&&Number.isFinite(r.unitArrearsAmount)?r.unitArrearsAmount<=1?1:r.unitArrearsAmount<=400?2:3:null};
@@ -5,7 +6,7 @@ export function planUnusedParking(records,targetId){
  const target=records.find(r=>r.id===targetId);if(!target)throw Error('Rekod tidak ditemui.');
  if(target.category!=='Pelawat'||String(target.stayOver).toLowerCase()!=='yes')throw Error('Tindakan ini hanya untuk parkir bermalam.');
  if(!target.parkingUnused&&!['Pending','Pending Payment','Approved'].includes(target.status))throw Error('Rekod sudah masuk, keluar atau dibatalkan; perlu semakan berasingan.');
- let active=records.filter(r=>r.category==='Pelawat'&&String(r.stayOver).toLowerCase()==='yes'&&!r.parkingUnused&&r.status!=='Cancelled Before Entry').sort((a,b)=>malaysiaDate(a.eta).localeCompare(malaysiaDate(b.eta))||String(a.id).localeCompare(String(b.id)));
+ let active=records.filter(r=>!isParkingExempt(r)&&r.category==='Pelawat'&&String(r.stayOver).toLowerCase()==='yes'&&!r.parkingUnused&&r.status!=='Cancelled Before Entry').sort((a,b)=>malaysiaDate(a.eta).localeCompare(malaysiaDate(b.eta))||String(a.id).localeCompare(String(b.id)));
  // A confirmed full cooldown before the correction isolates older legacy history.
  const usageEnd=r=>(r.vehicleRowsDetailed||[]).reduce((end,row)=>row.endDate>end?row.endDate:end,malaysiaDate(r.etd||r.eta));
  let anchor=0,previousEnd='';

@@ -1,4 +1,5 @@
-import {registrationVehicles} from './parking-unit-ledger.mjs?v=20261015-merge-1';
+import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
+import {registrationVehicles} from './parking-unit-ledger.mjs?v=20261015-type-1';
 import {groupParkingDay} from './parking-day-groups.mjs?v=20261015-merge-1';
 // js/dashboard.js — full patched version with parking save fixes, deterministic doc IDs,
 // and assignLotTransaction (Firestore transaction) for atomic parking assignment.
@@ -14,7 +15,7 @@ import {
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-import {weeklyParkingPayment} from './parking-week-payment.mjs?v=20261015-merge-1';
+import {weeklyParkingPayment} from './parking-week-payment.mjs?v=20261015-type-1';
 import {normalizeVerificationCode,isVerificationCode} from './registration-verification.mjs?v=20260919-1';
 
 const DASHBOARD_PREVIEW_MODE = new URLSearchParams(window.location.search).get('preview') === '1';
@@ -2901,7 +2902,9 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     const hasParkingCharge = Number.isFinite(quotedMainSen) && quotedMainSen > 0;
     let paymentStatusLabel = '—';
     let paymentStatusClass = 'payment-status-none';
-    if (r.parkingReviewRequired === true) {
+    if(isParkingExempt(r)){paymentStatusLabel=hasParkingCharge?'Semak pengecualian':'Tidak dikenakan caj';paymentStatusClass=hasParkingCharge?'payment-status-review':'payment-status-free';}
+    else if(r.parkingReviewReason==='vehicle_type_exempt'){paymentStatusLabel='Menunggu kiraan';paymentStatusClass='payment-status-review';}
+    else if (r.parkingReviewRequired === true) {
       paymentStatusLabel = r.parkingReviewReason==='automatic_ledger_pending'?'Menunggu kiraan':'Perlu semakan';
       paymentStatusClass = 'payment-status-review';
     } else if (r.status === 'Pending Payment') {
@@ -2930,7 +2933,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       <td><div class="reg-category-layout">${categoryPillHtml}<div class="reg-finance-grid"><div class="reg-finance-item ${arrearsFinanceClass}"><span class="label">Tunggakan</span><span class="value">${arrearsValueHtml}</span></div><div class="reg-finance-item ${chargeFinanceClass}"><span class="label">Caj parkir</span><span class="value">${chargeValueHtml}</span></div></div></div></td>
       <td><div class="reg-status-stack"><span class="status-pill ${statusClass}">${escapeHtml(registrationStatusLabel)}</span><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span>${badge}</div></td>
       <td><div class="actions registration-actions">
-        ${dashboardHasAdminClaim && !DASHBOARD_PREVIEW_MODE && r.category==='Pelawat' && String(r.stayOver).toLowerCase()==='yes' && ['Pending','Pending Payment','Approved'].includes(r.status) && !r.parkingUnused ? `<button class="btn btn-ghost" data-action="unused" data-id="${escapeHtml(r.id)}">Tidak menggunakan parkir</button>` : ''}
+        ${dashboardHasAdminClaim && !DASHBOARD_PREVIEW_MODE && r.category==='Pelawat' && String(r.stayOver).toLowerCase()==='yes' && ['Pending','Pending Payment','Approved'].includes(r.status) && !r.parkingUnused && !isParkingExempt(r) ? `<button class="btn btn-ghost" data-action="unused" data-id="${escapeHtml(r.id)}">Tidak menggunakan parkir</button>` : ''}
         <button class="btn btn-ghost" data-action="payment" data-id="${r.id}" title="Semak atau rekod bayaran">💳 Bayaran</button>
         <button class="btn btn-ghost" data-action="edit" data-id="${r.id}" title="Edit tarikh atau status">✏️ Edit</button>
         <button class="btn" data-action="in" data-id="${r.id}" ${['Pending Payment','Cancelled Before Entry','Checked Out'].includes(r.status)?'disabled':''}>✓ Masuk</button>

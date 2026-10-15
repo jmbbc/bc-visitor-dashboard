@@ -1,7 +1,7 @@
 import * as sdk from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 import {onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 import './firebase-init.js';
-import {createUnitParkingLedgerStore} from './parking-unit-ledger-store.mjs?v=20261015-merge-1';
+import {createUnitParkingLedgerStore} from './parking-unit-ledger-store.mjs?v=20261015-type-1';
 if(new URLSearchParams(location.search).get('preview')!=='1'){
  let stop=null,stopReviews=null,generation=0;
  onAuthStateChanged(window.__AUTH,async user=>{

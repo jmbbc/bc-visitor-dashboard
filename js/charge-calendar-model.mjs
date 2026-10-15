@@ -1,4 +1,5 @@
-import {explainParkingCharge,malaysiaDate} from './charge-explanation-model.mjs?v=20261015-merge-1';
+import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
+import {explainParkingCharge,malaysiaDate} from './charge-explanation-model.mjs?v=20261015-type-1';
 import {datesInclusive} from './parking-policy.mjs';
 export function calendarForUnit(records, month) {
   if(!/^\d{4}-\d{2}$/.test(month)||Number(month.slice(5))<1||Number(month.slice(5))>12)throw Error('Pilih bulan yang sah.');
@@ -6,7 +7,7 @@ export function calendarForUnit(records, month) {
   const days=new Map(),seen=new Set();let registrations=0;
   for(const record of records){
     if(seen.has(record.id)||(record.status==='Cancelled Before Entry'&&!record.parkingUnused))continue;seen.add(record.id);
-    if(record.category!=='Pelawat'||String(record.stayOver||'').toLowerCase()!=='yes')continue;
+    if(isParkingExempt(record)||record.category!=='Pelawat'||String(record.stayOver||'').toLowerCase()!=='yes')continue;
     const daily=record.parkingLedgerVersion==='unit-vehicle-days-1'&&Array.isArray(record.parkingDailyBreakdown)?record.parkingDailyBreakdown:[],keys=daily.map(l=>l.date).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();const start=keys[0]||malaysiaDate(record.eta),end=keys.at(-1)||malaysiaDate(record.etd||record.eta);
     if(!start||!end||end<first||start>last||end<start)continue;
     if(!record.parkingUnused)registrations++;

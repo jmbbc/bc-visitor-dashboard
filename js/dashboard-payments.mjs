@@ -1,8 +1,9 @@
+import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 import * as sdk from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 import {onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 import './firebase-init.js';
-import {createUnusedParkingStore} from './parking-unused-store.mjs?v=20261015-merge-1';
-import {createPaymentStore} from './payment-store.mjs?v=20261015-1';
+import {createUnusedParkingStore} from './parking-unused-store.mjs?v=20261015-type-1';
+import {createPaymentStore} from './payment-store.mjs?v=20261015-type-1';
 import {parseRinggit} from './parking-payments.mjs';
 
 if (new URLSearchParams(location.search).get('preview') !== '1') {
@@ -64,7 +65,8 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     find('[data-unused]').hidden=!isAdmin||response.category!=='Pelawat'||String(response.stayOver).toLowerCase()!=='yes'||!['Pending','Pending Payment','Approved'].includes(response.status)||response.parkingUnused===true;
     if(response.parkingUnused)tell('Tidak menggunakan parkir: '+(response.parkingUnusedReason||''));
     if(panel.dataset.mode==='unused'){tell(response.parkingUnused?'Permohonan ini sudah ditanda tidak menggunakan parkir.':find('[data-unused]').hidden?'Tindakan ini tidak tersedia untuk status pendaftaran ini.':'Isi sebab dan taip ID pendaftaran tepat untuk mengesahkan. Rekod berbayar atau berresit akan ditolak.'); return; }
-    if(response.parkingReviewReason==='automatic_ledger_pending'){['create','record','adjust'].forEach(key=>find('[data-'+key+']').hidden=true);tell('Caj sedang menunggu penyelarasan sejarah unit dan nombor kenderaan. Tunggu sehingga kiraan selesai sebelum merekod bayaran.');return;}
+    if(response.parkingReviewReason==='automatic_ledger_pending'||(response.parkingReviewReason==='vehicle_type_exempt'&&!isParkingExempt(response))){['create','record','adjust'].forEach(key=>find('[data-'+key+']').hidden=true);tell('Caj sedang menunggu penyelarasan sejarah unit dan nombor kenderaan. Tunggu sehingga kiraan selesai sebelum merekod bayaran.');return;}
+    if(isParkingExempt(response)){find('[data-create]').hidden=true;find('[data-record]').hidden=true;find('[data-cancel]').hidden=true;find('[data-unused]').hidden=true;if(!hasCharge){tell('Jenis kenderaan ini tidak dikenakan caj parkir.');return;}}
     const originalAmount=Number(response.unitArrearsAmount),originalCategory=Number.isFinite(originalAmount)?(originalAmount<=1?1:originalAmount<=400?2:3):null;
     const selectedCategory=originalCategory||result.currentCategory||1;
     find('[data-create] select[name="category"]').value=String(selectedCategory);
@@ -84,7 +86,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
       label.textContent=title;amount.textContent=`RM ${rm(value)}`;tile.append(label,amount);totals.append(tile);
     }
     totals.hidden=false;
-    tell(`${statuses[result.status]} • Caj RM${rm(result.charge.amountSen)} • Diperuntukkan RM${rm(result.paidSen)} • Baki RM${rm(result.balanceSen)} • Lebihan RM${rm(result.overpaidSen)}${categoryNote}`);
+    tell(`${isParkingExempt(response)?'Jenis kenderaan dikecualikan; rekod lama untuk semakan admin sahaja. ':''}${statuses[result.status]} • Caj RM${rm(result.charge.amountSen)} • Diperuntukkan RM${rm(result.paidSen)} • Baki RM${rm(result.balanceSen)} • Lebihan RM${rm(result.overpaidSen)}${categoryNote}`);
     result.receipts.forEach(receipt => {
       const row = document.createElement('p');
       const label = document.createElement('span');

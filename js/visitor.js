@@ -1,3 +1,4 @@
+import {parkingVehicleClass,isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
   collection, serverTimestamp, Timestamp, doc, setDoc, deleteDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
@@ -684,6 +685,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     return;
   }
 
+  if(isPelawat&&isParkingExempt(document.getElementById('vehicleType')?.value)){summary.innerHTML=[unitHeader(arrearsCat?'Kategori '+arrearsCat:'—'),'<div class="pay-grand-total">Caj parkir: <strong>RM 0.00</strong></div><p>Motosikal dan pejalan kaki tidak dikenakan caj parkir, tidak menggunakan hari percuma dan tidak mempengaruhi cooldown atau kenderaan tambahan.</p>'].join('');return;}
   if (!hasSnapshot) {
     summary.innerHTML = '<div class="pay-alert">Memuat maklumat tunggakan unit...</div>';
     return;
@@ -1303,6 +1305,8 @@ async function createResponseWithDedupe(payload){
 
   const category = String(payload.category || '').trim();
   const stayOver = String(payload.stayOver || 'No').trim();
+  const parkingExempt = isParkingExempt(payload);
+  if(category==='Pelawat'&&stayOver==='Yes'&&parkingVehicleClass(payload)==='unknown')throw Error('Pilih jenis kenderaan yang sah.');
   // Apply anti-split lock for all Pelawat submissions (Bermalam and Tidak Bermalam).
   const enforcePelawatLock = category === 'Pelawat';
   const lockRef = doc(window.__FIRESTORE, 'overnightLocks', `unit-${hostUnitId}`);
@@ -1401,7 +1405,7 @@ async function createResponseWithDedupe(payload){
           throw err;
         }
 
-        if (!amended && stayOver === 'Yes') {
+        if (!amended && stayOver === 'Yes' && !parkingExempt) {
           const arrearsCategory = computeArrearsCategory(Number(payload.unitArrearsAmount));
           if (arrearsCategory) {
             const lastAnyDate = (payload.vehicleRowsDetailed || []).reduce((latest,row) => {
@@ -1424,7 +1428,7 @@ async function createResponseWithDedupe(payload){
           startDate: Timestamp.fromDate(etaStart),
           endDate: Timestamp.fromDate(etaEnd),
           category,
-          stayOver,
+          stayOver: parkingExempt?'No':stayOver,
           responseId: targetRespId,
           amendToken,
           updatedAt: serverTimestamp()
@@ -1445,6 +1449,8 @@ async function createResponseWithDedupe(payload){
         }
       }
 
+      // Exempt registrations must not replace an existing car's management/payment lock.
+      if(parkingExempt&&lockData&&(lockData.stayOver==='Yes'||Number.isInteger(lockData.mainUsageDays)))nextLock=null;
       if (nextLock) tx.set(lockRef, nextLock, { merge: true });
 
       tx.set(dedupeRef, {
@@ -1462,7 +1468,7 @@ async function createResponseWithDedupe(payload){
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      if (!amended && enforcePelawatLock && stayOver === 'Yes') {
+      if (!amended && enforcePelawatLock && stayOver === 'Yes' && !parkingExempt) {
         docPayload.parkingPriorState = parkingPriorStateFromLock(hostUnitId, lockData);
       }
       if (parkingDecision?.status === 'quoted') {
@@ -1489,13 +1495,14 @@ async function createResponseWithDedupe(payload){
         }
       }
 
-      if (!amended && enforcePelawatLock && stayOver === 'Yes') {
+      if (!amended && enforcePelawatLock && stayOver === 'Yes' && !parkingExempt) {
         docPayload.parkingUsageEnd = Timestamp.fromDate((payload.vehicleRowsDetailed||[]).reduce((latest,row)=>{const end=row.endDate?dateFromInputDateOnly(row.endDate):null;return end&&end>latest?end:latest;},etaEnd));
         docPayload.parkingReviewRequired = true;
         docPayload.parkingReviewReason = 'automatic_ledger_pending';
         docPayload.status = 'Pending';
         tx.set(doc(window.__FIRESTORE,'parkingLedgerQueue',hostUnitId),{unit:hostUnitId,responseId:targetRespId,requestedAt:serverTimestamp(),status:'pending'});
       }
+      if(!amended&&category==='Pelawat'&&parkingExempt){docPayload.parkingQuote={policyVersion:'draft-2026-09-08',mainTotalSen:0,mainStartDay:1,mainEndDay:1,calculatedAt:serverTimestamp()};docPayload.parkingReviewRequired=false;docPayload.parkingReviewReason='vehicle_type_exempt';docPayload.status='Pending';}
       if (!amended) {
         tx.set(targetRespRef, docPayload);
         if (parkingDecision?.status === 'quoted' && parkingDecision.totalSen > 0 && !docPayload.parkingReviewRequired) {
@@ -2539,6 +2546,7 @@ window.openWhatsAppForTesting = function(payload){ try { openWhatsAppNotificatio
 
 /* ---------- main init ---------- */
 document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('vehicleType')?.addEventListener('change',()=>updatePaymentSummary());
   const input = document.getElementById('hostUnit');
   const wrapper = input?.closest('.autocomplete-wrap');
   const listEl = document.getElementById('unitSuggestions');
