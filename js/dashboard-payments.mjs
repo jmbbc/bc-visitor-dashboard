@@ -104,13 +104,15 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     });
     find('[data-receipt-count]').textContent=String(result.receipts.length);
   }
+  find('[data-unused]').addEventListener('invalid',event=>{tell(event.target.name==='confirmId'?'Taip ID pendaftaran di ruangan pengesahan sebelum menyimpan.':'Isi sebab / remark sekurang-kurangnya 3 aksara.');},true);
   function handle(key, action) {
     find(`[data-${key}]`).addEventListener('submit', async event => {
       event.preventDefault(); if(busy || !allowed) return;
+      tell('Sedang menyimpan… Sila tunggu pengesahan.');
       busy=true; panel.querySelectorAll('button').forEach(b=>b.disabled=true);
       const data = Object.fromEntries(new FormData(event.currentTarget));
       try {await action(data);}
-      catch(error) {tell(error.message || 'Operasi gagal. Muat semula rekod sebelum mencuba lagi.');}
+      catch(error) {tell(error.code==='permission-denied'?'Tidak berjaya disimpan: Firebase menolak tindakan ini. Rekod belum berubah. Hubungi pentadbir untuk semakan peraturan akses.':error.message || 'Operasi gagal. Muat semula rekod sebelum mencuba lagi.');}
       finally {busy=false; panel.querySelectorAll('button').forEach(b=>b.disabled=!allowed);}
     });
   }
@@ -128,7 +130,7 @@ if (new URLSearchParams(location.search).get('preview') !== '1') {
     await load(id);
   });
   handle('void',async data=>{const id=registration; await store.voidReceipt({reference:selected.reference,reason:data.reason}); await load(id);});
-  handle('unused',async data=>{const id=registration;const result=await unusedStore.markUnused({registrationId:id,reason:data.reason,confirmId:data.confirmId});await load(id);tell('Rekod ditanda tidak menggunakan parkir. '+(result.restored?'Counter dipulihkan.':'Unit dihantar untuk semakan counter.')+' '+result.affected+' pendaftaran selepasnya perlu semakan caj.');});
+  handle('unused',async data=>{const id=registration,unit=loaded.response.hostUnit;const result=await unusedStore.markUnused({registrationId:id,reason:data.reason,confirmId:data.confirmId});window.dispatchEvent(new CustomEvent('dashboard:parking-usage-corrected',{detail:{unit,registrationId:id}}));await load(id);tell('Berjaya disimpan. Rekod ditanda tidak menggunakan parkir. '+(result.restored?'Counter dipulihkan.':'Unit dihantar untuk semakan counter.')+' '+result.affected+' pendaftaran selepasnya perlu semakan caj.');});
   handle('cancel',async data=>{const id=registration;await store.cancelBeforeEntry({registrationId:id,reason:data.reason});await load(id);});
   function closePanel(){
     if(panel.hidden||busy)return;
