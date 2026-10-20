@@ -1,6 +1,35 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Aggregate home-page views only. No names, phones, IPs or visitor records.
+    match /portalStats/home {
+      allow get: if true;
+      allow list, delete: if false;
+      allow create: if validPortalVisit(request.resource.data)
+        && request.resource.data.startedAt == request.time
+        && request.resource.data.yearVisits == 1
+        && request.resource.data.monthVisits == 1
+        && request.resource.data.dayVisits == 1;
+      allow update: if validPortalVisit(request.resource.data)
+        && request.resource.data.startedAt == resource.data.startedAt
+        && request.resource.data.yearVisits == (resource.data.year == request.resource.data.year ? resource.data.yearVisits + 1 : 1)
+        && request.resource.data.monthVisits == (resource.data.year == request.resource.data.year && resource.data.month == request.resource.data.month ? resource.data.monthVisits + 1 : 1)
+        && request.resource.data.dayVisits == (resource.data.year == request.resource.data.year && resource.data.month == request.resource.data.month && resource.data.day == request.resource.data.day ? resource.data.dayVisits + 1 : 1);
+    }
+    function validPortalVisit(data) {
+      let local = request.time + duration.value(8, 'h');
+      return data.keys().hasAll(['year','month','day','yearVisits','monthVisits','dayVisits','startedAt','updatedAt'])
+        && data.keys().hasOnly(['year','month','day','yearVisits','monthVisits','dayVisits','startedAt','updatedAt'])
+        && data.year is int && data.year == local.year()
+        && data.month is int && data.month == local.month()
+        && data.day is int && data.day == local.day()
+        && data.yearVisits is int && data.yearVisits >= 1
+        && data.monthVisits is int && data.monthVisits >= 1 && data.monthVisits <= data.yearVisits
+        && data.dayVisits is int && data.dayVisits >= 1 && data.dayVisits <= data.monthVisits
+        && data.startedAt is timestamp && data.startedAt <= request.time
+        && data.updatedAt == request.time;
+    }
+
 
     // Allow reads for core collections used by the dashboard
     match /units/{unitId} {

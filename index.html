@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/home.css">
+<link rel="stylesheet" href="css/portal-visits.css?v=20261020-2">
 </head>
 <body>
 <a class="skip" href="#pilihan">Terus ke menu</a>
@@ -51,7 +52,13 @@
 <img class="arrow" src="assets/home-chevron.svg" alt="">
 </a>
 </nav>
+<section id="portalVisits" class="portal-visits" aria-labelledby="portalVisitsTitle">
+<h2 id="portalVisitsTitle">Jumlah Lawatan Portal</h2>
+<div class="portal-visit-counts"><div><strong data-visit-count="yearVisits">—</strong><span>Tahun Ini</span><small data-visit-year></small></div><div><strong data-visit-count="monthVisits">—</strong><span>Bulan Ini</span><small data-visit-month></small></div><div><strong data-visit-count="dayVisits">—</strong><span>Hari Ini</span><small data-visit-day></small></div></div>
+<p data-visit-status role="status">Memuat statistik…</p><p class="portal-visit-note">Kiraan bermula selepas counter diaktifkan.</p>
+</section>
 <footer>Pengurusan Banjaria Court</footer>
 </main>
+<script type="module" src="js/portal-visits.mjs?v=20261020-1"></script>
 </body>
 </html>
