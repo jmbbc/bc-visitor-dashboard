@@ -1,3 +1,6 @@
+import {validateHomestayLots,homestayWhatsApp} from './homestay-model.mjs?v=20261027-1';
+import {initHomestayForm} from './homestay-form.mjs?v=20261027-1';
+let homestayForm=null;
 import {parkingVehicleClass,isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
@@ -597,6 +600,7 @@ function resetPaymentSummary(msg){
 function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, etaDate, etdDate, category, stayOver = 'No', vehicleCount = 0, additionalVehicleEntries = [] }) {
   const summary = document.getElementById('paymentSummary');
   if (!summary) return;
+  if(category==='Homestay'){summary.innerHTML='<strong>Homestay · Tiada caj parkir pelawat</strong><p>Tetamu menggunakan petak parkir milik unit. Tiada kiraan hari percuma, cooldown atau kenderaan tambahan parkir pelawat.</p>';return;}
   const hasSnapshot = !!unitSnapshot;
   const arrearsAmount = hasSnapshot ? unitSnapshot.arrearsAmount : null;
   const arrearsCat = hasSnapshot ? computeArrearsCategory(arrearsAmount) : null;
@@ -1041,6 +1045,7 @@ async function updatePaymentSummary(){
   if (!unitVal) { resetPaymentSummary(); currentUnitId = ''; currentUnitSnapshot = null; currentUnitParkingState = null; return; }
   if (!units.includes(unitVal)) { renderChargesSummary({ unit: unitVal, unitSnapshot: null, etaDate, etdDate, category, stayOver, vehicleCount, additionalVehicleEntries }); return; }
 
+  if(category==='Homestay'){++paymentSummaryRequestId;renderChargesSummary({unit:unitVal,unitSnapshot:null,etaDate,etdDate,category,stayOver});return;}
   const reqId = ++paymentSummaryRequestId;
   if (currentUnitId !== unitVal) {
     summary.innerHTML = '<div class="small">Memuat maklumat unit...</div>';
@@ -1230,7 +1235,8 @@ function collectVehicleDetailsFromPayloadLike(src) {
     details.push({
       plate,
       visitorName: (row && row.visitorName ? String(row.visitorName).trim() : '') || '',
-      visitorPhone: normalizePhoneInput(row && row.visitorPhone ? String(row.visitorPhone) : '') || ''
+      visitorPhone: normalizePhoneInput(row && row.visitorPhone ? String(row.visitorPhone) : '') || '',
+      ...(src.category==='Homestay'?{parkingLot:String(row.parkingLot||''),startDate:row.startDate||'',endDate:row.endDate||''}:{})
     });
   });
 
@@ -1327,7 +1333,7 @@ async function createResponseWithDedupe(payload){
       const fbCode = String(fallbackErr && fallbackErr.code ? fallbackErr.code : '').toLowerCase();
       const fbMsg = String(fallbackErr && (fallbackErr.message || fallbackErr) ? (fallbackErr.message || fallbackErr) : '').toLowerCase();
       if ((fbCode.includes('permission') || fbMsg.includes('insufficient permissions') || fbMsg.includes('permission-denied'))
-        && Array.isArray(payload.vehicleRowsDetailed) && payload.vehicleRowsDetailed.length) {
+        && category!=='Homestay' && Array.isArray(payload.vehicleRowsDetailed) && payload.vehicleRowsDetailed.length) {
         try {
           const legacyPayload = Object.assign({}, payload);
           delete legacyPayload.vehicleRowsDetailed;
@@ -1580,7 +1586,7 @@ async function createResponseWithDedupe(payload){
       }
       dedupeTransactionUnavailable = true;
       try { localStorage.setItem('visitor:dedupeTxUnavailable', '1'); } catch (e) { /* ignore */ }
-      if (Array.isArray(payload.vehicleRowsDetailed) && payload.vehicleRowsDetailed.length) {
+      if (category!=='Homestay' && Array.isArray(payload.vehicleRowsDetailed) && payload.vehicleRowsDetailed.length) {
         try {
           const legacyPayload = Object.assign({}, payload);
           delete legacyPayload.vehicleRowsDetailed;
@@ -2165,6 +2171,7 @@ const subCategoryHelpMap = {
 };
 
 const categoryHelpMap = {
+  'Homestay':'Pengendali mendaftarkan tetamu yang menggunakan petak parkir milik unit. Tiada caj parkir pelawat.',
   'Pelawat': 'Pendaftaran untuk pelawat yang bermalam / tidak bermalam.',
   'Kontraktor': 'Pendaftaran untuk beri kebenaran kepada kontraktor untuk masuk ke Banjaria Court.',
   'Penghantaran Barang': 'Penggunaan lif yang minimum (1x penggunaan sahaja).',
@@ -2432,6 +2439,7 @@ function buildWhatsAppUrlForSecurity(payload){
     return null;
   };
 
+  if(payload.category==='Homestay'){const text=encodeURIComponent(homestayWhatsApp(payload,{etaText,etdText}));return {waAppUrl:`whatsapp://send?phone=${securityNumber}&text=${text}`,waWebUrl:`https://wa.me/${securityNumber}?text=${text}`};}
   const vehicles = (payload.vehicleNumbers && payload.vehicleNumbers.length)
     ? payload.vehicleNumbers
     : (payload.vehicleNo ? [payload.vehicleNo] : []);
@@ -2766,6 +2774,8 @@ document.addEventListener('DOMContentLoaded', () => {
       vehicleType: document.getElementById('vehicleType')?.value || '',
       vehicleNumbers: vehicleRows,
       vehicleRowsDetailed,
+      homestayDraftLots: homestayForm?.raw()||[],
+      homestayNoVehicle: homestayForm?.noVehicle()||false,
       confirmAgree: !!document.getElementById('confirmAgree')?.checked,
       savedAt: Date.now()
     };
@@ -3333,6 +3343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (confirmAgreeEl) confirmAgreeEl.checked = true;
+        if(s.category==='Homestay')homestayForm?.load(s);
         scheduleDraftSave();
         updateFormProgress();
         refreshVehicleVisitorMeta();
@@ -3416,6 +3427,7 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshVehicleVisitorMeta();
         updatePaymentSummary();
         updateFormProgress();
+        if(d.category==='Homestay')homestayForm?.load(d);
         setDraftState('Draf dipulihkan automatik');
       } catch (e) {
         setDraftState('Draf rosak dan diabaikan', true);
@@ -3527,7 +3539,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateEtdState(cat) {
       if (!etdEl || !etaEl) return;
       const subCategoryVal = subCategoryEl?.value?.trim() || '';
-      const allowEtdForRenovasi = cat === 'Kontraktor' && subCategoryVal === 'Renovasi';
+      const allowEtdForRenovasi = cat==='Homestay' || (cat === 'Kontraktor' && subCategoryVal === 'Renovasi');
       // when category is empty/default, ETD is not applicable -> hide
       if (!cat) {
         setEtdNote(null);
@@ -3848,7 +3860,9 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshVehicleVisitorMeta();
     try { renderCategorySectionNote(); } catch(e) { /* ignore */ }
     updatePaymentSummary();
+    homestayForm=initHomestayForm();
     restoreDraftIfAny();
+    homestayForm?.refresh();
     refreshRecallButtonState(amendLastBtn);
     updateFormProgress();
 
@@ -3926,7 +3940,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (e) { /* ignore comparison failures */ }
       if (etdVal && !etdDate) { showStatus('Tarikh keluar tidak sah.', false); return; }
       if (etdDate) {
-        const isRenovasiFlow = category === 'Kontraktor' && subCategory === 'Renovasi';
+        const isRenovasiFlow = category==='Homestay' || (category === 'Kontraktor' && subCategory === 'Renovasi');
         // disallow backdated etd even if eta allowed — ETD must not be before today
         try {
           const todayKey = clientIsoDateOnlyKey(new Date());
@@ -3946,6 +3960,8 @@ document.addEventListener('DOMContentLoaded', () => {
           if (etdDate < etaDate || etdDate > max) { showStatus('Tarikh keluar mesti antara Tarikh masuk hingga 2 hari selepas Tarikh masuk (maks. 3 hari termasuk tarikh masuk).', false); return; }
         }
       }
+
+      if(category==='Homestay'&&!etdDate){focusFieldWithStatus('etd','Sila pilih Tarikh keluar Homestay.');return;}
 
       // agreement checkbox
       if (!(confirmAgreeEl && confirmAgreeEl.checked)) {
@@ -4023,6 +4039,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      if(category==='Homestay'){
+        try{const lots=validateHomestayLots(homestayForm?.raw()||[],{noVehicle:homestayForm?.noVehicle()});vehicleRowsDetailed=lots.map(row=>({...row,visitorName,visitorPhone:normalizePhoneInput(visitorPhone),startDate:etaVal,endDate:etdVal}));vehicleNumbers=lots.map(r=>r.plate);vehicleNo=vehicleNumbers[0]||'TIADA KENDERAAN';}catch(err){showStatus(err.message,false);return;}
+      }
       if (!vehicleNo) {
         focusFieldWithStatus('vehicleNo', 'Sila masukkan nombor kenderaan utama.');
         return;
@@ -4053,7 +4072,7 @@ document.addEventListener('DOMContentLoaded', () => {
         companyName: companyName || '',
         visitorName,
         visitorPhone: visitorPhone || '',
-        stayOver: (category === 'Pelawat') ? (stayOver === 'Yes' ? 'Yes' : 'No') : 'No',
+        stayOver: category==='Homestay'?'Yes':(category === 'Pelawat') ? (stayOver === 'Yes' ? 'Yes' : 'No') : 'No',
         eta: Timestamp.fromDate(etaDate),
         etd: etdDate ? Timestamp.fromDate(etdDate) : null,
         vehicleNo: vehicleNo || '',
@@ -4077,7 +4096,7 @@ document.addEventListener('DOMContentLoaded', () => {
         companyName: companyName || '',
         visitorName,
         visitorPhone: visitorPhone || '',
-        stayOver: (category === 'Pelawat') ? (stayOver === 'Yes' ? 'Yes' : 'No') : 'No',
+        stayOver: category==='Homestay'?'Yes':(category === 'Pelawat') ? (stayOver === 'Yes' ? 'Yes' : 'No') : 'No',
         eta: etaVal || '',
         etd: etdVal || '',
         vehicleNo: vehicleNo || '',

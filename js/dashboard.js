@@ -1,3 +1,4 @@
+import {validateHomestayLots} from './homestay-model.mjs?v=20261027-1';
 import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 import {registrationVehicles} from './parking-unit-ledger.mjs?v=20261015-type-1';
 import {groupParkingDay} from './parking-day-groups.mjs?v=20261015-merge-1';
@@ -177,7 +178,7 @@ function normalizePhoneForWhatsapp(raw){
 }
 
 /* ---------- Category Mapping (moved early to avoid TDZ) ---------- */
-const VISITOR_FORM_CATEGORIES = ['Pelawat', 'Kontraktor', 'Penghantaran Barang', 'Pindah Rumah', 'Pelawat Khas', 'Drop-off'];
+const VISITOR_FORM_CATEGORIES = ['Homestay', 'Pelawat', 'Kontraktor', 'Penghantaran Barang', 'Pindah Rumah', 'Pelawat Khas', 'Drop-off'];
 
 const categoryClassMap = {
   'Pelawat': 'cat-pelawat',
@@ -2723,6 +2724,7 @@ function normalizeVisitorFormCategory(raw){
     .replace(/\s+/g, ' ');
 
   if (!key) return '';
+  if (key === 'homestay') return 'Homestay';
   if (key === 'pelawat') return 'Pelawat';
   if (key === 'kontraktor' || key === 'contractor' || key === 'contract') return 'Kontraktor';
   if (key === 'penghantaran barang' || key === 'penghantaran' || key === 'delivery') return 'Penghantaran Barang';
@@ -2902,7 +2904,8 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     const hasParkingCharge = Number.isFinite(quotedMainSen) && quotedMainSen > 0;
     let paymentStatusLabel = '—';
     let paymentStatusClass = 'payment-status-none';
-    if(isParkingExempt(r)){paymentStatusLabel=hasParkingCharge?'Semak pengecualian':'Tidak dikenakan caj';paymentStatusClass=hasParkingCharge?'payment-status-review':'payment-status-free';}
+    if(r.category==='Homestay'){paymentStatusLabel='Petak sendiri · Tiada caj';paymentStatusClass='payment-status-free';}
+    else if(isParkingExempt(r)){paymentStatusLabel=hasParkingCharge?'Semak pengecualian':'Tidak dikenakan caj';paymentStatusClass=hasParkingCharge?'payment-status-review':'payment-status-free';}
     else if(r.parkingReviewReason==='vehicle_type_exempt'){paymentStatusLabel='Menunggu kiraan';paymentStatusClass='payment-status-review';}
     else if (r.parkingReviewRequired === true) {
       paymentStatusLabel = r.parkingReviewReason==='automatic_ledger_pending'?'Menunggu kiraan':'Perlu semakan';
@@ -2929,7 +2932,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       <td class="timestamp-cell"><div class="ts-date">${formatDateOnly(r.createdAt)}</div><div class="ts-time">${formatTime(r.createdAt)}</div></td>
       <td><div class="reg-primary">${escapeHtml(visitorNameDisplay || '—')}</div><div class="reg-secondary">${visitorPhoneHtml}</div>${r.entryDetails ? `<div class="reg-entry-details">${escapeHtml(r.entryDetails)}</div>` : ''}</td>
       <td><span class="reg-unit">${escapeHtml(r.hostUnit || '—')}</span><div class="reg-secondary">${hostContactHtml || 'Maklumat penghuni tidak direkod'}</div></td>
-      <td><div class="reg-visit-grid"><span class="label">Masuk</span><span class="value in">${formatDateOnly(r.eta)}</span><span class="label">Keluar</span><span class="value out">${formatDateOnly(r.etd)}</span><span class="label">Kenderaan</span><span class="value vehicle">${escapeHtml(vehicleDisplay)}</span></div></td>
+      <td><div class="reg-visit-grid"><span class="label">Masuk</span><span class="value in">${formatDateOnly(r.eta)}</span><span class="label">Keluar</span><span class="value out">${formatDateOnly(r.etd)}</span><span class="label">Kenderaan</span><span class="value vehicle">${escapeHtml(vehicleDisplay)}</span></div>${r.category==='Homestay'?`<div class="reg-secondary">${(r.vehicleRowsDetailed||[]).filter(v=>String(v.plate||'').replace(/\s/g,'').toUpperCase()===String(vehicleDisplay).replace(/\s/g,'').toUpperCase()).map(v=>`${escapeHtml(v.plate||'')} → Petak ${escapeHtml(v.parkingLot||'—')}`).join('<br>')||'Tiada kenderaan'}</div>`:''}</td>
       <td><div class="reg-category-layout">${categoryPillHtml}<div class="reg-finance-grid"><div class="reg-finance-item ${arrearsFinanceClass}"><span class="label">Tunggakan</span><span class="value">${arrearsValueHtml}</span></div><div class="reg-finance-item ${chargeFinanceClass}"><span class="label">Caj parkir</span><span class="value">${chargeValueHtml}</span></div></div></div></td>
       <td><div class="reg-status-stack"><span class="status-pill ${statusClass}">${escapeHtml(registrationStatusLabel)}</span><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span>${badge}</div></td>
       <td><div class="actions registration-actions">
@@ -3826,6 +3829,12 @@ async function openEditModalFor(docId){
     document.getElementById('editETD').value = data.etd && data.etd.toDate ? isoDateString(data.etd.toDate()) : '';
     const veh = Array.isArray(data.vehicleNumbers) && data.vehicleNumbers.length ? data.vehicleNumbers.join(';') : (data.vehicleNo || '');
     document.getElementById('editVehicle').value = veh;
+    let lotsField=document.getElementById('editHomestayLots');
+    if(!lotsField){const label=document.createElement('label');label.id='editHomestayLotsWrap';label.textContent='Homestay: satu baris bagi setiap NOMBOR PETAK | NOMBOR PLAT';lotsField=document.createElement('textarea');lotsField.id='editHomestayLots';lotsField.rows=4;lotsField.style.width='100%';label.append(lotsField);document.getElementById('editVehicle').parentElement.after(label);}
+    document.getElementById('editHomestayLotsWrap').hidden=data.category!=='Homestay';
+    document.getElementById('editVehicle').disabled=data.category==='Homestay';
+    lotsField.value=(data.vehicleRowsDetailed||[]).map(row=>`${row.parkingLot||''} | ${row.plate||''}`).join('\n');
+    lotsField.placeholder='A-123 | ABC123\nA-124 | DEF456\nKosongkan jika tiada kenderaan';
     document.getElementById('editStatus').value = data.status || 'Pending';
     openModal(document.getElementById('editModal'), '#saveEditBtn');
   } catch (err) {
@@ -3896,6 +3905,12 @@ document.getElementById('saveEditBtn').addEventListener('click', async (ev) => {
     const ref = doc(window.__FIRESTORE, 'responses', id);
     const oldSnap = await getDoc(ref);
     const oldData = oldSnap.exists() ? oldSnap.data() : null;
+    if(oldData?.category==='Homestay'){
+      try{const raw=(document.getElementById('editHomestayLots')?.value||'').trim();const rows=raw?validateHomestayLots(raw.split('\n').map(line=>{const [parkingLot,plate,...extra]=line.split('|');if(extra.length)throw Error('Format lot: NOMBOR PETAK | NOMBOR PLAT');return {parkingLot,plate};})):[];
+      payload.vehicleRowsDetailed=rows.map(row=>({...row,visitorName:oldData.visitorName||'',visitorPhone:oldData.visitorPhone||'',startDate:etaVal,endDate:etdVal}));payload.vehicleNumbers=rows.map(row=>row.plate);payload.vehicleNo=rows[0]?.plate||'TIADA KENDERAAN';
+      if(!etaVal||!etdVal||etdVal<etaVal)throw Error('Tarikh keluar mesti sama atau selepas tarikh masuk.');
+      }catch(err){toast(err.message);return;}
+    }
     await updateDoc(ref, payload);
 
     const auditCol = collection(window.__FIRESTORE, 'audit');
