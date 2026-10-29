@@ -75,3 +75,6 @@ body.visitor-page #paymentSummary:has(.parking-receipt){padding:0!important;back
 #paymentSummary .receipt-daily[open] .receipt-day-group:first-of-type{border-radius:8px 8px 0 0}
 #paymentSummary .receipt-daily[open] .receipt-day-group:last-child{border-radius:0 0 8px 8px}
 #paymentSummary .receipt-daily[open] .receipt-day-group+.receipt-day-group{border-top:1px solid #e1e6eb}
+
+#paymentSummary .receipt-table th:first-child{width:70%}#paymentSummary .receipt-table th:last-child{width:30%}#paymentSummary .receipt-day-calculation{font-size:13px;line-height:1.4;margin:4px 0!important}
+
