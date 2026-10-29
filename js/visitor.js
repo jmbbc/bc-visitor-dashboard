@@ -1,3 +1,4 @@
+import {renderParkingReceipt} from './parking-receipt.mjs?v=20261029-1';
 import {validateHomestayLots,homestayWhatsApp} from './homestay-model.mjs?v=20261027-1';
 import {initHomestayForm} from './homestay-form.mjs?v=20261027-1';
 let homestayForm=null;
@@ -697,10 +698,12 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
 
   if(isPelawatBermalam && etaDate && etdDate && arrearsCat){
     const dayMs=24*60*60*1000;
-    const extraVehicleAmount=additionalVehicleEntries.reduce((sum,item)=>{
-      const s=item.startDate||etaDate,e=item.endDate||s;
-      return sum+(Math.floor((e-s)/dayMs)+1)*additionalRate;
-    },0);
+    const extraVehicleBreakdown=additionalVehicleEntries.map((item,index)=>{
+      const start=item.startDate||etaDate,end=item.endDate||start;
+      const days=Math.floor((end-start)/dayMs)+1;
+      return {plate:normalizeVehicleInput(item.plate).replace(/[^A-Z0-9 -]/g,''),number:index+2,start,end,days,amount:days*additionalRate};
+    });
+    const extraVehicleAmount=extraVehicleBreakdown.reduce((sum,item)=>sum+item.amount,0);
     const lastAny=additionalVehicleEntries.reduce((latest,item)=>{
       const end=item.endDate||item.startDate; return end&&end>latest?end:latest;
     },etdDate);
@@ -713,7 +716,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     const reviewNotice=quote.status==='requires_review'
       ? '<div class="pay-alert">Tarikh ini bertindih atau tidak mengikut urutan rekod unit. Anggaran caj tetap RM15 sehari, tetapi pendaftaran memerlukan semakan admin.</div>'
       : '';
-    summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),reviewNotice,'<p class="pay-note-line">Caj muktamad diselaraskan selepas sejarah unit dan kenderaan digabungkan. Jangan buat bayaran berdasarkan anggaran ini.</p>','<div class="pay-grid">',infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)',arrearsAmountDisplay),infoRow('Kiraan kenderaan utama',`Hari ${quote.lines[0].day}–${quote.lines[quote.lines.length-1].day} kitaran unit`),infoRow('Kenderaan tambahan',`RM ${extraVehicleAmount.toFixed(2)}`),'</div>',renderFreeParkingEligibility(quote),'<div class="pay-total-wrap">',`<div class="pay-grand-total">Anggaran jumlah perlu bayar: <strong>RM ${total.toFixed(2)}</strong></div>`,renderPaymentCollectionInfo(total),`<ul class="arrears-payment-list pay-daily-list">${quote.lines.map(line=>`<li>${line.date} (Hari ${line.day}) : <strong>${line.amountSen?`RM ${(line.amountSen/100).toFixed(2)}`:'Percuma'}</strong></li>`).join('')}</ul>`,'</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
+    summary.innerHTML=renderParkingReceipt({unit,category:arrearsCat,arrearsText:arrearsAmountDisplay,mainPlate:document.getElementById('vehicleNo')?.value||'',quote,extras:extraVehicleBreakdown,total,eligibilityHtml:renderFreeParkingEligibility(quote),paymentHtml:renderPaymentCollectionInfo(total),updateHtml:renderPaymentUpdateNotice(lastUpdatedAt),reviewHtml:reviewNotice});
     return;
   }
 

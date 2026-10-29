@@ -1,0 +1,77 @@
+body.visitor-page #paymentSummary:has(.parking-receipt){padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;color:#102e50!important}
+#paymentSummary .parking-receipt{font-size:14px;line-height:1.5;font-family:inherit;color:#102e50}
+#paymentSummary .receipt-total{padding:16px 18px;background:#dcedff;border-radius:12px;margin:0 0 10px;display:grid;gap:4px;color:#102e50}
+#paymentSummary .receipt-total>span{font-size:14px;font-weight:600}#paymentSummary .receipt-total>strong{font-size:32px;line-height:1.2;font-weight:800;font-variant-numeric:tabular-nums}#paymentSummary .receipt-total>p{font-size:12px;color:#345573;margin:3px 0 0!important}
+#paymentSummary .receipt-charge-section{padding:12px;background:#fff2c9;border-radius:12px;color:#513c17}
+#paymentSummary .receipt-unit{display:grid;grid-template-columns:1fr .8fr 1.2fr;align-items:start;gap:0;margin:0 0 12px;padding:3px 0 12px;border-bottom:1px solid #ddc994}
+#paymentSummary .receipt-unit>div{text-align:center;min-width:0;padding:0 6px}#paymentSummary .receipt-unit>div+div{border-left:1px solid #ddc994}#paymentSummary .receipt-unit dt{font-size:11px;color:#6f5526;margin-bottom:4px}#paymentSummary .receipt-unit dd{font-size:13px;font-weight:700;margin:0;overflow-wrap:anywhere;line-height:1.45;color:#102e50}
+#paymentSummary .receipt-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px;background:transparent;margin:0}#paymentSummary .receipt-table th{background:#ffe7a0;padding:9px 6px;text-align:left;font-size:12px;font-weight:700;color:#102e50}#paymentSummary .receipt-table th:first-child{width:44%}#paymentSummary .receipt-table th:nth-child(2){width:31%}#paymentSummary .receipt-table th:last-child{width:25%;text-align:right}
+#paymentSummary .receipt-table td{padding:12px 6px;border-bottom:1px solid #ddc994;vertical-align:top;overflow-wrap:anywhere;color:#513c17;line-height:1.5}#paymentSummary .receipt-table td>strong{color:#102e50;font-weight:700;font-size:13px}#paymentSummary .receipt-table td>span{display:block;font-size:11px;color:#6f5526;margin-top:1px}#paymentSummary .receipt-table td>small{display:block;font-size:11px;color:#6f5526;margin-top:4px;line-height:1.5}#paymentSummary .receipt-table td:last-child{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+#paymentSummary details.receipt-daily{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;margin:4px 0 0!important;border-radius:0!important}#paymentSummary .receipt-daily summary{padding:12px 4px!important;min-height:44px;box-sizing:border-box;font-size:12px;font-weight:600;cursor:pointer;color:#513c17}#paymentSummary .receipt-daily summary:focus-visible{outline:2px solid #2563eb;outline-offset:2px}#paymentSummary .receipt-day-group{padding:8px 4px;font-size:12px}#paymentSummary .receipt-day-group>strong{font-size:12px}#paymentSummary .receipt-day-group ul{list-style:none;padding:0;margin:5px 0}#paymentSummary .receipt-day-group li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;font-size:11px}#paymentSummary .receipt-day-group li strong{white-space:nowrap;font-weight:600}
+#paymentSummary .receipt-secondary{display:grid;gap:8px;margin-top:10px}#paymentSummary .receipt-secondary>details{margin:0!important}#paymentSummary .receipt-secondary .pay-collection-details{background:#dcedff!important;border-color:#bfd9ee!important}#paymentSummary .receipt-secondary summary{min-height:44px;align-content:center;font-size:12px!important}#paymentSummary p.receipt-caution{font-size:11px;color:#5a6673;margin:10px 0 0!important;line-height:1.6}
+@media(min-width:700px){#paymentSummary .receipt-table{font-size:13px}#paymentSummary .receipt-unit dd{font-size:14px}#paymentSummary .receipt-table td>small{font-size:12px}}
+@media(max-width:360px){#paymentSummary .receipt-charge-section{padding:9px}#paymentSummary .receipt-table th,#paymentSummary .receipt-table td{padding-left:4px;padding-right:4px}#paymentSummary .receipt-table td>strong{font-size:12px}#paymentSummary .receipt-unit>div{padding:0 4px}}
+
+/* Compact B+C composition: save space through structure, not smaller body text. */
+#paymentSummary .receipt-total{padding:11px 14px;gap:2px;margin-bottom:8px}
+#paymentSummary .receipt-total>strong{font-size:28px}
+#paymentSummary .receipt-total>p{margin-top:1px!important}
+#paymentSummary .receipt-charge-section{padding:10px}
+#paymentSummary .receipt-unit{margin-bottom:8px;padding:0 0 8px}
+#paymentSummary .receipt-unit dt{margin-bottom:2px}
+#paymentSummary .receipt-unit dd{line-height:1.3}
+#paymentSummary .receipt-table th{padding:6px}
+#paymentSummary .receipt-table td{padding:9px 6px;line-height:1.4}
+#paymentSummary .receipt-table td>span{display:inline;margin-top:0}
+#paymentSummary .receipt-table td>small{margin-top:3px}
+#paymentSummary .receipt-table th:first-child{width:46%}
+#paymentSummary .receipt-table th:nth-child(2){width:29%}
+#paymentSummary .receipt-table th:last-child{width:25%}
+#paymentSummary .receipt-secondary{gap:6px;margin-top:8px}
+#paymentSummary p.receipt-caution{margin-top:7px!important}
+/* Match table and expanded detail typography; clarify section boundaries. */
+#paymentSummary .receipt-table th:last-child,
+#paymentSummary .receipt-table td:last-child{text-align:center}
+#paymentSummary .receipt-table td,
+#paymentSummary .receipt-table td>strong{font-size:13px}
+#paymentSummary .receipt-table td:nth-child(2){font-size:13px;font-weight:400}
+#paymentSummary .receipt-day-group,
+#paymentSummary .receipt-day-group>strong,
+#paymentSummary .receipt-day-group li,
+#paymentSummary .receipt-day-group li strong{font-size:13px}
+#paymentSummary .receipt-total{border:1px solid #b6cfe9}
+#paymentSummary .receipt-charge-section{border:1px solid #d9bc72}
+#paymentSummary details.receipt-daily{border-top:1px solid #d9bc72!important;margin-top:6px!important}
+#paymentSummary .receipt-day-group+.receipt-day-group{border-top:1px solid #ddc994}
+#paymentSummary .receipt-secondary>details{border:1px solid #bdcdd9!important;box-shadow:none!important}
+#paymentSummary .receipt-secondary .pay-collection-details{border-color:#b6cfe9!important}
+
+#paymentSummary .receipt-total>strong{font-size:24px}
+
+
+#paymentSummary .receipt-table td:first-child>span{display:block;margin:0 0 2px}#paymentSummary .receipt-table td:first-child>strong{display:block}#paymentSummary .receipt-table td:first-child>small{margin-top:2px}
+
+
+#paymentSummary details.receipt-daily{border-top:0!important;margin-top:0!important}
+
+/* Uniform vehicle and daily detail type, tighter daily rhythm. */
+#paymentSummary .receipt-table td:first-child>span,
+#paymentSummary .receipt-table td:first-child>strong,
+#paymentSummary .receipt-table td:first-child>small{font-size:13px;line-height:1.4}
+#paymentSummary .receipt-day-group{padding:6px 4px;font-size:13px}
+#paymentSummary .receipt-day-group>strong,
+#paymentSummary .receipt-day-group li,
+#paymentSummary .receipt-day-group li>span,
+#paymentSummary .receipt-day-group li>strong{font-size:13px;line-height:1.4}
+#paymentSummary .receipt-day-group ul{display:grid;gap:0;margin:4px 0!important;padding:0!important}
+#paymentSummary .receipt-day-group li{margin:0!important;padding:3px 0!important;min-height:0;line-height:1.4}
+/* Let the expanded cooldown explanation use the available width. */
+#paymentSummary .receipt-secondary .free-parking-detail{padding:9px 12px!important;margin:0!important;font-size:13px!important;line-height:1.45!important;width:100%;box-sizing:border-box}
+#paymentSummary .receipt-secondary .free-parking-detail strong{font-size:13px!important}
+#paymentSummary .receipt-secondary .free-parking-status small,
+#paymentSummary .receipt-secondary .free-parking-status strong{font-size:13px}
+/* White daily breakdown body, separate from the yellow charge table. */
+#paymentSummary .receipt-daily[open] .receipt-day-group{background:#fff;padding:8px 10px}
+#paymentSummary .receipt-daily[open] .receipt-day-group:first-of-type{border-radius:8px 8px 0 0}
+#paymentSummary .receipt-daily[open] .receipt-day-group:last-child{border-radius:0 0 8px 8px}
+#paymentSummary .receipt-daily[open] .receipt-day-group+.receipt-day-group{border-top:1px solid #e1e6eb}
