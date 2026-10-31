@@ -1,6 +1,6 @@
 import {currentUnitArrears} from './unit-arrears-display.mjs?v=20261031-1';
 import {createClearedUnitStore,isClearedUnit} from './cleared-unit-store.mjs?v=20261031-1';
-import {validateHomestayLots,quoteHomestayParking} from './homestay-model.mjs?v=20261031-2';
+import {validateHomestayLots,quoteHomestayParking} from './homestay-model.mjs?v=20261031-all-1';
 import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 import {registrationVehicles} from './parking-unit-ledger.mjs?v=20261031-hs-1';
 import {groupParkingDay} from './parking-day-groups.mjs?v=20261015-merge-1';

@@ -1,4 +1,4 @@
-import {quoteHomestayParking} from './homestay-model.mjs?v=20261031-2';
+import {quoteHomestayParking} from './homestay-model.mjs?v=20261031-all-1';
 export function initHomestayForm({onChange=()=>{}}={}){
  const $=id=>document.getElementById(id),form=$('visitorForm');if(!form)return null;
  const area=document.createElement('div');area.className='homestay-parking';area.hidden=true;

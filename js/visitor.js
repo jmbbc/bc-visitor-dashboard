@@ -1,5 +1,6 @@
-import {renderParkingReceipt} from './parking-receipt.mjs?v=20261029-1';
-import {validateHomestayLots,homestayWhatsApp,quoteHomestayParking,renderHomestaySummary} from './homestay-model.mjs?v=20261031-2';
+import {categoryReceiptQuote} from './category-receipt-quote.mjs?v=20261031-1';
+import {renderParkingReceipt} from './parking-receipt.mjs?v=20261031-all-1';
+import {validateHomestayLots,homestayWhatsApp,quoteHomestayParking,renderHomestaySummary} from './homestay-model.mjs?v=20261031-all-1';
 import {initHomestayForm} from './homestay-form.mjs?v=20261031-date-order-1';
 let homestayForm=null;
 import {parkingVehicleClass,isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
@@ -602,7 +603,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
   const summary = document.getElementById('paymentSummary');
   if (!summary) return;
   if(category==='Homestay'){
-    try{const startDate=document.getElementById('eta').value,endDate=document.getElementById('etd').value;const rows=validateHomestayLots(homestayForm?.raw()||[],{noVehicle:homestayForm?.noVehicle(),startDate,endDate});summary.innerHTML=renderHomestaySummary(rows,{startDate,endDate})+renderPaymentCollectionInfo(quoteHomestayParking(rows,{startDate,endDate}).totalSen/100);}
+    try{const startDate=document.getElementById('eta').value,endDate=document.getElementById('etd').value;const rows=validateHomestayLots(homestayForm?.raw()||[],{noVehicle:homestayForm?.noVehicle(),startDate,endDate});summary.innerHTML=renderHomestaySummary(rows,{startDate,endDate,unit})+renderPaymentCollectionInfo(quoteHomestayParking(rows,{startDate,endDate}).totalSen/100);}
     catch(error){summary.textContent=error.message;}
     return;
   }
@@ -620,32 +621,6 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
   const additionalRateByCategory = { 1: 10, 2: 15, 3: 25 };
   const additionalRate = isPelawat ? (additionalRateByCategory[arrearsCat] || 0) : 0;
   const lastUpdatedAt = hasSnapshot ? (unitSnapshot.lastUpdatedAt || unitImportMetaTs || null) : (unitImportMetaTs || null);
-
-  const fmtDate = (d) => {
-    if (!d) return '-';
-    const dd = String(d.getDate()).padStart(2,'0');
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const yy = d.getFullYear();
-    return `${dd}/${mm}/${yy}`;
-  };
-
-  const fmtDateShort = (d) => {
-    if (!d) return '-';
-    const dd = d.getDate();
-    const mm = d.getMonth() + 1;
-    const yy = String(d.getFullYear()).slice(-2);
-    return `${dd}/${mm}/${yy}`;
-  };
-
-  const unitHeader = (catLabel = '-') => [
-    '<div class="pay-head">',
-    '<div class="pay-title">Ringkasan Caj Parkir</div>',
-    `<div class="pay-unit">Unit: <strong>${unit}</strong></div>`,
-    `<div class="pay-category">${catLabel}</div>`,
-    '</div>'
-  ].join('');
-
-  const infoRow = (label, value) => `<div class="pay-row"><span>${label}</span><strong>${value}</strong></div>`;
 
   const eligibilityDate = (dateKey) => {
     if (!dateKey) return '-';
@@ -694,13 +669,12 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     return;
   }
 
-  if(isPelawat&&isParkingExempt(document.getElementById('vehicleType')?.value)){summary.innerHTML=[unitHeader(arrearsCat?'Kategori '+arrearsCat:'—'),'<div class="pay-grand-total">Caj parkir: <strong>RM 0.00</strong></div><p>Motosikal dan pejalan kaki tidak dikenakan caj parkir, tidak menggunakan hari percuma dan tidak mempengaruhi cooldown atau kenderaan tambahan.</p>'].join('');return;}
   if (!hasSnapshot) {
     summary.innerHTML = '<div class="pay-alert">Memuat maklumat tunggakan unit...</div>';
     return;
   }
 
-  if(isPelawatBermalam && etaDate && etdDate && arrearsCat){
+  if(isPelawatBermalam && !isParkingExempt(document.getElementById('vehicleType')?.value) && etaDate && etdDate && arrearsCat){
     const dayMs=24*60*60*1000;
     const extraVehicleBreakdown=additionalVehicleEntries.map((item,index)=>{
       const start=item.startDate||etaDate,end=item.endDate||start;
@@ -713,7 +687,7 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     },etdDate);
     const quote=quoteFromUnitState({unitId:unit,category:arrearsCat,state:unitParkingState,start:dateKeyForPolicy(etaDate),end:dateKeyForPolicy(etdDate),lastAnyEnd:dateKeyForPolicy(lastAny)});
     if(quote.status!=='quoted' && !(arrearsCat===3 && Number.isFinite(quote.totalSen))){
-      summary.innerHTML=[unitHeader(`Kategori ${arrearsCat}`),'<div class="pay-alert">Sejarah unit memerlukan semakan admin. Permohonan boleh dihantar, tetapi kelayakan percuma dan caj tidak dianggap muktamad.</div>',renderPaymentUpdateNotice(lastUpdatedAt)].join('');
+      summary.innerHTML=renderParkingReceipt({unit,category:arrearsCat,arrearsText:arrearsAmountDisplay,total:null,vehicleRows:[],reviewHtml:'<div class="pay-alert">Sejarah unit memerlukan semakan admin. Permohonan boleh dihantar, tetapi kelayakan percuma dan caj tidak dianggap muktamad.</div>',updateHtml:renderPaymentUpdateNotice(lastUpdatedAt)});
       return;
     }
     const total=(quote.totalSen/100)+extraVehicleAmount;
@@ -724,303 +698,10 @@ function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, eta
     return;
   }
 
-  if ((!arrearsCat || arrearsCat === 1) && !isPelawatKhas) {
-    const free = freeDaysForCategory(1);
-    const canChargeExtra = isPelawat && extraVehicleCount > 0;
-    if (!canChargeExtra) {
-      summary.innerHTML = [
-        unitHeader('Kategori 1'),
-        '<div class="pay-grid">',
-        infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
-        infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
-        infoRow('Parkir percuma', `${free} hari`),
-        infoRow('Kadar cas', 'RM 0.00 / hari'),
-        '</div>',
-        '<div class="pay-total-wrap">',
-        '<div class="pay-note-line">Caj parkir pelawat: <strong>Percuma</strong></div>',
-        '<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM 0.00</strong></div>',
-        renderPaymentCollectionInfo(0),
-        '</div>',
-        renderPaymentUpdateNotice(lastUpdatedAt)
-      ].join('');
-      return;
-    }
-
-    if (!etaDate) {
-      summary.innerHTML = [
-        unitHeader('Kategori 1'),
-        '<div class="pay-grid">',
-        infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
-        infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
-        infoRow('Parkir percuma', `${free} hari`),
-        infoRow('Kadar kereta utama', 'RM 0.00 / hari'),
-        infoRow('Kadar kenderaan tambahan', `RM ${additionalRate.toFixed(2)} / kereta / hari`),
-        '</div>',
-        '<div class="pay-note-line">Untuk Pelawat (Kategori 1), kenderaan utama percuma tetapi kenderaan tambahan dikenakan caj.</div>',
-        '<div class="pay-note-line">Pilih tarikh masuk/keluar untuk kira caj sebenar.</div>',
-        renderPaymentUpdateNotice(lastUpdatedAt)
-      ].join('');
-      return;
-    }
-
-    const dayMs = 24 * 60 * 60 * 1000;
-    const start = etaDate;
-    const end = etdDate || start;
-    const totalDays = Math.floor((end.getTime() - start.getTime()) / dayMs) + 1;
-    const category1ExtraVehicleDetailLines = [];
-    const extraVehicleAmount = additionalVehicleEntries.length
-      ? additionalVehicleEntries.reduce((sum, item) => {
-          const s = item.startDate || start;
-          const e = item.endDate || s;
-          const days = Math.max(1, Math.floor((e.getTime() - s.getTime()) / dayMs) + 1);
-          const amount = days * additionalRate;
-          category1ExtraVehicleDetailLines.push({
-            plate: item.plate,
-            start: s,
-            days,
-            amount
-          });
-          return sum + (days * additionalRate);
-        }, 0)
-      : (extraVehicleCount * totalDays * additionalRate);
-
-    summary.innerHTML = [
-      unitHeader('Kategori 1'),
-      '<div class="pay-grid">',
-      infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
-      infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
-      infoRow('Parkir percuma', `${free} hari`),
-      infoRow('Kadar kereta utama', 'RM 0.00 / hari'),
-      infoRow('Kadar kenderaan tambahan', `RM ${additionalRate.toFixed(2)} / kereta / hari`),
-      infoRow('Julat tarikh', `${fmtDate(start)} hingga ${fmtDate(end)}`),
-      '</div>',
-      '<div class="pay-total-wrap">',
-      `<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${extraVehicleAmount.toFixed(2)}</strong></div>`,
-      renderPaymentCollectionInfo(extraVehicleAmount),
-      '<details class="pay-total-details">',
-      '<summary>Lihat perincian bayaran</summary>',
-      '<div class="pay-total-details-body">',
-      '<details class="pay-charge-box">',
-      `<summary><span class="pay-charge-title">Caj kenderaan utama</span><strong class="pay-charge-amount">RM 0.00</strong></summary>`,
-      '<div class="pay-charge-body">',
-      '<div class="pay-note-line">Kategori 1: kenderaan utama tidak dikenakan caj.</div>',
-      '</div>',
-      '</details>',
-      '<details class="pay-charge-box">',
-      `<summary><span class="pay-charge-title">Caj kenderaan tambahan</span><strong class="pay-charge-amount">RM ${extraVehicleAmount.toFixed(2)}</strong></summary>`,
-      '<div class="pay-charge-body">',
-      '<div class="pay-breakdown-title">Perincian bayaran</div>',
-      `<div class="pay-note-line">${extraVehicleCount} kereta x hari penggunaan x RM ${additionalRate.toFixed(2)} = <strong>RM ${extraVehicleAmount.toFixed(2)}</strong></div>`,
-      (category1ExtraVehicleDetailLines.length
-        ? `<ul class="arrears-payment-list pay-daily-list">${category1ExtraVehicleDetailLines.map((item) => {
-            const dayLines = [];
-            for (let i = 0; i < item.days; i++) {
-              const d = new Date(item.start.getTime());
-              d.setDate(d.getDate() + i);
-              dayLines.push(`<li>- ${fmtDateShort(d)} : <strong>RM ${additionalRate.toFixed(2)}</strong></li>`);
-            }
-            return `<li><strong>${item.plate}</strong><ul class="pay-plate-day-list">${dayLines.join('')}</ul></li>`;
-          }).join('')}</ul>`
-        : ''),
-      '</div>',
-      '</details>',
-      '</div>',
-      '</details>',
-      '</div>',
-      renderPaymentUpdateNotice(lastUpdatedAt)
-    ].join('');
-    return;
-  }
-
-  if (isPelawatKhas) {
-    const pelawatKhasRateByCategory = { 1: 5, 2: 8, 3: 15 };
-    const ratePerCar = pelawatKhasRateByCategory[arrearsCat] || 0;
-    const dayMs = 24 * 60 * 60 * 1000;
-    const start = etaDate || null;
-    const end = etdDate || start;
-    const totalDays = (start && end)
-      ? Math.max(1, Math.floor((end.getTime() - start.getTime()) / dayMs) + 1)
-      : 1;
-    const totalCars = Math.max(1, vehicleCount || 0);
-    const mainAmount = totalCars > 0 ? (ratePerCar * totalDays) : 0;
-    const extraCars = Math.max(0, totalCars - 1);
-    let extraAmount = 0;
-    const extraPlateLines = [];
-
-    if (additionalVehicleEntries.length > 0) {
-      extraAmount = additionalVehicleEntries.reduce((sum, item) => {
-        const s = item.startDate || start;
-        const e = item.endDate || s;
-        const days = (s && e) ? Math.max(1, Math.floor((e.getTime() - s.getTime()) / dayMs) + 1) : totalDays;
-        const amount = days * ratePerCar;
-        extraPlateLines.push({ plate: item.plate, days, amount });
-        return sum + amount;
-      }, 0);
-    } else {
-      extraAmount = extraCars * totalDays * ratePerCar;
-      for (let i = 0; i < extraCars; i++) {
-        extraPlateLines.push({ plate: `Kenderaan ${i + 2}`, days: totalDays, amount: totalDays * ratePerCar });
-      }
-    }
-
-    const totalAmount = mainAmount + extraAmount;
-
-    summary.innerHTML = [
-      unitHeader(`Kategori ${arrearsCat}`),
-      '<div class="pay-grid">',
-      infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
-      infoRow('Kategori kemasukan', 'Pelawat Khas'),
-      infoRow('Jumlah kenderaan', String(totalCars)),
-      infoRow('Kadar caj', `RM ${ratePerCar.toFixed(2)} / kereta / hari`),
-      infoRow('Tarikh masuk', etaDate ? fmtDate(etaDate) : '-'),
-      '</div>',
-      '<div class="pay-total-wrap">',
-      `<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${totalAmount.toFixed(2)}</strong></div>`,
-      renderPaymentCollectionInfo(totalAmount),
-      '<details class="pay-total-details">',
-      '<summary>Lihat perincian bayaran</summary>',
-      '<div class="pay-total-details-body">',
-      '<details class="pay-charge-box">',
-      `<summary><span class="pay-charge-title">Caj kenderaan utama</span><strong class="pay-charge-amount">RM ${mainAmount.toFixed(2)}</strong></summary>`,
-      '<div class="pay-charge-body">',
-      `<div class="pay-note-line">1 kereta x ${totalDays} hari x RM ${ratePerCar.toFixed(2)} = <strong>RM ${mainAmount.toFixed(2)}</strong></div>`,
-      '</div>',
-      '</details>',
-      '<details class="pay-charge-box">',
-      `<summary><span class="pay-charge-title">Caj kenderaan tambahan</span><strong class="pay-charge-amount">RM ${extraAmount.toFixed(2)}</strong></summary>`,
-      '<div class="pay-charge-body">',
-      '<div class="pay-breakdown-title">Perincian bayaran</div>',
-      (extraCars > 0
-        ? `<div class="pay-note-line">${extraCars} kereta x hari penggunaan x RM ${ratePerCar.toFixed(2)} = <strong>RM ${extraAmount.toFixed(2)}</strong></div><ul class="arrears-payment-list pay-daily-list">${extraPlateLines.map((item) => `<li>${item.plate}: ${item.days} hari x RM ${ratePerCar.toFixed(2)} = <strong>RM ${item.amount.toFixed(2)}</strong></li>`).join('')}</ul>`
-        : '<div class="pay-note-line">Tiada caj kenderaan tambahan.</div>'),
-      '</div>',
-      '</details>',
-      '</div>',
-      '</details>',
-      '</div>',
-      renderPaymentUpdateNotice(lastUpdatedAt)
-    ].join('');
-    return;
-  }
-
-  if (!isChargeableCategory) {
-    summary.innerHTML = [
-      unitHeader(`Kategori ${arrearsCat}`),
-      '<div class="pay-grid">',
-      infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
-      infoRow('Kategori kemasukan', category || '-'),
-      '</div>',
-      '<div class="pay-note-line">Caj parkir hanya dikenakan untuk kategori Pelawat atau Kontraktor. Tiada caj dikira untuk kategori ini.</div>',
-      renderPaymentUpdateNotice(lastUpdatedAt)
-    ].join('');
-    return;
-  }
-
-  if (!etaDate) {
-    const extraNote = (isPelawat && extraVehicleCount > 0)
-      ? `<div class="pay-note-line">Tambahan kenderaan pelawat: <strong>${extraVehicleCount}</strong> (kadar tambahan RM ${additionalRate.toFixed(2)} / kereta / hari).</div>`
-      : '';
-    summary.innerHTML = [
-      unitHeader(`Kategori ${arrearsCat}`),
-      '<div class="pay-grid">',
-      infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
-      infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
-      infoRow('Parkir percuma', `${freeDaysForCategory(arrearsCat)} hari`),
-      infoRow('Kadar cas', arrearsCat === 2 ? 'RM 5.00 / hari' : 'RM 15.00 / hari'),
-      (isPelawat ? infoRow('Kadar kenderaan tambahan', `RM ${additionalRate.toFixed(2)} / kereta / hari`) : ''),
-      '</div>',
-      '<div class="pay-note-line">Pilih tarikh masuk/keluar untuk kira caj sebenar.</div>',
-      extraNote,
-      renderPaymentUpdateNotice(lastUpdatedAt)
-    ].join('');
-    return;
-  }
-
-  const dayMs = 24 * 60 * 60 * 1000;
-  const start = etaDate;
-  const end = etdDate || start;
-  const totalDays = Math.floor((end.getTime() - start.getTime()) / dayMs) + 1;
-  const freeDays = Math.max(0, Math.min(freeDaysForCategory(arrearsCat), totalDays));
-  const rate = arrearsCat === 2 ? 5 : 15;
-  const chargedDays = Math.max(0, totalDays - freeDays);
-  const firstVehicleAmount = chargedDays * rate;
-  // For Pelawat Bermalam, additional vehicles use a separate rate by arrears category.
-  let extraVehicleAmount = 0;
-  let extraVehicleDetailLines = [];
-  if (isPelawat && extraVehicleCount > 0) {
-    if (additionalVehicleEntries.length > 0) {
-      extraVehicleAmount = additionalVehicleEntries.reduce((sum, item) => {
-        const s = item.startDate || start;
-        const e = item.endDate || s;
-        const days = Math.max(1, Math.floor((e.getTime() - s.getTime()) / dayMs) + 1);
-        const amount = days * additionalRate;
-        extraVehicleDetailLines.push({
-          plate: item.plate,
-          start: s,
-          end: e,
-          days,
-          amount
-        });
-        return sum + amount;
-      }, 0);
-    } else {
-      extraVehicleAmount = extraVehicleCount * totalDays * additionalRate;
-    }
-  }
-  const totalAmount = firstVehicleAmount + extraVehicleAmount;
-
-  const rows = [];
-  for (let i=0; i<totalDays; i++) {
-    const d = new Date(start.getTime()); d.setDate(d.getDate() + i);
-    const label = i < freeDays ? 'Percuma' : `RM ${rate.toFixed(2)}`;
-    rows.push(`<li>${fmtDate(d)} : <strong>${label}</strong></li>`);
-  }
-
-  summary.innerHTML = [
-    unitHeader(`Kategori ${arrearsCat}`),
-    '<div class="pay-grid">',
-    infoRow('Jumlah tunggakan (Caj penyelenggaraan & Insurans kebakaran)', arrearsAmountDisplay),
-    infoRow('Jumlah kenderaan', String(Math.max(1, vehicleCount || 0))),
-    infoRow('Parkir percuma', `${freeDays} hari`),
-    infoRow('Kadar cas', `RM ${rate.toFixed(2)} / hari`),
-    (isPelawat ? infoRow('Kadar kenderaan tambahan', `RM ${additionalRate.toFixed(2)} / kereta / hari`) : ''),
-    infoRow('Julat tarikh', `${fmtDate(start)} hingga ${fmtDate(end)}`),
-    '</div>',
-    '<div class="pay-total-wrap">',
-    `<div class="pay-grand-total">Jumlah perlu bayar: <strong>RM ${totalAmount.toFixed(2)}</strong></div>`,
-    renderPaymentCollectionInfo(totalAmount),
-    '<details class="pay-total-details">',
-    '<summary>Lihat perincian bayaran</summary>',
-    '<div class="pay-total-details-body">',
-    '<details class="pay-charge-box">',
-    `<summary><span class="pay-charge-title">Caj kenderaan utama</span><strong class="pay-charge-amount">RM ${firstVehicleAmount.toFixed(2)}</strong></summary>`,
-    '<div class="pay-charge-body">',
-    `<div class="pay-note-line">${chargedDays} hari bercaj x RM ${rate.toFixed(2)} = <strong>RM ${firstVehicleAmount.toFixed(2)}</strong></div>`,
-    `<ul class="arrears-payment-list pay-daily-list">${rows.join('')}</ul>`,
-    '</div>',
-    '</details>',
-    '<details class="pay-charge-box">',
-    `<summary><span class="pay-charge-title">Caj kenderaan tambahan</span><strong class="pay-charge-amount">RM ${extraVehicleAmount.toFixed(2)}</strong></summary>`,
-    '<div class="pay-charge-body">',
-    '<div class="pay-breakdown-title">Perincian bayaran</div>',
-    (isPelawat && extraVehicleCount > 0
-      ? `<div class="pay-note-line">${extraVehicleCount} kereta x hari penggunaan x RM ${additionalRate.toFixed(2)} = <strong>RM ${extraVehicleAmount.toFixed(2)}</strong></div>${extraVehicleDetailLines.length ? `<ul class="arrears-payment-list pay-daily-list">${extraVehicleDetailLines.map((item) => {
-          const dayLines = [];
-          for (let i = 0; i < item.days; i++) {
-            const d = new Date(item.start.getTime());
-            d.setDate(d.getDate() + i);
-            dayLines.push(`<li>- ${fmtDateShort(d)} : <strong>RM ${additionalRate.toFixed(2)}</strong></li>`);
-          }
-          return `<li><strong>${item.plate}</strong><ul class="pay-plate-day-list">${dayLines.join('')}</ul></li>`;
-        }).join('')}</ul>` : ''}`
-      : '<div class="pay-note-line">Tiada caj kenderaan tambahan.</div>'),
-    '</div>',
-    '</details>',
-    '</div>',
-    '</details>',
-    '</div>',
-    renderPaymentUpdateNotice(lastUpdatedAt)
-  ].join('');
+  const vehicleType=document.getElementById('vehicleType')?.value||'';
+  const q=categoryReceiptQuote({category,arrearsCategory:arrearsCat,startDate:etaDate?dateKeyForPolicy(etaDate):'',endDate:etdDate?dateKeyForPolicy(etdDate):'',mainPlate:document.getElementById('vehicleNo')?.value||'',additionalVehicles:additionalVehicleEntries.map(r=>({...r,startDate:r.startDate?dateKeyForPolicy(r.startDate):'',endDate:r.endDate?dateKeyForPolicy(r.endDate):''})),vehicleCount,exempt:isPelawat&&isParkingExempt(vehicleType),vehicleType});
+  const note=isPelawat&&isParkingExempt(vehicleType)?'Motosikal dan pejalan kaki tidak dikenakan caj parkir serta tidak mempengaruhi counter dan cooldown.':!isChargeableCategory&&!isPelawatKhas?'Tiada caj parkir untuk kategori ini.':'Caj parkir di atas berasingan daripada tunggakan unit. Anggaran disahkan semula semasa penghantaran.';
+  summary.innerHTML=renderParkingReceipt({unit,category:arrearsCat,arrearsText:arrearsAmountDisplay,vehicleRows:q.vehicles,total:q.total,caution:note,reviewHtml:q.total===null?'<div class="pay-alert">Pilih tarikh masuk dan keluar untuk melihat jumlah caj.</div>':'',paymentHtml:renderPaymentCollectionInfo(q.total||0),updateHtml:renderPaymentUpdateNotice(lastUpdatedAt)});
 }
 
 async function updatePaymentSummary(){

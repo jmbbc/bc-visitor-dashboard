@@ -1,3 +1,4 @@
+import {renderParkingReceipt} from './parking-receipt.mjs?v=20261031-all-1';
 import {datesInclusive} from './parking-policy.mjs';
 export function validateHomestayLots(rows,{noVehicle=false,startDate='',endDate=''}={}){
  if(noVehicle)return [];
@@ -29,6 +30,7 @@ export function quoteHomestayParking(rows,{startDate='',endDate=''}={}){
  return {vehicles,totalSen};
 }
 export function renderHomestaySummary(rows,options={}){
- const q=quoteHomestayParking(rows,options),escape=v=>String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- return `<div class="parking-receipt"><div class="receipt-total"><span>Jumlah caj parkir pelawat</span><strong>RM ${(q.totalSen/100).toFixed(2)}</strong></div><div class="receipt-charge-section"><table class="receipt-table"><thead><tr><th>Kenderaan</th><th>Caj</th></tr></thead><tbody>${q.vehicles.map(r=>`<tr><td><strong>${escape(r.plate)}</strong><br>${r.parkingType==='visitor'?`Parkir pelawat<br>${escape(r.startDate)} – ${escape(r.endDate)}<br>${r.days} hari × RM5`:`Petak sendiri · ${escape(r.parkingLot)}`}</td><td>RM ${(r.amountSen/100).toFixed(2)}</td></tr>`).join('')}</tbody></table></div><p class="receipt-caution">Homestay: petak sendiri percuma. Parkir pelawat RM5 sehari bagi setiap kenderaan, termasuk tarikh mula dan akhir. Tertakluk kepada kekosongan petak.</p></div>`;
+ const q=quoteHomestayParking(rows,options);
+ const vehicleRows=q.vehicles.map((r,index)=>({number:index+1,plate:r.plate,start:r.startDate,end:r.endDate,amount:r.amountSen/100,note:r.parkingType==='visitor'?'Parkir pelawat · RM5/hari':`Petak sendiri · ${r.parkingLot}`,calculation:r.parkingType==='visitor'?`${r.days} hari × RM 5.00`:'Petak sendiri · Percuma',days:r.parkingType==='visitor'?datesInclusive(r.startDate,r.endDate).map((date,i)=>({date,day:i+1,amountSen:500})):[]}));
+ return renderParkingReceipt({unit:options.unit||'—',category:'Homestay',arrearsText:'Tidak terpakai',total:q.totalSen/100,vehicleRows,caution:'Homestay: petak sendiri percuma. Parkir pelawat RM5 sehari bagi setiap kenderaan, termasuk tarikh mula dan akhir. Kadar tidak bergantung pada tunggakan unit. Tertakluk kepada kekosongan petak.'});
 }
