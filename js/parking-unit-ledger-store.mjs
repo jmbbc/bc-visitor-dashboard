@@ -34,7 +34,7 @@ export function createUnitParkingLedgerStore({db,auth,sdk}){
    let recalculated=0;const unresolved=[];
    for(const p of candidates){const r=p.record,c=charges.get(r.id),j=journals.get(r.id);
     const changed=c&&(c.amountSen!==p.totalSen||JSON.stringify(r.parkingDailyBreakdown||[])!==JSON.stringify(p.lines));
-    const automatic=j&&/^(Kiraan semula selepas tidak menggunakan parkir [A-Za-z0-9_-]+|Gabungan penggunaan parkir [A-Za-z0-9_-]+)$/.test(j.reason||'')&&j.afterSen===c.amountSen&&c.amountSen===r.parkingQuote?.mainTotalSen&&sameTime(j.at,r.parkingQuote.calculatedAt);
+    const automatic=j&&/^(Kiraan semula selepas tidak menggunakan parkir [A-Za-z0-9_-]+|Gabungan penggunaan parkir [A-Za-z0-9_-]+|Tunggakan selesai sebelum check-in)$/.test(j.reason||'')&&j.afterSen===c.amountSen&&c.amountSen===r.parkingQuote?.mainTotalSen&&sameTime(j.at,r.parkingQuote.calculatedAt);
     const manual=c&&((c.lastChangeId&&!automatic)||c.amountSen!==r.parkingQuote?.mainTotalSen);
     const blockedReview=r.parkingReviewRequired&&!['automatic_ledger_pending','overlapping_or_out_of_order','usage_correction_requires_charge_review',''].includes(r.parkingReviewReason||'');
     if(protectedCharge(c)||manual||blockedReview){if(changed||r.parkingReviewRequired||!r.parkingDailyBreakdown)unresolved.push(r.id);continue;}

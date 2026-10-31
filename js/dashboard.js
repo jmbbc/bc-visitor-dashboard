@@ -1,3 +1,4 @@
+import {createClearedUnitStore,isClearedUnit} from './cleared-unit-store.mjs?v=20261031-1';
 import {validateHomestayLots} from './homestay-model.mjs?v=20261027-1';
 import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 import {registrationVehicles} from './parking-unit-ledger.mjs?v=20261015-type-1';
@@ -1792,6 +1793,14 @@ function parseCSV(text){
   return rows;
 }
 
+async function repriceClearedUnit(unitId){
+  try {
+    const sdk=await import('https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js');
+    const result=await createClearedUnitStore({db:window.__FIRESTORE,auth:window.__AUTH,sdk}).reprice(unitId);
+    if(result.count){toast(`${unitId}: ${result.count} permohonan belum masuk dikira semula.`);window.dispatchEvent(new CustomEvent('dashboard:parking-usage-corrected',{detail:{unit:unitId}}));}
+  } catch(error){console.error('Penyelarasan tunggakan:',error);toast(`${unitId}: tunggakan disimpan, tetapi caj belum diselaraskan. ${error.message}`,false,{duration:8000});}
+}
+
 async function saveUnitToFirestore(unitId, data){
   if (!window.__FIRESTORE) throw new Error('firestore unavailable');
   const ref = doc(window.__FIRESTORE, 'units', unitId);
@@ -1810,10 +1819,13 @@ async function saveUnitToFirestore(unitId, data){
   unitsCache[unitId] = Object.assign({}, unitsCache[unitId] || {}, data, { lastUpdatedAt: new Date() });
   persistUnitsCacheToStorage('manual-save');
   renderUnitsList();
+  toast('Unit disimpan');
+  if(isClearedUnit(data))await repriceClearedUnit(unitId);
 }
 
 async function importUnitsFromArray(rows){
   if (!window.__FIRESTORE) throw new Error('firestore unavailable');
+  const clearedIds=[...new Set(rows.filter(r=>Number(r.arrearsAmount)===0 && String(r.arrears).toLowerCase()==='false' && Number(unitsCache[(r.unitId||r.unit||r.Unit||'').trim()]?.arrearsAmount)>0).map(r=>(r.unitId||r.unit||r.Unit||'').trim()))];
   // rows: array of objects with unitId, category, arrears, arrearsAmount
   const BATCH_SIZE = 200;
   const batches = [];
@@ -1853,6 +1865,7 @@ async function importUnitsFromArray(rows){
     persistUnitsCacheToStorage('import-fallback');
   }
   renderUnitsList();
+  if(success===batches.length)for(const id of clearedIds)await repriceClearedUnit(id);
   return { batches: batches.length, committed: success };
 }
 
@@ -2019,7 +2032,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const cat = (document.getElementById('unitEditCategory').value || '').trim();
     const arr = document.getElementById('unitEditArrears').value === 'true';
     const amount = document.getElementById('unitEditAmount').value ? Number(document.getElementById('unitEditAmount').value) : null;
-    try { await saveUnitToFirestore(id, { category: cat, arrears: arr, arrearsAmount: amount }); toast('Unit disimpan'); document.getElementById('unitEditArea').style.display = 'none'; } catch(e) { console.error(e); toast('Gagal simpan unit', false); }
+    try { await saveUnitToFirestore(id, { category: cat, arrears: arr, arrearsAmount: amount }); document.getElementById('unitEditArea').style.display = 'none'; } catch(e) { console.error(e); toast('Gagal simpan unit', false); }
   });
 
   csvPreviewBtn?.addEventListener('click', ()=>{
