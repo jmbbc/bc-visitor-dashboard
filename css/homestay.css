@@ -10,3 +10,16 @@ body.visitor-page #visitorForm .homestay-parking[hidden],body.visitor-page #home
 .homestay-lot .homestay-custom-label{display:flex;align-items:center;gap:8px;font-size:13px;margin:8px 0}.homestay-custom-label input[type=checkbox]{width:18px;height:18px;flex:none;margin:0}.homestay-date-summary{line-height:1.5}
 
 body.visitor-page #visitorForm .homestay-lot-header button.homestay-remove{background:#fce7f3!important;color:#9d174d!important;border:1px solid #f9a8d4!important}body.visitor-page #visitorForm .homestay-lot-header button.homestay-remove:hover,body.visitor-page #visitorForm .homestay-lot-header button.homestay-remove:active{background:#fbcfe8!important;border-color:#f472b6!important;color:#9d174d!important}
+
+/* Consistent type across the registration form, including dynamic Homestay rows. */
+body.visitor-page #visitorForm input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+body.visitor-page #visitorForm select,
+body.visitor-page #visitorForm textarea{
+ font-family:var(--visitor-font,var(--ui-font,Arial)),sans-serif!important;
+ font-size:13px!important;font-weight:400!important;font-style:normal!important;line-height:1.45!important;letter-spacing:normal!important;
+}
+body.visitor-page #visitorForm input::placeholder,body.visitor-page #visitorForm textarea::placeholder{font-family:inherit!important;font-size:inherit!important;font-weight:400!important;font-style:normal!important;letter-spacing:normal!important}
+body.visitor-page #visitorForm input[type=date]::-webkit-datetime-edit{font-family:inherit;font-size:inherit;font-style:normal}
+@media(max-width:680px){
+ body.visitor-page #visitorForm input:not([type=checkbox]):not([type=radio]):not([type=hidden]),body.visitor-page #visitorForm select,body.visitor-page #visitorForm textarea{font-size:13px!important}
+}

@@ -26,6 +26,9 @@ export function initHomestayForm({onChange=()=>{}}={}){
  function raw(){return [...$('homestayLots').children].map(b=>{const useDifferentDates=b.querySelector('.homestay-custom').checked;return {parkingLot:b.querySelector('.homestay-bay').value,plate:b.querySelector('.homestay-plate').value,parkingType:b.querySelector('.homestay-type').value,useDifferentDates,startDate:useDifferentDates?b.querySelector('.homestay-start').value:'',endDate:useDifferentDates?b.querySelector('.homestay-end').value:''};});}
  let wasHomestay=false;
  function refresh(){const hs=$('category').value==='Homestay';area.hidden=!hs;
+  const dates=$('etaWrap').parentElement;
+  if(hs)$('visitorPhone').closest('.form-row').after(dates);
+  else if(wasHomestay)$('etdNote').before(dates);
   if(hs){for(const id of ['vehicleSingleWrap','vehicleMultiWrap','stayOverWrap','etdNote'])$(id)?.style.setProperty('display','none','important');for(const id of ['etaWrap','etdWrap']){$(id)?.classList.remove('hidden');$(id)?.style.removeProperty('display');$(id)?.removeAttribute('aria-hidden');} $('eta').disabled=false;$('eta').required=true;$('etd').disabled=false;$('etd').required=true;$('etd').max='';$('etd').min=$('eta').value;$('stayOver').value='Yes';$('vehicleNo').required=false;
   $('categoryPolicyNote').classList.remove('hidden');$('categoryPolicyNote').textContent='Homestay: pilih parkir bagi setiap kenderaan. Petak sendiri percuma; parkir pelawat RM5 sehari bagi setiap kenderaan.';
   }else if(wasHomestay){for(const id of ['vehicleSingleWrap','vehicleMultiWrap','stayOverWrap','etdNote'])$(id)?.style.removeProperty('display');$('etd').required=false;$('vehicleNo').required=true;}
