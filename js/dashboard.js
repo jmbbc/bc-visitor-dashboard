@@ -2706,7 +2706,8 @@ function renderKPIs(rowsInput){
     counts.set(label, (counts.get(label) || 0) + 1);
   });
 
-  const entries = VISITOR_FORM_CATEGORIES.map(label => [label, counts.get(label) || 0]);
+  const counterOrder = ['Homestay','Pelawat','Kontraktor','Drop-off','Penghantaran Barang','Pindah Rumah','Pelawat Khas'];
+  const entries = counterOrder.map(label => [label, counts.get(label) || 0]);
 
   const totalChip = chip('Jumlah Unit Hari Ini', units.size, units.size ? 'kpi-total' : 'kpi-empty');
   totalChip.classList.add('kpi-main');
