@@ -8,6 +8,7 @@ export function snapshotCategory(r){const n=Number(String(r.unitCategory||'').ma
 const millis=value=>value?.toMillis?value.toMillis():value?.toDate?value.toDate().getTime():Date.parse(value)||0;
 export function registrationVehicles(r){
  if(isParkingExempt(r))return [];
+ if(r.category==='Homestay')return (r.vehicleRowsDetailed||[]).filter(v=>v.parkingType==='visitor').map((v,index)=>({plate:normalizePlate(v.plate),index,start:v.startDate||malaysiaDate(r.eta),end:v.endDate||malaysiaDate(r.etd||r.eta)}));
  const start=malaysiaDate(r.eta),end=malaysiaDate(r.etd||r.eta),rows=Array.isArray(r.vehicleRowsDetailed)?r.vehicleRowsDetailed:[];
  const raw=[...(Array.isArray(r.vehicleNumbers)?r.vehicleNumbers:[]),r.vehicleNo,...rows.map(x=>x.plate)].map(normalizePlate).filter(Boolean);
  return [...new Set(raw)].map((plate,index)=>{const row=rows.find(x=>normalizePlate(x.plate)===plate);return {plate,index,start:row?.startDate||start,end:row?.endDate||end};});

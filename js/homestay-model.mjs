@@ -1,19 +1,34 @@
-export function validateHomestayLots(rows,{noVehicle=false}={}){
+import {datesInclusive} from './parking-policy.mjs';
+export function validateHomestayLots(rows,{noVehicle=false,startDate='',endDate=''}={}){
  if(noVehicle)return [];
  const result=[],bays=new Set(),plates=new Set();
  for(const [i,row] of rows.entries()){
   const parkingLot=String(row.parkingLot||'').trim().toUpperCase(),plate=String(row.plate||'').toUpperCase().replace(/\s+/g,'');
-  if(!parkingLot&&!plate&&i>0)continue;
-  if(!parkingLot||!plate)throw Error(`Lengkapkan nombor petak dan nombor plat untuk Lot ${i+1}.`);
+  const visitor=row.parkingType==='visitor';
+  if(row.parkingType&&!['own','visitor'].includes(row.parkingType))throw Error('Pilihan parkir tidak sah.');
+  if(!parkingLot&&!plate&&!visitor&&i>0)continue;
+  if((!visitor&&!parkingLot)||!plate)throw Error(`Lengkapkan nombor petak dan nombor plat untuk Lot ${i+1}.`);
   if(parkingLot.length>80||plate.length>30)throw Error('Nombor petak atau plat terlalu panjang.');
   const bayKey=parkingLot.replace(/\s+/g,'');
-  if(bays.has(bayKey)||plates.has(plate))throw Error('Nombor petak dan nombor plat tidak boleh berulang.');
-  bays.add(bayKey);plates.add(plate);result.push({parkingLot,plate});
+  if((!visitor&&bays.has(bayKey))||plates.has(plate))throw Error('Nombor petak dan nombor plat tidak boleh berulang.');
+  if(!visitor)bays.add(bayKey);plates.add(plate);
+  if(visitor){const start=row.startDate||startDate,end=row.endDate||endDate;datesInclusive(start,end);if((startDate&&start<startDate)||(endDate&&end>endDate))throw Error('Tarikh parkir pelawat mesti dalam tempoh penginapan.');result.push({parkingLot:'PARKIR PELAWAT',plate,parkingType:'visitor',startDate:start,endDate:end});}
+  else result.push({parkingLot,plate});
  }
  if(!result.length)throw Error('Isi sekurang-kurangnya satu lot atau pilih Tiada kenderaan.');
  return result;
 }
 export function homestayWhatsApp(payload,{etaText='-',etdText='-'}={}){
  const rows=payload.vehicleRowsDetailed||[];
- return ['*PENDAFTARAN HOMESTAY — BANJARIA COURT*',`ID Permohonan: ${payload.verificationCode||'-'}`,'',`Unit: ${payload.hostUnit||'-'}`,`Pengendali: ${payload.hostName||'-'}`,`Telefon pengendali: ${payload.hostPhone||'-'}`,'',`Tetamu utama: ${payload.visitorName||'-'}`,`Telefon tetamu: ${payload.visitorPhone||'-'}`,`Tarikh masuk: ${etaText}`,`Tarikh keluar: ${etdText}`,'','*Kenderaan & Petak Parkir*',...(rows.length?rows.map((r,i)=>`${i+1}. ${r.plate} → Petak ${r.parkingLot}`):['Tiada kenderaan']),'','Parkir: Petak milik unit. Tidak menggunakan petak parkir pelawat.'].join('\n');
+ return ['*PENDAFTARAN HOMESTAY — BANJARIA COURT*',`ID Permohonan: ${payload.verificationCode||'-'}`,'',`Unit: ${payload.hostUnit||'-'}`,`Pengendali: ${payload.hostName||'-'}`,`Telefon pengendali: ${payload.hostPhone||'-'}`,'',`Tetamu utama: ${payload.visitorName||'-'}`,`Telefon tetamu: ${payload.visitorPhone||'-'}`,`Tarikh masuk: ${etaText}`,`Tarikh keluar: ${etdText}`,'','*Kenderaan & Petak Parkir*',...(rows.length?rows.map((r,i)=>r.parkingType==='visitor'?`${i+1}. ${r.plate} → Parkir pelawat (${r.startDate} – ${r.endDate}) · RM ${(datesInclusive(r.startDate,r.endDate).length*5).toFixed(2)}`:`${i+1}. ${r.plate} → Petak ${r.parkingLot}`):['Tiada kenderaan']),'',...(rows.some(r=>r.parkingType==='visitor')?[`Jumlah caj parkir pelawat: RM ${(quoteHomestayParking(rows).totalSen/100).toFixed(2)}`,'Kadar Homestay: RM5 sehari bagi setiap kenderaan.']:['Parkir: Petak milik unit. Tidak menggunakan petak parkir pelawat.'])].join('\n');
+}
+
+export function quoteHomestayParking(rows,{startDate='',endDate=''}={}){
+ const vehicles=rows.map(r=>{const start=r.startDate||startDate,end=r.endDate||endDate,visitor=r.parkingType==='visitor',days=visitor?datesInclusive(start,end).length:0;return {plate:r.plate,parkingLot:r.parkingLot,parkingType:visitor?'visitor':'own',startDate:start,endDate:end,days,amountSen:days*500};});
+ const totalSen=vehicles.reduce((n,r)=>n+r.amountSen,0);if(!Number.isSafeInteger(totalSen)||totalSen>100000000)throw Error('Jumlah caj melebihi had.');
+ return {vehicles,totalSen};
+}
+export function renderHomestaySummary(rows,options={}){
+ const q=quoteHomestayParking(rows,options),escape=v=>String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ return `<div class="parking-receipt"><div class="receipt-total"><span>Jumlah caj parkir pelawat</span><strong>RM ${(q.totalSen/100).toFixed(2)}</strong></div><div class="receipt-charge-section"><table class="receipt-table"><thead><tr><th>Kenderaan</th><th>Caj</th></tr></thead><tbody>${q.vehicles.map(r=>`<tr><td><strong>${escape(r.plate)}</strong><br>${r.parkingType==='visitor'?`Parkir pelawat<br>${escape(r.startDate)} – ${escape(r.endDate)}<br>${r.days} hari × RM5`:`Petak sendiri · ${escape(r.parkingLot)}`}</td><td>RM ${(r.amountSen/100).toFixed(2)}</td></tr>`).join('')}</tbody></table></div><p class="receipt-caution">Homestay: petak sendiri percuma. Parkir pelawat RM5 sehari bagi setiap kenderaan, termasuk tarikh mula dan akhir. Tertakluk kepada kekosongan petak.</p></div>`;
 }

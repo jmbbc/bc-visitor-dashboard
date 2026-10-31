@@ -1,7 +1,8 @@
+import {currentUnitArrears} from './unit-arrears-display.mjs?v=20261031-1';
 import {createClearedUnitStore,isClearedUnit} from './cleared-unit-store.mjs?v=20261031-1';
-import {validateHomestayLots} from './homestay-model.mjs?v=20261027-1';
+import {validateHomestayLots,quoteHomestayParking} from './homestay-model.mjs?v=20261031-2';
 import {isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
-import {registrationVehicles} from './parking-unit-ledger.mjs?v=20261015-type-1';
+import {registrationVehicles} from './parking-unit-ledger.mjs?v=20261031-hs-1';
 import {groupParkingDay} from './parking-day-groups.mjs?v=20261015-merge-1';
 // js/dashboard.js — full patched version with parking save fixes, deterministic doc IDs,
 // and assignLotTransaction (Firestore transaction) for atomic parking assignment.
@@ -534,6 +535,7 @@ async function loadAllUnitsToCache(opts = {}){
       snap.forEach(d => { unitsCache[d.id] = d.data(); });
       unitsLoadPermissionDenied = false;
       persistUnitsCacheToStorage(force ? 'firestore-force' : 'firestore');
+      renderSummaryWithSearch(responseCache.rows || []);
       console.info('[units] loaded', getUnitsCacheCount(), force ? '(force)' : '');
       try { renderUnitArrearsList(); } catch (err) { /* ignore */ }
       return { source: 'firestore', count: getUnitsCacheCount() };
@@ -1818,6 +1820,7 @@ async function saveUnitToFirestore(unitId, data){
   // update cache
   unitsCache[unitId] = Object.assign({}, unitsCache[unitId] || {}, data, { lastUpdatedAt: new Date() });
   persistUnitsCacheToStorage('manual-save');
+  renderSummaryWithSearch(responseCache.rows || []);
   renderUnitsList();
   toast('Unit disimpan');
   if(isClearedUnit(data))await repriceClearedUnit(unitId);
@@ -1865,6 +1868,7 @@ async function importUnitsFromArray(rows){
     persistUnitsCacheToStorage('import-fallback');
   }
   renderUnitsList();
+  renderSummaryWithSearch(responseCache.rows || []);
   if(success===batches.length)for(const id of clearedIds)await repriceClearedUnit(id);
   return { batches: batches.length, committed: success };
 }
@@ -2917,7 +2921,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     const hasParkingCharge = Number.isFinite(quotedMainSen) && quotedMainSen > 0;
     let paymentStatusLabel = '—';
     let paymentStatusClass = 'payment-status-none';
-    if(r.category==='Homestay'){paymentStatusLabel='Petak sendiri · Tiada caj';paymentStatusClass='payment-status-free';}
+    if(r.category==='Homestay'){paymentStatusLabel=hasParkingCharge?(r.status==='Pending Payment'?'Menunggu bayaran':'Bayaran diterima'):'Tiada caj';paymentStatusClass=hasParkingCharge?(r.status==='Pending Payment'?'payment-status-pending':'payment-status-paid'):'payment-status-free';}
     else if(isParkingExempt(r)){paymentStatusLabel=hasParkingCharge?'Semak pengecualian':'Tidak dikenakan caj';paymentStatusClass=hasParkingCharge?'payment-status-review':'payment-status-free';}
     else if(r.parkingReviewReason==='vehicle_type_exempt'){paymentStatusLabel='Menunggu kiraan';paymentStatusClass='payment-status-review';}
     else if (r.parkingReviewRequired === true) {
@@ -2937,6 +2941,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
     const tr = document.createElement('tr');
     if (highlightIds && highlightIds.has(r.id)) tr.classList.add('conflict');
     const visitorPhoneHtml = visitorPhoneDisplay ? (()=>{ const waHref=normalizePhoneForWhatsapp(visitorPhoneDisplay); return `<a class="tel-link" href="${waHref}" target="_blank" rel="noopener noreferrer">${escapeHtml(visitorPhoneDisplay)}</a>`; })() : '—';
+    arrearsAmountDisplay = currentUnitArrears(live,r);
     const arrearsValueHtml = arrearsAmountDisplay === null ? '—' : (arrearsAmountDisplay > 0 ? `<strong>RM ${formatAmount(arrearsAmountDisplay)}</strong>` : '<strong>Tiada</strong>');
     const chargeValueHtml = paymentAmountDisplay === null ? '—' : `<strong>RM ${formatAmount(paymentAmountDisplay)}</strong>`;
     const arrearsFinanceClass = arrearsAmountDisplay === null ? 'finance-unknown' : (arrearsAmountDisplay > 0 ? 'finance-due' : 'finance-clear');
@@ -2945,7 +2950,7 @@ function renderList(rows, containerEl, compact=false, highlightIds = new Set()){
       <td class="timestamp-cell"><div class="ts-date">${formatDateOnly(r.createdAt)}</div><div class="ts-time">${formatTime(r.createdAt)}</div></td>
       <td><div class="reg-primary">${escapeHtml(visitorNameDisplay || '—')}</div><div class="reg-secondary">${visitorPhoneHtml}</div>${r.entryDetails ? `<div class="reg-entry-details">${escapeHtml(r.entryDetails)}</div>` : ''}</td>
       <td><span class="reg-unit">${escapeHtml(r.hostUnit || '—')}</span><div class="reg-secondary">${hostContactHtml || 'Maklumat penghuni tidak direkod'}</div></td>
-      <td><div class="reg-visit-grid"><span class="label">Masuk</span><span class="value in">${formatDateOnly(r.eta)}</span><span class="label">Keluar</span><span class="value out">${formatDateOnly(r.etd)}</span><span class="label">Kenderaan</span><span class="value vehicle">${escapeHtml(vehicleDisplay)}</span></div>${r.category==='Homestay'?`<div class="reg-secondary">${(r.vehicleRowsDetailed||[]).filter(v=>String(v.plate||'').replace(/\s/g,'').toUpperCase()===String(vehicleDisplay).replace(/\s/g,'').toUpperCase()).map(v=>`${escapeHtml(v.plate||'')} → Petak ${escapeHtml(v.parkingLot||'—')}`).join('<br>')||'Tiada kenderaan'}</div>`:''}</td>
+      <td><div class="reg-visit-grid"><span class="label">Masuk</span><span class="value in">${formatDateOnly(r.eta)}</span><span class="label">Keluar</span><span class="value out">${formatDateOnly(r.etd)}</span><span class="label">Kenderaan</span><span class="value vehicle">${escapeHtml(vehicleDisplay)}</span></div>${r.category==='Homestay'?`<div class="reg-secondary">${(r.vehicleRowsDetailed||[]).filter(v=>String(v.plate||'').replace(/\s/g,'').toUpperCase()===String(vehicleDisplay).replace(/\s/g,'').toUpperCase()).map(v=>`${escapeHtml(v.plate||'')} → ${v.parkingType==='visitor'?'Parkir pelawat · RM5/hari':'Petak '+escapeHtml(v.parkingLot||'—')}`).join('<br>')||'Tiada kenderaan'}</div>`:''}</td>
       <td><div class="reg-category-layout">${categoryPillHtml}<div class="reg-finance-grid"><div class="reg-finance-item ${arrearsFinanceClass}"><span class="label">Tunggakan</span><span class="value">${arrearsValueHtml}</span></div><div class="reg-finance-item ${chargeFinanceClass}"><span class="label">Caj parkir</span><span class="value">${chargeValueHtml}</span></div></div></div></td>
       <td><div class="reg-status-stack"><span class="status-pill ${statusClass}">${escapeHtml(registrationStatusLabel)}</span><span class="payment-status-pill ${paymentStatusClass}">${escapeHtml(paymentStatusLabel)}</span>${badge}</div></td>
       <td><div class="actions registration-actions">
@@ -3843,10 +3848,10 @@ async function openEditModalFor(docId){
     const veh = Array.isArray(data.vehicleNumbers) && data.vehicleNumbers.length ? data.vehicleNumbers.join(';') : (data.vehicleNo || '');
     document.getElementById('editVehicle').value = veh;
     let lotsField=document.getElementById('editHomestayLots');
-    if(!lotsField){const label=document.createElement('label');label.id='editHomestayLotsWrap';label.textContent='Homestay: satu baris bagi setiap NOMBOR PETAK | NOMBOR PLAT';lotsField=document.createElement('textarea');lotsField.id='editHomestayLots';lotsField.rows=4;lotsField.style.width='100%';label.append(lotsField);document.getElementById('editVehicle').parentElement.after(label);}
+    if(!lotsField){const label=document.createElement('label');label.id='editHomestayLotsWrap';label.textContent='Homestay: PETAK | PLAT; parkir pelawat: PELAWAT | PLAT | MULA | AKHIR';lotsField=document.createElement('textarea');lotsField.id='editHomestayLots';lotsField.rows=4;lotsField.style.width='100%';label.append(lotsField);document.getElementById('editVehicle').parentElement.after(label);}
     document.getElementById('editHomestayLotsWrap').hidden=data.category!=='Homestay';
     document.getElementById('editVehicle').disabled=data.category==='Homestay';
-    lotsField.value=(data.vehicleRowsDetailed||[]).map(row=>`${row.parkingLot||''} | ${row.plate||''}`).join('\n');
+    lotsField.value=(data.vehicleRowsDetailed||[]).map(row=>row.parkingType==='visitor'?`PELAWAT | ${row.plate||''} | ${row.startDate||''} | ${row.endDate||''}`:`${row.parkingLot||''} | ${row.plate||''}`).join('\n');
     lotsField.placeholder='A-123 | ABC123\nA-124 | DEF456\nKosongkan jika tiada kenderaan';
     document.getElementById('editStatus').value = data.status || 'Pending';
     openModal(document.getElementById('editModal'), '#saveEditBtn');
@@ -3919,8 +3924,9 @@ document.getElementById('saveEditBtn').addEventListener('click', async (ev) => {
     const oldSnap = await getDoc(ref);
     const oldData = oldSnap.exists() ? oldSnap.data() : null;
     if(oldData?.category==='Homestay'){
-      try{const raw=(document.getElementById('editHomestayLots')?.value||'').trim();const rows=raw?validateHomestayLots(raw.split('\n').map(line=>{const [parkingLot,plate,...extra]=line.split('|');if(extra.length)throw Error('Format lot: NOMBOR PETAK | NOMBOR PLAT');return {parkingLot,plate};})):[];
-      payload.vehicleRowsDetailed=rows.map(row=>({...row,visitorName:oldData.visitorName||'',visitorPhone:oldData.visitorPhone||'',startDate:etaVal,endDate:etdVal}));payload.vehicleNumbers=rows.map(row=>row.plate);payload.vehicleNo=rows[0]?.plate||'TIADA KENDERAAN';
+      try{const raw=(document.getElementById('editHomestayLots')?.value||'').trim();const rows=raw?validateHomestayLots(raw.split('\n').map(line=>{const [parkingLot,plate,startDate,endDate,...extra]=line.split('|').map(s=>s.trim());if(extra.length)throw Error('Format: PETAK | PLAT atau PELAWAT | PLAT | MULA | AKHIR');return {parkingLot,plate,parkingType:parkingLot.toUpperCase()==='PELAWAT'?'visitor':'own',startDate,endDate};}),{startDate:etaVal,endDate:etdVal}):[];
+      const quote=quoteHomestayParking(rows,{startDate:etaVal,endDate:etdVal});if(quote.totalSen!==(oldData.parkingQuote?.mainTotalSen||0))throw Error('Amaun caj berubah. Sila selesaikan pelarasan melalui Bayaran sebelum menyimpan perubahan parkir.');
+      payload.vehicleRowsDetailed=rows.map(row=>({...row,visitorName:oldData.visitorName||'',visitorPhone:oldData.visitorPhone||'',startDate:row.startDate||etaVal,endDate:row.endDate||etdVal}));payload.vehicleNumbers=rows.map(row=>row.plate);payload.vehicleNo=rows[0]?.plate||'TIADA KENDERAAN';
       if(!etaVal||!etdVal||etdVal<etaVal)throw Error('Tarikh keluar mesti sama atau selepas tarikh masuk.');
       }catch(err){toast(err.message);return;}
     }
@@ -4751,7 +4757,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       // Only Pelawat category AND staying over (Bermalam) AND overlaps the rendered week window
       const pelawatAll = rows.filter(r => {
         if(r.status==='Cancelled Before Entry'||r.parkingUnused)return false;
-        if (determineCategory(r) !== 'Pelawat') return false;
+        if (!['Pelawat','Homestay'].includes(determineCategory(r))) return false;
         if (String((r.stayOver || '').toLowerCase()) !== 'yes') return false;
         return registrationVehicles(r).some(v=>new Date(v.start+'T00:00:00')<to&&new Date(v.end+'T00:00:00')>=from);
       });
@@ -4870,7 +4876,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       header.appendChild(refreshWeek);
       const stats = document.createElement('div');
       stats.className = 'parking-monitor-stats';
-      stats.innerHTML = `<div><span>Unit bermalam</span><strong>${allUnits.length}</strong></div><div><span>Kenderaan berdaftar</span><strong>${new Set(pelawat.flatMap(collectVehiclesFromResponse)).size}</strong></div><div><span>Penggunaan lebih 3 hari</span><strong>${overLimitCount}</strong></div>`;
+      stats.innerHTML = `<div><span>Unit bermalam</span><strong>${allUnits.length}</strong></div><div><span>Kenderaan berdaftar</span><strong>${new Set(pelawat.flatMap(r=>registrationVehicles(r).map(v=>v.plate))).size}</strong></div><div><span>Penggunaan lebih 3 hari</span><strong>${overLimitCount}</strong></div>`;
       calWrap.appendChild(stats);
       const usageNote = document.createElement('p');
       usageNote.className = 'small muted';

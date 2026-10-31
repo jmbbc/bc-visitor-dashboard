@@ -1,4 +1,4 @@
-import {buildUnitParkingLedger} from './parking-unit-ledger.mjs?v=20261015-type-1';
+import {buildUnitParkingLedger} from './parking-unit-ledger.mjs?v=20261031-hs-1';
 import {malaysiaDate} from './charge-explanation-model.mjs';
 export const isClearedUnit = unit => unit?.arrears === false && unit.arrearsAmount === 0;
 export function canRepriceBeforeEntry(row, charge) {

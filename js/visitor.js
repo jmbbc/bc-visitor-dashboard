@@ -1,6 +1,6 @@
 import {renderParkingReceipt} from './parking-receipt.mjs?v=20261029-1';
-import {validateHomestayLots,homestayWhatsApp} from './homestay-model.mjs?v=20261027-1';
-import {initHomestayForm} from './homestay-form.mjs?v=20261027-1';
+import {validateHomestayLots,homestayWhatsApp,quoteHomestayParking,renderHomestaySummary} from './homestay-model.mjs?v=20261031-2';
+import {initHomestayForm} from './homestay-form.mjs?v=20261031-2';
 let homestayForm=null;
 import {parkingVehicleClass,isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
@@ -601,7 +601,11 @@ function resetPaymentSummary(msg){
 function renderChargesSummary({ unit, unitSnapshot, unitParkingState = null, etaDate, etdDate, category, stayOver = 'No', vehicleCount = 0, additionalVehicleEntries = [] }) {
   const summary = document.getElementById('paymentSummary');
   if (!summary) return;
-  if(category==='Homestay'){summary.innerHTML='<strong>Homestay · Tiada caj parkir pelawat</strong><p>Tetamu menggunakan petak parkir milik unit. Tiada kiraan hari percuma, cooldown atau kenderaan tambahan parkir pelawat.</p>';return;}
+  if(category==='Homestay'){
+    try{const startDate=document.getElementById('eta').value,endDate=document.getElementById('etd').value;const rows=validateHomestayLots(homestayForm?.raw()||[],{noVehicle:homestayForm?.noVehicle(),startDate,endDate});summary.innerHTML=renderHomestaySummary(rows,{startDate,endDate})+renderPaymentCollectionInfo(quoteHomestayParking(rows,{startDate,endDate}).totalSen/100);}
+    catch(error){summary.textContent=error.message;}
+    return;
+  }
   const hasSnapshot = !!unitSnapshot;
   const arrearsAmount = hasSnapshot ? unitSnapshot.arrearsAmount : null;
   const arrearsCat = hasSnapshot ? computeArrearsCategory(arrearsAmount) : null;
@@ -1239,7 +1243,7 @@ function collectVehicleDetailsFromPayloadLike(src) {
       plate,
       visitorName: (row && row.visitorName ? String(row.visitorName).trim() : '') || '',
       visitorPhone: normalizePhoneInput(row && row.visitorPhone ? String(row.visitorPhone) : '') || '',
-      ...(src.category==='Homestay'?{parkingLot:String(row.parkingLot||''),startDate:row.startDate||'',endDate:row.endDate||''}:{})
+      ...(src.category==='Homestay'?{parkingLot:String(row.parkingLot||''),parkingType:row.parkingType==='visitor'?'visitor':'own',startDate:row.startDate||'',endDate:row.endDate||''}:{})
     });
   });
 
@@ -1324,6 +1328,7 @@ async function createResponseWithDedupe(payload){
   const etaEnd = _toDateOnly(etdDate) || etaStart;
   const amendToken = payload && payload.amendToken ? String(payload.amendToken) : getOrCreateAmendToken(hostUnitId, dateKey);
 
+  if(dedupeTransactionUnavailable&&category==='Homestay'&&payload.vehicleRowsDetailed?.some(r=>r.parkingType==='visitor'))throw Error('Sambungan pembayaran diperlukan. Muat semula dan cuba lagi.');
   if (dedupeTransactionUnavailable && !(category === 'Pelawat' && stayOver === 'Yes')) {
     if (requestedAmendResponseId) {
       const e = new Error('amendment_not_allowed');
@@ -1512,13 +1517,22 @@ async function createResponseWithDedupe(payload){
         tx.set(doc(window.__FIRESTORE,'parkingLedgerQueue',hostUnitId),{unit:hostUnitId,responseId:targetRespId,requestedAt:serverTimestamp(),status:'pending'});
       }
       if(!amended&&category==='Pelawat'&&parkingExempt){docPayload.parkingQuote={policyVersion:'draft-2026-09-08',mainTotalSen:0,mainStartDay:1,mainEndDay:1,calculatedAt:serverTimestamp()};docPayload.parkingReviewRequired=false;docPayload.parkingReviewReason='vehicle_type_exempt';docPayload.status='Pending';}
+      if(amended&&category==='Homestay')throw Error('Untuk ubah permohonan Homestay sedia ada, hubungi pihak pengurusan.');
+      let homestayCharge=null;
+      if(!amended&&category==='Homestay'){
+        const startDate=clientIsoDateOnlyKey(etaDate),endDate=clientIsoDateOnlyKey(etdDate||etaDate);
+        const rows=validateHomestayLots(payload.vehicleRowsDetailed||[],{noVehicle:payload.vehicleNo==='TIADA KENDERAAN',startDate,endDate});
+        homestayCharge=quoteHomestayParking(rows,{startDate,endDate});
+        docPayload.parkingQuote={policyVersion:'homestay-rm5-2026-10-31',mainTotalSen:homestayCharge.totalSen,mainStartDay:1,mainEndDay:Math.max(1,...homestayCharge.vehicles.map(r=>r.days)),calculatedAt:serverTimestamp()};
+        docPayload.parkingReviewRequired=false;docPayload.status=homestayCharge.totalSen?'Pending Payment':'Pending';
+      }
       if (!amended) {
         tx.set(targetRespRef, docPayload);
-        if (parkingDecision?.status === 'quoted' && parkingDecision.totalSen > 0 && !docPayload.parkingReviewRequired) {
+        if (((parkingDecision?.status === 'quoted' && parkingDecision.totalSen > 0)||homestayCharge?.totalSen>0) && !docPayload.parkingReviewRequired) {
           attemptedParkingCharge = true;
           tx.set(doc(window.__FIRESTORE, 'parkingCharges', targetRespId), {
             registrationId: targetRespId,
-            amountSen: parkingDecision.totalSen,
+            amountSen: homestayCharge?.totalSen??parkingDecision.totalSen,
             paidSen: 0,
             paymentStatus: 'unconfirmed',
             createdBy: 'visitor-form',
@@ -2174,7 +2188,7 @@ const subCategoryHelpMap = {
 };
 
 const categoryHelpMap = {
-  'Homestay':'Pengendali mendaftarkan tetamu yang menggunakan petak parkir milik unit. Tiada caj parkir pelawat.',
+  'Homestay':'Petak sendiri percuma. Parkir pelawat dikenakan RM5 sehari bagi setiap kenderaan.',
   'Pelawat': 'Pendaftaran untuk pelawat yang bermalam / tidak bermalam.',
   'Kontraktor': 'Pendaftaran untuk beri kebenaran kepada kontraktor untuk masuk ke Banjaria Court.',
   'Penghantaran Barang': 'Penggunaan lif yang minimum (1x penggunaan sahaja).',
@@ -3863,7 +3877,7 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshVehicleVisitorMeta();
     try { renderCategorySectionNote(); } catch(e) { /* ignore */ }
     updatePaymentSummary();
-    homestayForm=initHomestayForm();
+    homestayForm=initHomestayForm({onChange:()=>updatePaymentSummary()});
     restoreDraftIfAny();
     homestayForm?.refresh();
     refreshRecallButtonState(amendLastBtn);
@@ -4043,7 +4057,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if(category==='Homestay'){
-        try{const lots=validateHomestayLots(homestayForm?.raw()||[],{noVehicle:homestayForm?.noVehicle()});vehicleRowsDetailed=lots.map(row=>({...row,visitorName,visitorPhone:normalizePhoneInput(visitorPhone),startDate:etaVal,endDate:etdVal}));vehicleNumbers=lots.map(r=>r.plate);vehicleNo=vehicleNumbers[0]||'TIADA KENDERAAN';}catch(err){showStatus(err.message,false);return;}
+        try{const lots=validateHomestayLots(homestayForm?.raw()||[],{noVehicle:homestayForm?.noVehicle(),startDate:etaVal,endDate:etdVal});vehicleRowsDetailed=lots.map(row=>({...row,visitorName,visitorPhone:normalizePhoneInput(visitorPhone),startDate:row.startDate||etaVal,endDate:row.endDate||etdVal}));vehicleNumbers=lots.map(r=>r.plate);vehicleNo=vehicleNumbers[0]||'TIADA KENDERAAN';}catch(err){showStatus(err.message,false);return;}
       }
       if (!vehicleNo) {
         focusFieldWithStatus('vehicleNo', 'Sila masukkan nombor kenderaan utama.');
