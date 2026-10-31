@@ -2,3 +2,11 @@ body.visitor-page #visitorForm .homestay-parking[hidden],body.visitor-page #home
 .homestay-parking{margin:18px 0}.homestay-none{display:flex;align-items:center;gap:8px;margin-bottom:12px}.homestay-none input[type=checkbox]{width:18px;height:18px;margin:0}.homestay-lots{display:grid;grid-template-columns:1fr 1fr;gap:14px}.homestay-lot{padding:16px;border:1px solid #d9e4ef;background:#f8fafc;border-radius:12px;min-width:0}.homestay-lot h4{font-size:14px;margin:0 0 12px}.homestay-lot small{font-weight:400}.homestay-lot label{display:block;font-size:13px;margin:10px 0 6px}.homestay-lot input{width:100%;min-width:0;box-sizing:border-box}#homestayAddLot{margin-top:12px}@media(max-width:680px){.homestay-lots{grid-template-columns:1fr}.homestay-lot input{font-size:16px}}
 
 .homestay-parking [hidden]{display:none!important}.homestay-lot select{width:100%;box-sizing:border-box;min-height:44px}.homestay-visitor{border-top:1px solid #c9d8e7;margin-top:10px}.homestay-visitor p{margin:8px 0;color:#174976}
+
+.homestay-lot-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.homestay-lot-header h4{flex:1;min-width:0}.homestay-lot-header .homestay-remove{flex:none;min-height:36px;padding:6px 10px;font-size:13px;color:#9d174d;background:#fce7f3;border-color:#f9a8d4;white-space:nowrap}
+
+.homestay-lot-header .homestay-remove:hover{background:#fbcfe8;border-color:#f472b6;color:#9d174d}.homestay-lot-header .homestay-remove:focus-visible{outline:3px solid #f472b6;outline-offset:2px}
+
+.homestay-lot .homestay-custom-label{display:flex;align-items:center;gap:8px;font-size:13px;margin:8px 0}.homestay-custom-label input[type=checkbox]{width:18px;height:18px;flex:none;margin:0}.homestay-date-summary{line-height:1.5}
+
+body.visitor-page #visitorForm .homestay-lot-header button.homestay-remove{background:#fce7f3!important;color:#9d174d!important;border:1px solid #f9a8d4!important}body.visitor-page #visitorForm .homestay-lot-header button.homestay-remove:hover,body.visitor-page #visitorForm .homestay-lot-header button.homestay-remove:active{background:#fbcfe8!important;border-color:#f472b6!important;color:#9d174d!important}
