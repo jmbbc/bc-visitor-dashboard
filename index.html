@@ -7,12 +7,14 @@
 <title>Portal Komuniti — Banjaria Court</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/home.css">
+<link rel="stylesheet" href="css/home.css?v=20261104-headings-1">
+<link rel="stylesheet" href="css/notices.css?v=20261104-agm-compact-3">
 <link rel="stylesheet" href="css/portal-visits.css?v=20261020-2">
+<link rel="stylesheet" href="css/ui-motion.css?v=20261104-1">
 </head>
 <body>
 <a class="skip" href="#pilihan">Terus ke menu</a>
-<main class="home">
+<main class="home with-feed">
 <header class="brand">
 <img class="logo" src="assets/jmb-banjaria-logo.png" alt="Logo JMB Banjaria Court">
 <div>
@@ -23,6 +25,19 @@
 <section class="welcome">
 <h1>Selamat datang ke<br>Banjaria Court</h1>
 <p>Portal komuniti anda</p>
+</section>
+<section class="upcoming" aria-labelledby="upcoming-title">
+<h2 id="upcoming-title">Notis Terkini</h2>
+<article class="notice-card home-notice agm-card agm-compact" aria-labelledby="agm-notice-title">
+<div class="agm-card-image" aria-hidden="true"><img src="assets/agm-notice-2026.png" alt="" width="1254" height="1254"></div>
+<div class="agm-card-content">
+<h3 id="agm-notice-title">Mesyuarat Agung Tahunan<br>Banjaria Court Ke-10</h3>
+<p class="notice-meta"><span class="agm-icon" aria-hidden="true">▦</span><strong><time datetime="2026-11-21">21 November 2026</time> · Sabtu</strong></p>
+<p class="notice-meta"><span class="agm-icon" aria-hidden="true">⌖</span><strong>Rumah Kelab (Blok A PL)</strong></p>
+<p class="notice-meta"><span class="agm-icon" aria-hidden="true">◷</span><strong>Pendaftaran: 9:00 pagi – 9:45 pagi</strong></p>
+<p class="notice-body"><strong>Semua unit dijemput hadir.</strong></p>
+</div>
+</article>
 </section>
 <nav id="pilihan" aria-labelledby="menu-title">
 <h2 id="menu-title">Pilihan anda</h2>
@@ -43,6 +58,7 @@
 </span>
 <img class="arrow" src="assets/home-chevron.svg" alt="">
 </a>
+<!-- Pilihan Notis Pengurusan disembunyikan sehingga halaman notis siap. -->
 <a class="service security" href="dashboard.html">
 <img src="assets/home-shield.svg" alt="">
 <span>

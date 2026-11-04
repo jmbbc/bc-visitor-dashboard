@@ -1,0 +1,18 @@
+/* Operate-mode motion: feedback and continuity, with no page-load choreography. */
+:root{--bc-motion-fast:120ms;--bc-motion-state:180ms;--bc-motion-ease:cubic-bezier(.16,1,.3,1)}
+.home a.service{transition:background-color var(--bc-motion-fast),border-color var(--bc-motion-fast),transform var(--bc-motion-fast) var(--bc-motion-ease)}
+.home a.service:hover{transform:none;border-color:#71997f}
+.home a.service .arrow{transition:transform var(--bc-motion-state) var(--bc-motion-ease)}
+@media(hover:hover){.home a.service:hover .arrow{transform:translateX(3px)}}
+.home a.service:focus-visible .arrow{transform:translateX(3px)}
+.home a.service:active{transform:scale(.99)}
+body.visitor-page #visitorForm button{transition:background-color var(--bc-motion-fast),border-color var(--bc-motion-fast),color var(--bc-motion-fast),transform var(--bc-motion-fast) var(--bc-motion-ease)}
+body.visitor-page #visitorForm button:not(:disabled):active{transform:scale(.985)}
+body.visitor-page #visitorForm button:disabled{transform:none}
+body.visitor-page #visitorForm details>summary{transition:background-color var(--bc-motion-fast)}
+body.visitor-page #visitorForm details>summary:active{background-color:rgba(16,85,55,.06)}
+body.visitor-page #visitorForm :is(input,select,textarea){transition:border-color var(--bc-motion-fast),background-color var(--bc-motion-fast)}
+@media(prefers-reduced-motion:reduce){
+ .home a.service,.home a.service .arrow,body.visitor-page #visitorForm button,body.visitor-page #visitorForm details>summary,body.visitor-page #visitorForm :is(input,select,textarea){transition-duration:60ms}
+ .home a.service:active,.home a.service:hover .arrow,.home a.service:focus-visible .arrow,body.visitor-page #visitorForm button:not(:disabled):active{transform:none}
+}
