@@ -132,3 +132,5 @@ body{color:var(--ink);background:var(--cream)}
 .home.with-feed .agm-compact .notice-body{margin-top:6px}
 .home.with-feed .agm-compact .agm-icon{font-size:15px;flex-basis:15px}
 @media(min-width:700px){.home.with-feed .agm-compact .agm-card-image{height:145px}.home.with-feed .agm-compact .agm-card-image img{top:-55px}.home.with-feed .agm-compact .agm-card-content{padding:8px 16px 14px}.home.with-feed .agm-compact h3{font-size:19px}.home.with-feed .agm-compact .notice-meta,.home.with-feed .agm-compact .notice-body{font-size:13px}}
+
+.home.with-feed .agm-compact .agm-countdown{display:inline-block;margin:0 0 7px;padding:3px 9px;border-radius:999px;background:#dcebcf;color:#17452d;font-size:12px;font-weight:800;line-height:1.4}
