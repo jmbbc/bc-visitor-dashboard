@@ -714,7 +714,7 @@ if (DASHBOARD_PREVIEW_MODE) {
       if (reviewCount) reviewCount.textContent = '0';
       if (reviewMessage) reviewMessage.textContent = 'Tiada unit menunggu semakan dalam contoh pratonton.';
       if (cooldownMessage) cooldownMessage.textContent = 'Buka bahagian ini hanya untuk penyelenggaraan secara pukal.';
-      document.getElementById('pageUnitSummary')?.querySelectorAll('button').forEach((button)=>{button.disabled=true;button.title='Tidak tersedia dalam mod pratonton';});
+      document.getElementById('pageUnitSummary')?.querySelectorAll('button:not([role="tab"])').forEach((button)=>{button.disabled=true;button.title='Tidak tersedia dalam mod pratonton';});
     }
   }, 0);
 }
