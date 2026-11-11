@@ -677,20 +677,6 @@
 
             <div>
 
-              <section id="parkingReviewAdminPanel" class="card parking-review-panel" hidden aria-labelledby="parkingReviewTitle">
-                <div class="parking-review-head">
-                  <div><span class="admin-only-pill">ADMIN SAHAJA</span><h4 id="parkingReviewTitle">Semakan Cooldown Unit</h4><p class="small muted">Sahkan keadaan unit lama yang pernah bertukar kategori sebelum peraturan cooldown automatik digunakan.</p></div>
-                  <div class="parking-review-summary" aria-live="polite"><strong id="parkingReviewPendingCount">—</strong><span>menunggu semakan</span></div>
-                </div>
-                <div class="parking-review-toolbar">
-                  <input id="parkingReviewSearch" type="search" placeholder="Cari unit" aria-label="Cari unit untuk semakan cooldown" />
-                  <select id="parkingReviewStatus" aria-label="Tapis status semakan"><option value="pending">Perlu semakan</option><option value="resolved">Selesai</option><option value="all">Semua</option></select>
-                  <button id="parkingReviewRefresh" class="btn-ghost" type="button">Muat Semula</button>
-                </div>
-                <div id="parkingReviewMessage" class="small muted" role="status" aria-live="polite">Memuatkan senarai semakan…</div>
-                <div id="parkingReviewList" class="parking-review-list"></div>
-              </section>
-
               <section id="cooldownMaintenancePanel" class="card parking-review-panel cooldown-maintenance-panel" hidden aria-labelledby="cooldownMaintenanceTitle">
                 <div class="parking-review-head">
                   <div><span class="admin-only-pill">ADMIN SAHAJA</span><h4 id="cooldownMaintenanceTitle">Operasi Harian • Cooldown Unit</h4><p class="small muted">Semak keadaan satu unit dan lakukan reset kecemasan hanya apabila diperlukan.</p></div>
@@ -730,6 +716,7 @@
                 </details>
               </section>
 
+            <div hidden>
               <div class="report-builder">
                 <div class="report-builder-head">
                   <div>
@@ -793,9 +780,23 @@
               <h4 style="margin-top:0">Sejarah Pelawat Unit Dipilih</h4>
               <div id="unitSummaryDetailArea" class="small muted">Pilih unit daripada ringkasan untuk melihat nama pelawat, telefon, kenderaan dan sejarah lawatan.</div>
             </div>
+            </div>
 
             <details class="card card-tight management-tools" style="margin-top:10px;">
               <summary>Alat Lanjutan &amp; Penyelenggaraan</summary>
+              <section id="parkingReviewAdminPanel" class="card parking-review-panel" hidden aria-labelledby="parkingReviewTitle">
+                <div class="parking-review-head">
+                  <div><span class="admin-only-pill">ADMIN SAHAJA</span><h4 id="parkingReviewTitle">Semakan Cooldown Unit</h4><p class="small muted">Sahkan keadaan unit lama yang pernah bertukar kategori sebelum peraturan cooldown automatik digunakan.</p></div>
+                  <div class="parking-review-summary" aria-live="polite"><strong id="parkingReviewPendingCount">—</strong><span>menunggu semakan</span></div>
+                </div>
+                <div class="parking-review-toolbar">
+                  <input id="parkingReviewSearch" type="search" placeholder="Cari unit" aria-label="Cari unit untuk semakan cooldown" />
+                  <select id="parkingReviewStatus" aria-label="Tapis status semakan"><option value="pending">Perlu semakan</option><option value="resolved">Selesai</option><option value="all">Semua</option></select>
+                  <button id="parkingReviewRefresh" class="btn-ghost" type="button">Muat Semula</button>
+                </div>
+                <div id="parkingReviewMessage" class="small muted" role="status" aria-live="polite">Memuatkan senarai semakan…</div>
+                <div id="parkingReviewList" class="parking-review-list"></div>
+              </section>
               <div class="management-tools-grid">
                 <div class="management-tool-item">
                   <div><strong>Jumlah Rekod Database</strong><div class="small muted">Kiraan ringan tanpa memuat kandungan rekod.</div></div>
@@ -804,7 +805,7 @@
                 </div>
                 <div class="management-tool-item">
                   <div><strong>Operasi Keseluruhan Database</strong><div class="small muted">Boleh menggunakan banyak reads. Had keselamatan kekal 20,000 rekod bagi satu operasi.</div></div>
-                  <div class="management-tool-buttons"><button id="exportAllCSVBtn" class="btn-ghost" type="button">Eksport Semua Rekod</button><button id="unitSummaryLoadAllBtn" class="btn-ghost" type="button">Muat Semua Sejak Mula</button></div>
+                  <div class="management-tool-buttons"><button id="exportAllCSVBtn" class="btn-ghost" type="button">Eksport Semua Rekod</button></div>
                 </div>
               </div>
             </details>
