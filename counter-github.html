@@ -277,7 +277,23 @@ window.UNITS_STATIC = [
   const picker = document.createElement('iframe');
   picker.src = multiple ? 'counter-theme-wheel.html' : 'counter-theme-wheel.html?single';
   picker.title = unitName;
-  picker.style.cssText = 'width:100%;height:360px;border:0';
+  picker.style.cssText = 'width:100%;height:218px;border:0';
+  picker.addEventListener('load', () => {
+    const content = picker.contentDocument?.querySelector('main');
+    if (!content) return;
+    const resize = () => {
+      picker.style.height = Math.ceil(content.getBoundingClientRect().height) + 'px';
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(content);
+    const removal = new MutationObserver(() => {
+      if (picker.isConnected) return;
+      observer.disconnect();
+      removal.disconnect();
+    });
+    removal.observe(fields, { childList: true, subtree: true });
+    resize();
+  });
   fieldset.dataset.wheelField = unitName;
   fieldset.append(label, picker);
   return fieldset;
