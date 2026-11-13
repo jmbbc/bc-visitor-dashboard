@@ -1,0 +1,23 @@
+name: Deploy Counter
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [apps-script-counter/Counter.html]
+permissions:
+  contents: read
+concurrency:
+  group: apps-script-counter
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node apps-script-counter/deploy.mjs
+        env:
+          APPS_SCRIPT_ID: ${{ vars.COUNTER_SCRIPT_ID }}
+          APPS_SCRIPT_DEPLOYMENT_ID: ${{ vars.COUNTER_DEPLOYMENT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.COUNTER_GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.COUNTER_GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.COUNTER_GOOGLE_REFRESH_TOKEN }}

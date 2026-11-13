@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daftar Masuk Kaunter — Banjaria Court</title>
+<style>
+#bc-counter-samples .ce{--paper:light-dark(#fff,#142c35);--ink:light-dark(#183c49,#e7f1f4);--muted:light-dark(#58707a,#b3c7cf);--line:light-dark(#dce6e9,#39525c);--soft:light-dark(#eff6f6,#203a43);--brand:light-dark(#146b70,#8ad6d2);--on:light-dark(#fff,#143437);color:var(--ink);font:14px/1.5 system-ui,sans-serif;padding:18px;min-height:990px;box-sizing:border-box}
+#bc-counter-samples .ce *{box-sizing:border-box}#bc-counter-samples .ce [hidden]{display:none!important}#bc-counter-samples .ce-shell{max-width:460px;margin:auto;background:var(--paper);border:1px solid var(--line);border-radius:20px;overflow:hidden}#bc-counter-samples .ce-shell.guard{max-width:660px}#bc-counter-samples header{padding:24px 22px 18px;border-bottom:1px solid var(--line)}#bc-counter-samples .ce-brand{font-size:11px;letter-spacing:.13em;color:var(--brand);font-weight:700}#bc-counter-samples h2{font:650 23px/1.25 system-ui;margin:8px 0}#bc-counter-samples h3{font:600 16px/1.4 system-ui;margin:0 0 14px}#bc-counter-samples p{margin:6px 0 14px}#bc-counter-samples .ce-muted{color:var(--muted);font-size:12px}#bc-counter-samples .ce-body{padding:20px 22px}#bc-counter-samples label{display:block;font-size:13px;font-weight:550;margin-bottom:14px}#bc-counter-samples input,#bc-counter-samples select,#bc-counter-samples textarea{display:block;width:100%;min-width:0;font:16px system-ui;margin-top:6px;padding:11px 12px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:9px}#bc-counter-samples button{font:600 13px system-ui;min-height:44px;padding:11px 14px;border-radius:9px;border:1px solid var(--line);color:var(--ink);background:var(--paper)}#bc-counter-samples .ce-primary{background:var(--brand);color:var(--on);border-color:var(--brand)}#bc-counter-samples .ce-full{width:100%}#bc-counter-samples .ce-note{padding:10px 12px;background:var(--soft);border-radius:9px;font-size:12px;margin:14px 0;color:var(--muted)}#bc-counter-samples .ce-fields{display:grid;grid-template-columns:1fr;gap:0}#bc-counter-samples .ce-mode{display:flex;gap:6px;margin:14px 0 0}#bc-counter-samples .ce-mode button{flex:1;font-size:12px}#bc-counter-samples button[aria-pressed=true]{background:var(--brand);color:var(--on);border-color:var(--brand)}#bc-counter-samples .ce-inline{display:flex;align-items:center;gap:9px;min-height:32px}#bc-counter-samples .ce-inline input{width:18px;height:18px;margin:0}#bc-counter-samples .ce-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:16px 0}#bc-counter-samples .ce-choices button{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12px;min-height:88px;padding:10px 5px}#bc-counter-samples .ce-choices svg{width:19px;height:19px}#bc-counter-samples .ce-actions{display:flex;gap:8px;margin-top:16px}#bc-counter-samples .ce-actions button{flex:1}#bc-counter-samples .ce-progress{padding:12px 22px;background:var(--soft);color:var(--brand);font-size:12px}#bc-counter-samples .ce-success{padding:26px 22px}#bc-counter-samples .ce-success h3{color:var(--brand)}#bc-counter-samples .ce-receipt{padding:12px 0;border-top:1px solid var(--line);margin:16px 0;white-space:pre-line;overflow-wrap:anywhere}#bc-counter-samples .ce-columns{display:grid;grid-template-columns:minmax(0,1fr) 190px}#bc-counter-samples aside{background:var(--soft);padding:20px 16px;border-left:1px solid var(--line)}#bc-counter-samples .ce-row{padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}#bc-counter-samples .ce-row strong{display:block;font-size:13px}#bc-counter-samples .ce-row span{font-size:12px;color:var(--muted)}#bc-counter-samples .ce-error{color:light-dark(#a52639,#ffb5be);font-size:13px}#bc-counter-samples .ce-pill{display:inline-block;padding:3px 9px;border-radius:18px;font-size:11px;background:var(--soft);color:var(--brand)}
+@media(max-width:560px){#bc-counter-samples .ce{padding:8px;min-height:0}#bc-counter-samples .ce-columns{grid-template-columns:1fr}#bc-counter-samples aside{border-left:0;border-top:1px solid var(--line)}#bc-counter-samples header,#bc-counter-samples .ce-body{padding:18px}#bc-counter-samples h2{font-size:21px}}
+</style>
+<style>
+body { margin: 0; background: #f3f8f7; font-family: system-ui, sans-serif; }
+#bc-counter-samples .ce { min-height: 0; }
+#bc-counter-samples fieldset { min-width: 0; margin: 0; border: 1px solid #dce6e9; border-radius: 9px; padding: 8px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; }
+#bc-counter-samples fieldset select { min-width: 0; width: 100%; }
+</style>
+<style>
+body { background:#edf4fc; }
+#bc-counter-samples .ce { padding:0; }
+#bc-counter-samples .ce-shell { background:#ffffff; border:0; }
+#bc-counter-samples header { background:#fff; color:#102749; text-align:left; border-bottom:1px solid #d6e4f5; }
+#bc-counter-samples .ce-brand { color:#115bd1; }
+#bc-counter-samples header .ce-muted { color:#425d7b; }
+#bc-counter-samples .premium-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
+#bc-counter-samples .premium-grid button { display:grid; justify-items:center; gap:5px; padding:8px 2px; min-height:72px; border:1px solid #d8e6f7; background:#eef5fd; color:#12345c; border-radius:12px; font-size:12px; font-weight:700; }
+#bc-counter-samples .premium-grid button[aria-pressed="true"] { background:#dcecff; border-color:#1765d5; }
+#bc-counter-samples .premium-icon { display:grid; place-items:center; width:34px; height:34px; border-radius:50%; background:#e0edff; font-size:21px; }
+#bc-counter-samples [data-form] > h3 { margin:16px 0 6px; color:#102749; }
+
+#bc-counter-samples .ce { --brand:#115bd1; --ink:#102749; --soft:#edf5ff; --line:#d6e4f5; }
+#bc-counter-samples .premium-grid button[aria-pressed="true"] { background:#115bd1; color:#fff; }
+#bc-counter-samples .premium-grid button[aria-pressed="true"] .premium-icon { background-color:#ffffff33; }
+#bc-counter-samples .ce :focus-visible { outline:2px solid #1765d5; outline-offset:2px; }
+</style>
+<style>
+#bc-counter-samples header, #bc-counter-samples .ce-body { padding: 12px; }
+#bc-counter-samples header h2 { margin: 4px 0; font-size: 21px; line-height: 1.2; }
+#bc-counter-samples header p { margin: 4px 0; font-size: 12px; }
+#bc-counter-samples .ce-mode { margin-top: 6px; }
+#bc-counter-samples .ce-body h3 { margin: 0 0 6px; font-size: 14px; }
+#bc-counter-samples [data-form] > h3 { margin-top: 10px; }
+#bc-counter-samples .premium-grid button { min-height: 56px; padding: 4px 2px; gap: 2px; }
+#bc-counter-samples .premium-icon { width: 26px; height: 26px; font-size: 17px; }
+#bc-counter-samples .ce-fields { gap: 6px; }
+#bc-counter-samples label { gap: 3px; font-size: 12px; }
+#bc-counter-samples .ce input:not([type="checkbox"]), #bc-counter-samples .ce select { min-height: 40px; padding: 5px 8px; }
+#bc-counter-samples fieldset { padding: 5px 6px; }
+</style>
+<style>
+#bc-counter-samples .premium-grid button {
+  position: relative;
+  background: #e8f5fc;
+  border: 1px solid transparent;
+  color: #102749;
+}
+#bc-counter-samples .premium-grid button[aria-pressed="true"] {
+  background: #e8f5fc;
+  border-color: #1149d4;
+  box-shadow: inset 0 0 0 1px #1149d4;
+  color: #102749;
+}
+#bc-counter-samples .premium-grid button[aria-pressed="true"]::after {
+  content: "✓" / "";
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 15px;
+  border-radius: 50%;
+  background: #1149d4;
+  color: white;
+  font-size: 10px;
+  line-height: 15px;
+  text-align: center;
+}
+#bc-counter-samples .premium-grid button .premium-icon,
+#bc-counter-samples .premium-grid button[aria-pressed="true"] .premium-icon { background-color: transparent; }
+#bc-counter-samples .premium-icon svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: #1149d4;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#bc-counter-samples .premium-grid {
+  width: 100%;
+  margin-inline: auto;
+}
+#bc-counter-samples .premium-grid button {
+  aspect-ratio: 1 / 1;
+  min-height: 0;
+  min-width: 0;
+  align-content: center;
+  overflow-wrap: anywhere;
+}
+#bc-counter-samples .premium-grid button {
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 9px 4px 7px;
+}
+#bc-counter-samples .premium-grid .premium-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+#bc-counter-samples .premium-icon img {
+  width: clamp(24px, 9vw, 38px);
+  height: auto;
+  filter: invert(20%) sepia(91%) saturate(3920%) hue-rotate(221deg);
+}
+#bc-counter-samples .premium-icon img:not(:only-child) {
+  width: clamp(17px, 6.5vw, 26px);
+}
+#bc-counter-samples .premium-grid button .premium-icon {
+  width: 60px;
+  height: 60px;
+  align-self: center;
+  background: url('data:,') var(--icon-x) var(--icon-y) / 213.33px no-repeat;
+}
+#bc-counter-samples .premium-grid button { font-size: 13px; }
+#bc-counter-samples .premium-grid button .utility-icon {
+  background: url('data:,') center / 70px no-repeat;
+}
+</style>
+<style>.utility-destinations{display:grid;gap:6px;margin-bottom:6px}@media (max-width: 460px) {
+  #bc-counter-samples .premium-grid button {
+    font-size: 11px;
+    padding: 4px 2px;
+  }
+  #bc-counter-samples .premium-grid button .premium-icon {
+    scale: .75;
+    height: 60px;
+    margin-block: -9px;
+  }
+}
+</style>
+</head>
+<body>
+<main id="bc-counter-samples">
+<section class="ce" data-variant="Ringkas satu halaman" aria-label="Borang ringkas satu halaman">
+ <div class="ce-shell"><header><div class="ce-brand">BANJARIA COURT · PONDOK KESELAMATAN</div><h2>Daftar Masuk Kaunter</h2><p class="ce-muted">Isi selepas mendapat keizinan pengawal.</p><div class="ce-mode" aria-label="Cara pendaftaran"><button type="button" aria-pressed="true" data-mode="self" class="cursor-interaction">Isi sendiri</button><button type="button" aria-pressed="false" data-mode="guard" class="cursor-interaction">Oleh sekuriti</button></div></header><div class="ce-body" data-main><form data-form><label>Kategori<select data-category name="Kategori"></select></label><div data-fields class="ce-fields"></div><div class="ce-note" data-source>Masa pendaftaran direkodkan secara automatik.</div><button class="ce-primary ce-full cursor-interaction">Daftar Masuk</button><p class="ce-error" data-error role="alert"></p></form></div><div data-success class="ce-success" hidden></div></div>
+</section>
+</main>
+<script>// js/units-list.js
+// Static canonical unit list copied from the visitor form for use in admin views.
+// This exposes a simple global array `window.UNITS_STATIC` for dashboard code to use.
+window.UNITS_STATIC = [
+"A-1-1","A-1-2","A-1-3","A-1-4","A-1-5","A-1-6","A-1-7","A-1-8","A-1-9","A-1-10",
+"A-2-1","A-2-2","A-2-3","A-2-4","A-2-5","A-2-6","A-2-7","A-2-8","A-2-9","A-2-10",
+"A-3-1","A-3-2","A-3-3","A-3-4","A-3-5","A-3-6","A-3-7","A-3-8","A-3-9","A-3-10",
+"A-4-1","A-4-2","A-4-3","A-4-4","A-4-5","A-4-6","A-4-7","A-4-8","A-4-9","A-4-10",
+"A-5-1","A-5-2","A-5-3","A-5-4","A-5-5","A-5-6","A-5-7","A-5-8","A-5-9","A-5-10",
+"A-6-1","A-6-2","A-6-3","A-6-4","A-6-5","A-6-6","A-6-7","A-6-8","A-6-9","A-6-10",
+"A-7-1","A-7-2","A-7-3","A-7-4","A-7-5","A-7-6","A-7-7","A-7-8","A-7-9","A-7-10",
+"A-8-1","A-8-2","A-8-3","A-8-4","A-8-5","A-8-6","A-8-7","A-8-8","A-8-9","A-8-10",
+"A-9-1","A-9-2","A-9-3","A-9-4","A-9-5","A-9-6","A-9-7","A-9-8","A-9-9","A-9-10",
+"A-10-1","A-10-2","A-10-3","A-10-4","A-10-5","A-10-6","A-10-7","A-10-8","A-10-9","A-10-10",
+"A-11-1","A-11-2","A-11-3","A-11-4","A-11-5","A-11-6","A-11-7","A-11-8","A-11-9","A-11-10",
+"A-12-1","A-12-2","A-12-3","A-12-4","A-12-5","A-12-6","A-12-7","A-12-8","A-12-9","A-12-10",
+"A-13-1","A-13-2","A-13-3","A-13-4","A-13-5","A-13-6","A-13-7","A-13-8","A-13-9","A-13-10",
+"A-14-1","A-14-2","A-14-3","A-14-4","A-14-5","A-14-6","A-14-7","A-14-8","A-14-9","A-14-10",
+"B1-1-1","B1-1-2","B1-1-3","B1-1-4","B1-1-5","B1-1-6","B1-1-7","B1-1-8","B1-1-9","B1-1-10","B1-1-11","B1-1-12",
+"B1-2-1","B1-2-2","B1-2-3","B1-2-4","B1-2-5","B1-2-6","B1-2-7","B1-2-8","B1-2-9","B1-2-10","B1-2-11","B1-2-12",
+"B1-3-1","B1-3-2","B1-3-3","B1-3-4","B1-3-5","B1-3-6","B1-3-7","B1-3-8","B1-3-9","B1-3-10","B1-3-11","B1-3-12",
+"B1-4-1","B1-4-2","B1-4-3","B1-4-4","B1-4-5","B1-4-6","B1-4-7","B1-4-8","B1-4-9","B1-4-10","B1-4-11","B1-4-12",
+"B1-5-1","B1-5-2","B1-5-3","B1-5-4","B1-5-5","B1-5-6","B1-5-7","B1-5-8","B1-5-9","B1-5-10","B1-5-11","B1-5-12",
+"B1-6-1","B1-6-2","B1-6-3","B1-6-4","B1-6-5","B1-6-6","B1-6-7","B1-6-8","B1-6-9","B1-6-10","B1-6-11","B1-6-12",
+"B1-7-1","B1-7-2","B1-7-3","B1-7-4","B1-7-5","B1-7-6","B1-7-7","B1-7-8","B1-7-9","B1-7-10","B1-7-11","B1-7-12",
+"B1-8-1","B1-8-2","B1-8-3","B1-8-4","B1-8-5","B1-8-6","B1-8-7","B1-8-8","B1-8-9","B1-8-10","B1-8-11","B1-8-12",
+"B1-9-1","B1-9-2","B1-9-3","B1-9-4","B1-9-5","B1-9-6","B1-9-7","B1-9-8","B1-9-9","B1-9-10","B1-9-11","B1-9-12",
+"B1-10-1","B1-10-2","B1-10-3","B1-10-4","B1-10-5","B1-10-6","B1-10-7","B1-10-8","B1-10-9","B1-10-10","B1-10-11","B1-10-12",
+"B1-11-1","B1-11-2","B1-11-3","B1-11-4","B1-11-5","B1-11-6","B1-11-7","B1-11-8","B1-11-9","B1-11-10","B1-11-11","B1-11-12",
+"B1-12-1","B1-12-2","B1-12-3","B1-12-4","B1-12-5","B1-12-6","B1-12-7","B1-12-8","B1-12-9","B1-12-10","B1-12-11","B1-12-12",
+"B1-G-1","B1-G-2","B1-G-3","B1-G-4","B1-G-5","B1-G-6","B1-G-7","B1-G-8","B1-G-9","B1-G-10","B1-G-11","B1-G-12",
+"B2-1-1","B2-1-2","B2-1-3","B2-1-4","B2-1-5","B2-1-6","B2-1-7","B2-1-8","B2-1-9","B2-1-10","B2-1-11","B2-1-12",
+"B2-2-1","B2-2-2","B2-2-3","B2-2-4","B2-2-5","B2-2-6","B2-2-7","B2-2-8","B2-2-9","B2-2-10","B2-2-11","B2-2-12",
+"B2-3-1","B2-3-2","B2-3-3","B2-3-4","B2-3-5","B2-3-6","B2-3-7","B2-3-8","B2-3-9","B2-3-10","B2-3-11","B2-3-12",
+"B2-4-1","B2-4-2","B2-4-3","B2-4-4","B2-4-5","B2-4-6","B2-4-7","B2-4-8","B2-4-9","B2-4-10","B2-4-11","B2-4-12",
+"B2-5-1","B2-5-2","B2-5-3","B2-5-4","B2-5-5","B2-5-6","B2-5-7","B2-5-8","B2-5-9","B2-5-10","B2-5-11","B2-5-12",
+"B2-6-1","B2-6-2","B2-6-3","B2-6-4","B2-6-5","B2-6-6","B2-6-7","B2-6-8","B2-6-9","B2-6-10","B2-6-11","B2-6-12",
+"B2-7-1","B2-7-2","B2-7-3","B2-7-4","B2-7-5","B2-7-6","B2-7-7","B2-7-8","B2-7-9","B2-7-10","B2-7-11","B2-7-12",
+"B2-8-1","B2-8-2","B2-8-3","B2-8-4","B2-8-5","B2-8-6","B2-8-7","B2-8-8","B2-8-9","B2-8-10","B2-8-11","B2-8-12",
+"B2-9-1","B2-9-2","B2-9-3","B2-9-4","B2-9-5","B2-9-6","B2-9-7","B2-9-8","B2-9-9","B2-9-10","B2-9-11","B2-9-12",
+"B2-10-1","B2-10-2","B2-10-3","B2-10-4","B2-10-5","B2-10-6","B2-10-7","B2-10-8","B2-10-9","B2-10-10","B2-10-11","B2-10-12",
+"B2-11-1","B2-11-2","B2-11-3","B2-11-4","B2-11-5","B2-11-6","B2-11-7","B2-11-8","B2-11-9","B2-11-10","B2-11-11","B2-11-12",
+"B2-12-1","B2-12-2","B2-12-3","B2-12-4","B2-12-5","B2-12-6","B2-12-7","B2-12-8","B2-12-9","B2-12-10","B2-12-11","B2-12-12",
+"B2-13-1","B2-13-2","B2-13-3","B2-13-4","B2-13-5","B2-13-6","B2-13-7","B2-13-8","B2-13-9","B2-13-10","B2-13-11","B2-13-12",
+"B2-14-1","B2-14-2","B2-14-3","B2-14-4","B2-14-5","B2-14-6","B2-14-7","B2-14-8","B2-14-9","B2-14-10","B2-14-11","B2-14-12",
+"B2-15-1","B2-15-2","B2-15-3","B2-15-4","B2-15-5","B2-15-6","B2-15-7","B2-15-8","B2-15-9","B2-15-10","B2-15-11","B2-15-12",
+"B2-G-1","B2-G-2","B2-G-3","B2-G-4","B2-G-5","B2-G-6","B2-G-7","B2-G-8","B2-G-9","B2-G-10","B2-G-11","B2-G-12",
+"B3-1-1","B3-1-2","B3-1-3","B3-1-4","B3-1-5","B3-1-6","B3-1-7","B3-1-8","B3-1-9","B3-1-10","B3-1-11","B3-1-12",
+"B3-2-1","B3-2-2","B3-2-3","B3-2-4","B3-2-5","B3-2-6","B3-2-7","B3-2-8","B3-2-9","B3-2-10","B3-2-11","B3-2-12",
+"B3-3-1","B3-3-2","B3-3-3","B3-3-4","B3-3-5","B3-3-6","B3-3-7","B3-3-8","B3-3-9","B3-3-10","B3-3-11","B3-3-12",
+"B3-4-1","B3-4-2","B3-4-3","B3-4-4","B3-4-5","B3-4-6","B3-4-7","B3-4-8","B3-4-9","B3-4-10","B3-4-11","B3-4-12",
+"B3-5-1","B3-5-2","B3-5-3","B3-5-4","B3-5-5","B3-5-6","B3-5-7","B3-5-8","B3-5-9","B3-5-10","B3-5-11","B3-5-12",
+"B3-6-1","B3-6-2","B3-6-3","B3-6-4","B3-6-5","B3-6-6","B3-6-7","B3-6-8","B3-6-9","B3-6-10","B3-6-11","B3-6-12",
+"B3-7-1","B3-7-2","B3-7-3","B3-7-4","B3-7-5","B3-7-6","B3-7-7","B3-7-8","B3-7-9","B3-7-10","B3-7-11","B3-7-12",
+"B3-8-1","B3-8-2","B3-8-3","B3-8-4","B3-8-5","B3-8-6","B3-8-7","B3-8-8","B3-8-9","B3-8-10","B3-8-11","B3-8-12",
+"B3-9-1","B3-9-2","B3-9-3","B3-9-4","B3-9-5","B3-9-6","B3-9-7","B3-9-8","B3-9-9","B3-9-10","B3-9-11","B3-9-12",
+"B3-10-1","B3-10-2","B3-10-3","B3-10-4","B3-10-5","B3-10-6","B3-10-7","B3-10-8","B3-10-9","B3-10-10","B3-10-11","B3-10-12",
+"B3-11-1","B3-11-2","B3-11-3","B3-11-4","B3-11-5","B3-11-6","B3-11-7","B3-11-8","B3-11-9","B3-11-10","B3-11-11","B3-11-12",
+"B3-12-1","B3-12-2","B3-12-3","B3-12-4","B3-12-5","B3-12-6","B3-12-7","B3-12-8","B3-12-9","B3-12-10","B3-12-11","B3-12-12",
+"B3-13-1","B3-13-2","B3-13-3","B3-13-4","B3-13-5","B3-13-6","B3-13-7","B3-13-8","B3-13-9","B3-13-10","B3-13-11","B3-13-12",
+"B3-14-1","B3-14-2","B3-14-3","B3-14-4","B3-14-5","B3-14-6","B3-14-7","B3-14-8","B3-14-9","B3-14-10","B3-14-11","B3-14-12",
+"B3-15-1","B3-15-2","B3-15-3","B3-15-4","B3-15-5","B3-15-6","B3-15-7","B3-15-8","B3-15-9","B3-15-10","B3-15-11","B3-15-12",
+"B3-16-1","B3-16-2","B3-16-3","B3-16-4","B3-16-5","B3-16-6","B3-16-7","B3-16-8","B3-16-9","B3-16-10","B3-16-11","B3-16-12",
+"B3-17-1","B3-17-2","B3-17-3","B3-17-4","B3-17-5","B3-17-6","B3-17-7","B3-17-8","B3-17-9","B3-17-10","B3-17-11","B3-17-12",
+"B3-G-1","B3-G-2","B3-G-3","B3-G-4","B3-G-5","B3-G-6","B3-G-7","B3-G-8","B3-G-9","B3-G-10","B3-G-11","B3-G-12"
+];
+</script>
+<script>
+
+(()=>{const root=document.getElementById('bc-counter-samples');const cats=[['ride','E-hailing / Teksi','car-taxi-front','E-hailing'],['delivery','Penghantaran makanan / barang','package','Penghantaran'],['resident','Penghuni tanpa kad akses','house','Penghuni'],['office','Pejabat & Urusan Rasmi','building-2','Pejabat / Rasmi'],['visitor','Pelawat tanpa prapendaftaran','users','Pelawat'],['service','Utiliti','wrench','Utiliti'],['sales','Jualan / Promosi','megaphone','Jualan'],['other','Lain-lain','ellipsis','Lain-lain']];const defaultCategory=['delivery'];const selectField=(name,options)=>{const label=document.createElement('label');label.append(document.createTextNode(name));const select=document.createElement('select');select.name=name;options.forEach(text=>{const o=document.createElement('option');o.textContent=text;select.append(o);});label.append(select);return label;};const textField=(name,value,required=true,type='text')=>{const label=document.createElement('label');label.append(document.createTextNode(name+(required?'':' (pilihan)')));const input=document.createElement('input');Object.assign(input,{name,value,required,type});label.append(input);return label;};root.querySelectorAll('.ce').forEach((stage,index)=>{const q=s=>stage.querySelector(s);let category=defaultCategory[index],mode=index===2?'guard':'self',selectedButton;const form=q('[data-form]'),fields=q('[data-fields]');const catName=()=>cats.find(c=>c[0]===category)[1];const renderFields=()=>{fields.replaceChildren();if(category==='delivery'){fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang']),textField('Unit dituju',''));}else if(category==='ride'){fields.append(selectField('Tujuan',['Ambil penumpang','Hantar penumpang']),textField('Nama pemandu',''),selectField('Perkhidmatan',['Grab','Teksi','Lain-lain']),selectField('Lokasi menunggu',['Lobi Blok A']));}else if(category==='resident'){fields.append(textField('Nama penghuni',''),textField('Unit rumah',''),textField('Nombor telefon','',true,'tel'),selectField('Sebab tiada kad',['Kad tertinggal','Kad hilang','Kad rosak','Belum menerima kad']));}else{fields.append(textField('Nama',''),textField('Nombor telefon','',true,'tel'));if(['delivery','visitor'].includes(category))fields.append(textField('Unit dituju',''));if(category==='sales')fields.append(selectField('Destinasi',['Pejabat Pengurusan']));if (category === 'office') { fields.append(selectField('Jenis urusan', ['Pejabat Pengurusan']), selectField('Lokasi dituju', ['Pejabat Pengurusan'])); } else if (category === 'other') { fields.append(textField('Lokasi dituju', '')); }if(['delivery','office','sales'].includes(category))fields.append(textField('Syarikat / Organisasi','',false));if(category==='delivery')fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang','Lain-lain']));if(['office','service','official','sales','other'].includes(category))fields.append(textField('Tujuan',''));}function makeUnitPicker(unitName) {
+  const units = (window.UNITS_STATIC || []).map(unit => ({unit, parts: unit.split('-')}));
+  const picker = document.createElement('fieldset');
+  const title = document.createElement('legend');
+  title.textContent = unitName;
+  picker.append(title);
+  const controls = ['Blok','Tingkat','Unit'].map(name => {
+    const label = document.createElement('label');
+    label.textContent = name;
+    const select = document.createElement('select');
+    select.required = true;
+    label.append(select);
+    picker.append(label);
+    return select;
+  });
+  const [block, floor, unit] = controls;
+  unit.name = unitName;
+  function options(select, values) {
+    select.replaceChildren(new Option('Pilih', ''), ...[...new Map(values)].map(([value, label]) => new Option(label, value)));
+    select.disabled = !values.length;
+  }
+  function refreshUnits() {
+    options(unit, floor.value ? units.filter(row => row.parts[0] === block.value && row.parts[1] === floor.value).map(row => [row.unit,row.parts.slice(2).join('-')]) : []);
+  }
+  block.onchange = () => {
+    options(floor, block.value ? units.filter(row => row.parts[0] === block.value).map(row => [row.parts[1],row.parts[1]]) : []);
+    refreshUnits();
+  };
+  floor.onchange = refreshUnits;
+  options(block, units.map(row => [row.parts[0],row.parts[0]]));
+  block.onchange();
+  return picker;
+}
+
+for (const input of fields.querySelectorAll('input[name="Unit dituju"], input[name="Unit rumah"]')) {
+  input.parentElement.replaceWith(makeUnitPicker(input.name));
+}
+if (category === 'delivery') {
+  const deliveryType = fields.querySelector('select[name="Jenis penghantaran"]');
+  const unitPicker = fields.querySelector('select[name="Unit dituju"]').closest('fieldset');
+  const scope = selectField('Bilangan rumah', ['Satu rumah', 'Banyak rumah']);
+  const scopeSelect = scope.querySelector('select');
+  const pg = selectField('Destinasi', ['Kawasan PG']);
+  const pgSelect = pg.querySelector('select');
+  unitPicker.before(scope);
+  unitPicker.after(pg);
+
+  function updateDeliveryDestination() {
+    const isParcel = deliveryType.value === 'Bungkusan / Barang';
+    const usePG = isParcel && scopeSelect.value === 'Banyak rumah';
+    scope.hidden = !isParcel;
+    scopeSelect.disabled = !isParcel;
+    unitPicker.hidden = usePG;
+    unitPicker.disabled = usePG;
+    pg.hidden = !usePG;
+    pgSelect.disabled = !usePG;
+  }
+  deliveryType.addEventListener('change', updateDeliveryDestination);
+  scopeSelect.addEventListener('change', updateDeliveryDestination);
+  updateDeliveryDestination();
+}
+if (category === 'service') {
+  const company = selectField('Syarikat / Organisasi', ['TNB', 'Air Selangor', 'Time', 'TM', 'Astro', 'Lain-lain']);
+  const companySelect = company.querySelector('select');
+  companySelect.prepend(new Option('Pilih syarikat / organisasi', ''));
+  companySelect.value = '';
+  companySelect.required = true;
+  const otherCompany = textField('Nama syarikat / organisasi', '');
+  const otherInput = otherCompany.querySelector('input');
+  function updateCompanyField() {
+    const isOther = companySelect.value === 'Lain-lain';
+    otherCompany.hidden = !isOther;
+    otherInput.disabled = !isOther;
+  }
+  companySelect.addEventListener('change', updateCompanyField);
+  updateCompanyField();
+  fields.append(company, otherCompany);
+  const destination = selectField('Destinasi', ['Satu unit', 'Beberapa unit', 'Kawasan bersama', 'Pejabat Pengurusan']);
+  const modeSelect = destination.querySelector('select');
+  const destinations = document.createElement('div');
+  const renderDestinations = () => {
+    destinations.replaceChildren();
+    if (modeSelect.value === 'Pejabat Pengurusan') return;
+    if (modeSelect.value === 'Kawasan bersama') {
+      destinations.append(textField('Lokasi kerja', ''));
+      return;
+    }
+    const multiple = modeSelect.value === 'Beberapa unit';
+    const list = document.createElement('div');
+    list.className = 'utility-destinations';
+    function validateUnits() {
+      const seen = new Set();
+      for (const unit of list.querySelectorAll('select[name="Unit dituju"]')) {
+        const duplicate = unit.value && seen.has(unit.value);
+        unit.setCustomValidity(duplicate ? 'Unit ini sudah dipilih.' : '');
+        if (unit.value) seen.add(unit.value);
+      }
+    }
+    function addUnit(removable) {
+      const row = document.createElement('div');
+      row.append(makeUnitPicker('Unit dituju'));
+      if (removable) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.textContent = 'Buang unit';
+        remove.onclick = () => { row.remove(); validateUnits(); };
+        row.append(remove);
+      }
+      list.append(row);
+    }
+    list.addEventListener('change', validateUnits);
+    addUnit(false);
+    destinations.append(list);
+    if (multiple) {
+      addUnit(false);
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.textContent = '+ Tambah unit';
+      add.onclick = () => addUnit(true);
+      destinations.append(add);
+    }
+  };
+  modeSelect.onchange = renderDestinations;
+  fields.append(destination, destinations);
+  renderDestinations();
+}
+const plate=textField('Nombor kenderaan','');fields.append(plate);const walk=document.createElement('label');walk.className='ce-inline';const check=document.createElement('input');check.type='checkbox';check.name='Tanpa kenderaan';check.value='Ya';walk.append(check,document.createTextNode('Tiada kenderaan / Berjalan kaki'));check.onchange=()=>{const input=plate.querySelector('input');input.disabled=check.checked;input.required=!check.checked;plate.hidden=check.checked;};if(category!=='ride')fields.append(walk);if(q('[data-chosen]'))q('[data-chosen]').textContent=catName();};const dropdown=q('[data-category]');if(dropdown){cats.forEach(c=>{const o=document.createElement('option');o.value=c[0];o.textContent=c[1];dropdown.append(o);});dropdown.value=category;dropdown.onchange=()=>{category=dropdown.value;renderFields();};}if(q('[data-choices]')){cats.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='cursor-interaction';b.setAttribute('aria-label',c[1]);b.setAttribute('aria-pressed',String(c[0]===category));const icon=document.createElement('i');icon.dataset.lucide=c[2];icon.setAttribute('aria-hidden','true');const text=document.createElement('span');text.textContent=c[3];b.append(icon,text);b.onclick=()=>{category=c[0];q('[data-choices]').querySelectorAll('button').forEach(other=>other.setAttribute('aria-pressed',String(other===b)));};q('[data-choices]').append(b);});q('[data-next]').onclick=()=>{renderFields();q('[data-step-one]').hidden=true;form.hidden=false;q('[data-progress]').textContent='Langkah 2 daripada 2 · Butiran';};q('[data-back]').onclick=()=>{q('[data-step-one]').hidden=false;form.hidden=true;q('[data-progress]').textContent='Langkah 1 daripada 2 · Pilih kategori';};}stage.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;stage.querySelectorAll('[data-mode]').forEach(other=>other.setAttribute('aria-pressed',String(other===b)));q('[data-source]').textContent=mode==='guard'?'Direkodkan oleh Pengawal Demo. Tidak perlu hantar WhatsApp.':'Masa pendaftaran direkodkan secara automatik.';});renderFields();form.onsubmit=e=>{e.preventDefault();const submitted = new FormData(form);const data=Object.fromEntries(submitted);const units=submitted.getAll('Unit dituju');if(units.length) data['Unit dituju']=units.join(', ');const output=q('[data-success]');output.replaceChildren();const title=document.createElement('h3');title.textContent='Pendaftaran direkodkan';const demo=document.createElement('p');demo.className='ce-muted';demo.textContent='Simulasi sahaja · Tiada data dihantar';const receipt=document.createElement('div');receipt.className='ce-receipt';receipt.textContent='Kategori: '+catName()+'\n'+Object.entries(data).filter(([k])=>k!=='Kategori').map(([k,v])=>k+': '+v).join('\n')+'\nSumber: '+(mode==='guard'?'Pengawal Demo':'Isi sendiri');output.append(title,demo,receipt);if(mode==='self'){const wa=document.createElement('button');wa.type='button';wa.className='ce-primary ce-full cursor-interaction';wa.textContent='Hantar kepada Keselamatan';const message=document.createElement('div');message.className='ce-note';message.hidden=true;wa.onclick=()=>{message.hidden=false;message.textContent='Pratonton mesej WhatsApp — belum dihantar.\n'+receipt.textContent;message.style.whiteSpace='pre-line';};output.append(wa,message);}else if(q('[data-today]')){const row=document.createElement('div');row.className='ce-row';const title=document.createElement('strong');title.textContent='Baharu · '+(data.Nama||data['Nama pemandu']||data['Nama penghuni']);const detail=document.createElement('span');detail.textContent=catName()+' · '+(data['Unit dituju']||data['Unit rumah']||data['Lokasi dituju']||'');row.append(title,detail);q('[data-today]').prepend(row);}const again=document.createElement('button');again.type='button';again.className='ce-full cursor-interaction';again.style.marginTop='12px';again.textContent=mode==='guard'?'Daftar Orang Seterusnya':'Kembali ke Borang';again.onclick=()=>{output.hidden=true;q('[data-main]').hidden=false;if(mode==='guard'){renderFields();}};output.append(again);q('[data-main]').hidden=true;output.hidden=false;};if(globalThis.Tweak){const settings={radius:20};const shell=q('.ce-shell');const tweak=new Tweak({container:shell,onChange:()=>shell.style.borderRadius=settings.radius+'px'});tweak.addSlider(settings,'radius',{label:'Bucu borang',min:4,max:24,unit:'px'});}});const form = root.querySelector('[data-form]');
+const categorySelect = form.querySelector('[data-category]');
+categorySelect.parentElement.hidden = true;
+const picker = document.createElement('div');
+const heading = document.createElement('h3');
+heading.textContent = 'Pilih kategori';
+const grid = document.createElement('div');
+grid.className = 'premium-grid';
+grid.setAttribute('role', 'group');
+grid.setAttribute('aria-label', 'Kategori kemasukan');
+const detailsHeading = document.createElement('h3');
+form.prepend(detailsHeading);
+const tiles = cats.map(([value, name,,short], index) => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.setAttribute('aria-label', name);
+  const icon = document.createElement('span');
+  icon.className = 'premium-icon';
+  if (value === 'service') icon.classList.add('utility-icon');
+  icon.setAttribute('aria-hidden', 'true');
+  const spriteIndex = index >= 6 ? index + 1 : index;
+  icon.style.setProperty('--icon-x', (-13.64 - (spriteIndex % 3) * 60) + 'px');
+  icon.style.setProperty('--icon-y', (-15 - Math.floor(spriteIndex / 3) * 60) + 'px');
+  button.append(icon, document.createTextNode(short));
+  button.addEventListener('click', () => {
+    categorySelect.value = value;
+    categorySelect.dispatchEvent(new Event('change'));
+    updateSelection();
+  });
+  grid.append(button);
+  return {button, value, name};
+});
+function updateSelection() {
+  for (const {button,value,name} of tiles) {
+    const active = categorySelect.value === value;
+    button.setAttribute('aria-pressed', String(active));
+    if (active) detailsHeading.textContent = 'Butiran ' + name;
+  }
+}
+picker.append(heading, grid);
+form.before(picker);
+updateSelection();})();
+
+</script>
+<script>
+const counterForm = document.querySelector('[data-form]');
+const status = document.createElement('p');
+status.setAttribute('role', 'status');
+const submitButton = counterForm.querySelector('[data-error]').previousElementSibling;
+submitButton.after(status);
+status.textContent = 'Ujian Google Sheets · Pilih Pejabat / Rasmi dan gunakan data contoh.';
+document.querySelectorAll('[data-mode="guard"]').forEach(button => { button.hidden = true; });
+let pending;
+let saving = false;
+counterForm.addEventListener('submit', event => {
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (saving) return;
+  const fields = Object.fromEntries(new FormData(counterForm));
+  const category = fields.Kategori;
+  delete fields.Kategori;
+  if (category !== 'office') {
+    status.textContent = 'Untuk ujian ini, pilih Pejabat / Rasmi.';
+    return;
+  }
+  const signature = JSON.stringify([category, fields]);
+  if (pending?.signature !== signature) {
+    pending = { signature, entry: { id: crypto.randomUUID(), category, details: fields } };
+  }
+  saving = true;
+  status.textContent = 'Menyimpan pendaftaran…';
+  google.script.run
+    .withSuccessHandler(result => {
+      saving = false;
+      status.textContent = 'Pendaftaran berjaya. ID pendaftaran ' + result.id;
+      status.scrollIntoView({ block: 'nearest' });
+    })
+    .withFailureHandler(() => {
+      saving = false;
+      status.textContent = 'Simpanan belum disahkan. Tekan Daftar Masuk sekali lagi untuk mencuba semula.';
+    })
+    .submitCounterEntry(pending.entry);
+}, true);
+</script>
+</body>
+</html>
