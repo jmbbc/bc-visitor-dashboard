@@ -392,7 +392,7 @@ const status = document.createElement('p');
 status.setAttribute('role', 'status');
 const submitButton = counterForm.querySelector('[data-error]').previousElementSibling;
 submitButton.after(status);
-status.textContent = 'Ujian Google Sheets · Pilih Pejabat / Rasmi dan gunakan data contoh.';
+status.textContent = 'Pendaftaran dibuka untuk Pejabat / Rasmi.';
 document.querySelectorAll('[data-mode="guard"]').forEach(button => { button.hidden = true; });
 const endpoint = 'https://script.google.com/macros/s/AKfycbznfyDGFQtyfP1KTvmNp9KP3hVKt355ka83FoHBojH4CwagrDmKaQawZym8n2aaaVdKwQ/exec';
 const responseFrame = document.createElement('iframe');
@@ -410,7 +410,7 @@ counterForm.addEventListener('submit', event => {
   const category = fields.Kategori;
   delete fields.Kategori;
   if (category !== 'office') {
-    status.textContent = 'Untuk ujian ini, pilih Pejabat / Rasmi.';
+    status.textContent = 'Pilih Pejabat / Rasmi untuk mendaftar.';
     return;
   }
   const signature = JSON.stringify([category, fields]);
