@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ms">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock borang · Daftar Masuk Kaunter</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf3fb;color:#142841;font:16px system-ui;padding:12px}main{max-width:390px;margin:auto;background:white;border:1px solid #d4e0ef;border-radius:18px;padding:16px}h1{font-size:22px;margin:4px 0}p{margin:8px 0 14px}small{color:#465e79}button,select{font:inherit;color:inherit;background:white;border:1px solid #bdcfe6;border-radius:9px;min-height:44px;padding:8px}button:focus-visible,.wheel:focus-visible{outline:2px solid #1260cb;outline-offset:2px}select,.wide{width:100%}.primary{background:#1556be;color:white;border-color:#1556be}.panel{margin-top:10px;padding:10px;border:1px solid #cadbf0;border-radius:12px}.columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;text-align:center}.wheel{height:132px;overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory;scrollbar-width:none;padding-block:44px;background:#f0f5fc;border-radius:8px}.wheel::-webkit-scrollbar{display:none}.wheel button{display:block;width:100%;height:44px;scroll-snap-align:center;border:0;background:transparent}.wheel button[aria-pressed=true]{background:#d5e6ff;color:#124b9f;font-weight:700}ul{padding:0;list-style:none}li{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e1eaf5;padding:4px 0}output{display:block;text-align:center;font-weight:700;margin:10px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.columns{gap:0;position:relative;border:1px solid #bdcfe6;border-radius:12px;background:#f6f8fc;overflow:hidden}
+.columns>div{line-height:32px;font-weight:650;background:linear-gradient(#e9eff8 32px,transparent 32px)}
+.columns>div+div{border-left:1px solid #cadbf0}
+.columns::before{content:"";position:absolute;inset:76px 0 auto;height:44px;border-radius:10px;background:#c4dfff;pointer-events:none}
+.wheel{position:relative;background:transparent;border-radius:0}
+.wheel button{color:#52647b;font-weight:500}
+.wheel button[aria-pressed=true]{background:transparent;color:#123c78;font-weight:750}
+output{background:#e9f2ff;border-radius:9px;padding:8px;margin:10px 0}
+.columns{grid-template-columns:repeat(3,minmax(0,1fr)) 48px}.columns::before{right:48px}.columns>.add-unit{display:grid;place-items:center;background:white}.add-unit button{width:44px;font-size:23px;padding:0}#chosen:empty{display:none}
+body{background:transparent;padding:0}main{border:0;padding:0;max-width:none}.panel{margin:0;padding:0;border:0}#chosen{margin:0}</style>
+<main>
+
+
+<section id="panel" class="panel" aria-label="Pemilih unit">
+<div class="columns">
+<div>Blok<div class="wheel" tabindex="0" role="group" aria-label="Blok"></div></div>
+<div>Tingkat<div class="wheel" tabindex="0" role="group" aria-label="Tingkat"></div></div>
+<div>Unit<div class="wheel" tabindex="0" role="group" aria-label="Unit"></div></div>
+<div class="add-unit"><button id="confirm" class="primary" type="button" aria-label="Tambah unit dipilih">+</button></div></div>
+<output id="preview" aria-live="polite"></output>
+<ul id="chosen" aria-label="Unit dipilih"></ul>
+</section>
+<p id="feedback" role="status"></p>
+</main>
+<script src="js/units-list.js"></script>
+<script>
+const byId = id => document.getElementById(id);
+const wheels = [...document.querySelectorAll('.wheel')];
+const rows = window.UNITS_STATIC.map(code => code.split('-'));
+const values = [];
+const chosen = [];
+const panel = byId('panel');
+
+function renderWheel(index) {
+  const wheel = wheels[index];
+  const options = [...new Set(rows.filter(row => values.slice(0,index).every((value,i) => row[i] === value)).map(row => row[index]))];
+  values[index] = options[0];
+  wheel.replaceChildren(...options.map(value => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = value;
+    button.setAttribute('aria-pressed', String(value === values[index]));
+    button.onclick = () => {
+      wheel.scrollTop = button.offsetTop - wheel.firstElementChild.offsetTop;
+      select(index, button);
+    };
+    return button;
+  }));
+  wheel.scrollTop = 0;
+}
+function select(index, button) {
+  const wheel = wheels[index];
+  if (values[index] === button.textContent) return;
+  values[index] = button.textContent;
+  for (const option of wheel.children) option.setAttribute('aria-pressed', String(option === button));
+  for (let next = index + 1; next < wheels.length; next++) renderWheel(next);
+  byId('preview').textContent = values.join('-');
+  byId('feedback').textContent = '';
+}
+wheels.forEach((wheel,index) => {
+  const centered = () => wheel.children[Math.round(wheel.scrollTop / 44)];
+  wheel.addEventListener('scroll', () => {
+    const button = centered();
+    if (!panel.hidden && button) select(index, button);
+  }, {passive:true});
+  wheel.addEventListener('keydown', event => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    wheel.scrollTop += event.key === 'ArrowDown' ? 44 : -44;
+  });
+});
+
+function renderChosen() {
+  byId('chosen').replaceChildren(...chosen.map(code => {
+    const item = document.createElement('li');
+    const remove = document.createElement('button');
+    remove.textContent = 'Buang';
+    remove.setAttribute('aria-label', 'Buang ' + code);
+    remove.onclick = () => {
+      chosen.splice(chosen.indexOf(code),1);
+      renderChosen();
+      byId('confirm').focus();
+    };
+    item.append(code, remove);
+    return item;
+  }));
+
+}
+wheels.forEach((_,index) => renderWheel(index));
+byId('preview').textContent = values.join('-');
+byId('confirm').onclick = () => {
+  const code = values.join('-');
+  if (chosen.includes(code)) {
+    byId('feedback').textContent = 'Unit ini sudah dipilih.';
+    return;
+  }
+  if (new URLSearchParams(location.search).has('single')) chosen.length = 0;
+  chosen.push(code);
+  byId('feedback').textContent = '';
+  renderChosen();
+};
+</script>
+</html>

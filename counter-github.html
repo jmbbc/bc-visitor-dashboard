@@ -8,12 +8,30 @@
 #bc-counter-samples .ce{--paper:light-dark(#fff,#142c35);--ink:light-dark(#183c49,#e7f1f4);--muted:light-dark(#58707a,#b3c7cf);--line:light-dark(#dce6e9,#39525c);--soft:light-dark(#eff6f6,#203a43);--brand:light-dark(#146b70,#8ad6d2);--on:light-dark(#fff,#143437);color:var(--ink);font:14px/1.5 system-ui,sans-serif;padding:18px;min-height:990px;box-sizing:border-box}
 #bc-counter-samples .ce *{box-sizing:border-box}#bc-counter-samples .ce [hidden]{display:none!important}#bc-counter-samples .ce-shell{max-width:460px;margin:auto;background:var(--paper);border:1px solid var(--line);border-radius:20px;overflow:hidden}#bc-counter-samples .ce-shell.guard{max-width:660px}#bc-counter-samples header{padding:24px 22px 18px;border-bottom:1px solid var(--line)}#bc-counter-samples .ce-brand{font-size:11px;letter-spacing:.13em;color:var(--brand);font-weight:700}#bc-counter-samples h2{font:650 23px/1.25 system-ui;margin:8px 0}#bc-counter-samples h3{font:600 16px/1.4 system-ui;margin:0 0 14px}#bc-counter-samples p{margin:6px 0 14px}#bc-counter-samples .ce-muted{color:var(--muted);font-size:12px}#bc-counter-samples .ce-body{padding:20px 22px}#bc-counter-samples label{display:block;font-size:13px;font-weight:550;margin-bottom:14px}#bc-counter-samples input,#bc-counter-samples select,#bc-counter-samples textarea{display:block;width:100%;min-width:0;font:16px system-ui;margin-top:6px;padding:11px 12px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:9px}#bc-counter-samples button{font:600 13px system-ui;min-height:44px;padding:11px 14px;border-radius:9px;border:1px solid var(--line);color:var(--ink);background:var(--paper)}#bc-counter-samples .ce-primary{background:var(--brand);color:var(--on);border-color:var(--brand)}#bc-counter-samples .ce-full{width:100%}#bc-counter-samples .ce-note{padding:10px 12px;background:var(--soft);border-radius:9px;font-size:12px;margin:14px 0;color:var(--muted)}#bc-counter-samples .ce-fields{display:grid;grid-template-columns:1fr;gap:0}#bc-counter-samples .ce-mode{display:flex;gap:6px;margin:14px 0 0}#bc-counter-samples .ce-mode button{flex:1;font-size:12px}#bc-counter-samples button[aria-pressed=true]{background:var(--brand);color:var(--on);border-color:var(--brand)}#bc-counter-samples .ce-inline{display:flex;align-items:center;gap:9px;min-height:32px}#bc-counter-samples .ce-inline input{width:18px;height:18px;margin:0}#bc-counter-samples .ce-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:16px 0}#bc-counter-samples .ce-choices button{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12px;min-height:88px;padding:10px 5px}#bc-counter-samples .ce-choices svg{width:19px;height:19px}#bc-counter-samples .ce-actions{display:flex;gap:8px;margin-top:16px}#bc-counter-samples .ce-actions button{flex:1}#bc-counter-samples .ce-progress{padding:12px 22px;background:var(--soft);color:var(--brand);font-size:12px}#bc-counter-samples .ce-success{padding:26px 22px}#bc-counter-samples .ce-success h3{color:var(--brand)}#bc-counter-samples .ce-receipt{padding:12px 0;border-top:1px solid var(--line);margin:16px 0;white-space:pre-line;overflow-wrap:anywhere}#bc-counter-samples .ce-columns{display:grid;grid-template-columns:minmax(0,1fr) 190px}#bc-counter-samples aside{background:var(--soft);padding:20px 16px;border-left:1px solid var(--line)}#bc-counter-samples .ce-row{padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}#bc-counter-samples .ce-row strong{display:block;font-size:13px}#bc-counter-samples .ce-row span{font-size:12px;color:var(--muted)}#bc-counter-samples .ce-error{color:light-dark(#a52639,#ffb5be);font-size:13px}#bc-counter-samples .ce-pill{display:inline-block;padding:3px 9px;border-radius:18px;font-size:11px;background:var(--soft);color:var(--brand)}
 @media(max-width:560px){#bc-counter-samples .ce{padding:8px;min-height:0}#bc-counter-samples .ce-columns{grid-template-columns:1fr}#bc-counter-samples aside{border-left:0;border-top:1px solid var(--line)}#bc-counter-samples header,#bc-counter-samples .ce-body{padding:18px}#bc-counter-samples h2{font-size:21px}}
+#bc-counter-samples fieldset[data-wheel-field] {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+#bc-counter-samples fieldset[data-wheel-field] iframe {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
 </style>
 <style>
 body { margin: 0; background: #f3f8f7; font-family: system-ui, sans-serif; }
 #bc-counter-samples .ce { min-height: 0; }
 #bc-counter-samples fieldset { min-width: 0; margin: 0; border: 1px solid #dce6e9; border-radius: 9px; padding: 8px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; }
 #bc-counter-samples fieldset select { min-width: 0; width: 100%; }
+#bc-counter-samples fieldset[data-wheel-field] {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+#bc-counter-samples fieldset[data-wheel-field] iframe {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
 </style>
 <style>
 body { background:#edf4fc; }
@@ -32,6 +50,15 @@ body { background:#edf4fc; }
 #bc-counter-samples .premium-grid button[aria-pressed="true"] { background:#115bd1; color:#fff; }
 #bc-counter-samples .premium-grid button[aria-pressed="true"] .premium-icon { background-color:#ffffff33; }
 #bc-counter-samples .ce :focus-visible { outline:2px solid #1765d5; outline-offset:2px; }
+#bc-counter-samples fieldset[data-wheel-field] {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+#bc-counter-samples fieldset[data-wheel-field] iframe {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
 </style>
 <style>
 #bc-counter-samples header, #bc-counter-samples .ce-body { padding: 12px; }
@@ -46,6 +73,15 @@ body { background:#edf4fc; }
 #bc-counter-samples label { gap: 3px; font-size: 12px; }
 #bc-counter-samples .ce input:not([type="checkbox"]), #bc-counter-samples .ce select { min-height: 40px; padding: 5px 8px; }
 #bc-counter-samples fieldset { padding: 5px 6px; }
+#bc-counter-samples fieldset[data-wheel-field] {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+#bc-counter-samples fieldset[data-wheel-field] iframe {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
 </style>
 <style>
 #bc-counter-samples .premium-grid button {
@@ -127,6 +163,15 @@ body { background:#edf4fc; }
 #bc-counter-samples .premium-grid button .utility-icon {
   background: url('assets/counter-utility.png') center / 70px no-repeat;
 }
+#bc-counter-samples fieldset[data-wheel-field] {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+#bc-counter-samples fieldset[data-wheel-field] iframe {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
 </style>
 <style>.utility-destinations{display:grid;gap:6px;margin-bottom:6px}@media (max-width: 460px) {
   #bc-counter-samples .premium-grid button {
@@ -138,6 +183,15 @@ body { background:#edf4fc; }
     height: 60px;
     margin-block: -9px;
   }
+}
+#bc-counter-samples fieldset[data-wheel-field] {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+#bc-counter-samples fieldset[data-wheel-field] iframe {
+  display: block;
+  width: 100%;
+  min-width: 0;
 }
 </style>
 </head>
@@ -216,38 +270,17 @@ window.UNITS_STATIC = [
 </script>
 <script>
 
-(()=>{const root=document.getElementById('bc-counter-samples');const cats=[['ride','E-hailing / Teksi','car-taxi-front','E-hailing'],['delivery','Penghantaran makanan / barang','package','Penghantaran'],['resident','Penghuni tanpa kad akses','house','Penghuni'],['office','Pejabat & Urusan Rasmi','building-2','Pejabat / Rasmi'],['visitor','Pelawat tanpa prapendaftaran','users','Pelawat'],['service','Utiliti','wrench','Utiliti'],['sales','Jualan / Promosi','megaphone','Jualan'],['other','Lain-lain','ellipsis','Lain-lain']];const defaultCategory=['delivery'];const selectField=(name,options)=>{const label=document.createElement('label');label.append(document.createTextNode(name));const select=document.createElement('select');select.name=name;options.forEach(text=>{const o=document.createElement('option');o.textContent=text;select.append(o);});label.append(select);return label;};const textField=(name,value,required=true,type='text')=>{const label=document.createElement('label');label.append(document.createTextNode(name+(required?'':' (pilihan)')));const input=document.createElement('input');Object.assign(input,{name,value,required,type});label.append(input);return label;};root.querySelectorAll('.ce').forEach((stage,index)=>{const q=s=>stage.querySelector(s);let category=defaultCategory[index],mode=index===2?'guard':'self',selectedButton;const form=q('[data-form]'),fields=q('[data-fields]');const catName=()=>cats.find(c=>c[0]===category)[1];const renderFields=()=>{fields.replaceChildren();if(category==='delivery'){fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang']),textField('Unit dituju',''));}else if(category==='ride'){fields.append(selectField('Tujuan',['Ambil penumpang','Hantar penumpang']),textField('Nama pemandu',''),selectField('Perkhidmatan',['Grab','Teksi','Lain-lain']),selectField('Lokasi menunggu',['Lobi Blok A']));}else if(category==='resident'){fields.append(textField('Nama penghuni',''),textField('Unit rumah',''),textField('Nombor telefon','',true,'tel'),selectField('Sebab tiada kad',['Kad tertinggal','Kad hilang','Kad rosak','Belum menerima kad']));}else{fields.append(textField('Nama',''),textField('Nombor telefon','',true,'tel'));if(['delivery','visitor'].includes(category))fields.append(textField('Unit dituju',''));if(category==='sales')fields.append(selectField('Destinasi',['Pejabat Pengurusan']));if (category === 'office') { fields.append(selectField('Jenis urusan', ['Pejabat Pengurusan']), selectField('Lokasi dituju', ['Pejabat Pengurusan'])); } else if (category === 'other') { fields.append(textField('Lokasi dituju', '')); }if(['delivery','office','sales'].includes(category))fields.append(textField('Syarikat / Organisasi','',false));if(category==='delivery')fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang','Lain-lain']));if(['office','service','official','sales','other'].includes(category))fields.append(textField('Tujuan',''));}function makeUnitPicker(unitName) {
-  const units = (window.UNITS_STATIC || []).map(unit => ({unit, parts: unit.split('-')}));
-  const picker = document.createElement('fieldset');
-  const title = document.createElement('legend');
-  title.textContent = unitName;
-  picker.append(title);
-  const controls = ['Blok','Tingkat','Unit'].map(name => {
-    const label = document.createElement('label');
-    label.textContent = name;
-    const select = document.createElement('select');
-    select.required = true;
-    label.append(select);
-    picker.append(label);
-    return select;
-  });
-  const [block, floor, unit] = controls;
-  unit.name = unitName;
-  function options(select, values) {
-    select.replaceChildren(new Option('Pilih', ''), ...[...new Map(values)].map(([value, label]) => new Option(label, value)));
-    select.disabled = !values.length;
-  }
-  function refreshUnits() {
-    options(unit, floor.value ? units.filter(row => row.parts[0] === block.value && row.parts[1] === floor.value).map(row => [row.unit,row.parts.slice(2).join('-')]) : []);
-  }
-  block.onchange = () => {
-    options(floor, block.value ? units.filter(row => row.parts[0] === block.value).map(row => [row.parts[1],row.parts[1]]) : []);
-    refreshUnits();
-  };
-  floor.onchange = refreshUnits;
-  options(block, units.map(row => [row.parts[0],row.parts[0]]));
-  block.onchange();
-  return picker;
+(()=>{const root=document.getElementById('bc-counter-samples');const cats=[['ride','E-hailing / Teksi','car-taxi-front','E-hailing'],['delivery','Penghantaran makanan / barang','package','Penghantaran'],['resident','Penghuni tanpa kad akses','house','Penghuni'],['office','Pejabat & Urusan Rasmi','building-2','Pejabat / Rasmi'],['visitor','Pelawat tanpa prapendaftaran','users','Pelawat'],['service','Utiliti','wrench','Utiliti'],['sales','Jualan / Promosi','megaphone','Jualan'],['other','Lain-lain','ellipsis','Lain-lain']];const defaultCategory=['delivery'];const selectField=(name,options)=>{const label=document.createElement('label');label.append(document.createTextNode(name));const select=document.createElement('select');select.name=name;options.forEach(text=>{const o=document.createElement('option');o.textContent=text;select.append(o);});label.append(select);return label;};const textField=(name,value,required=true,type='text')=>{const label=document.createElement('label');label.append(document.createTextNode(name+(required?'':' (pilihan)')));const input=document.createElement('input');Object.assign(input,{name,value,required,type});label.append(input);return label;};root.querySelectorAll('.ce').forEach((stage,index)=>{const q=s=>stage.querySelector(s);let category=defaultCategory[index],mode=index===2?'guard':'self',selectedButton;const form=q('[data-form]'),fields=q('[data-fields]');const catName=()=>cats.find(c=>c[0]===category)[1];const renderFields=()=>{fields.replaceChildren();if(category==='delivery'){fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang']),textField('Unit dituju',''));}else if(category==='ride'){fields.append(selectField('Tujuan',['Ambil penumpang','Hantar penumpang']),textField('Nama pemandu',''),selectField('Perkhidmatan',['Grab','Teksi','Lain-lain']),selectField('Lokasi menunggu',['Lobi Blok A']));}else if(category==='resident'){fields.append(textField('Nama penghuni',''),textField('Unit rumah',''),textField('Nombor telefon','',true,'tel'),selectField('Sebab tiada kad',['Kad tertinggal','Kad hilang','Kad rosak','Belum menerima kad']));}else{fields.append(textField('Nama',''),textField('Nombor telefon','',true,'tel'));if(['delivery','visitor'].includes(category))fields.append(textField('Unit dituju',''));if(category==='sales')fields.append(selectField('Destinasi',['Pejabat Pengurusan']));if (category === 'office') { fields.append(selectField('Jenis urusan', ['Pejabat Pengurusan']), selectField('Lokasi dituju', ['Pejabat Pengurusan'])); } else if (category === 'other') { fields.append(textField('Lokasi dituju', '')); }if(['delivery','office','sales'].includes(category))fields.append(textField('Syarikat / Organisasi','',false));if(category==='delivery')fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang','Lain-lain']));if(['office','service','official','sales','other'].includes(category))fields.append(textField('Tujuan',''));}function makeUnitPicker(unitName, multiple = false) {
+  const fieldset = document.createElement('fieldset');
+  const label = document.createElement('legend');
+  label.textContent = unitName;
+  const picker = document.createElement('iframe');
+  picker.src = multiple ? 'counter-theme-wheel.html' : 'counter-theme-wheel.html?single';
+  picker.title = unitName;
+  picker.style.cssText = 'width:100%;height:360px;border:0';
+  fieldset.dataset.wheelField = unitName;
+  fieldset.append(label, picker);
+  return fieldset;
 }
 
 for (const input of fields.querySelectorAll('input[name="Unit dituju"], input[name="Unit rumah"]')) {
@@ -255,7 +288,7 @@ for (const input of fields.querySelectorAll('input[name="Unit dituju"], input[na
 }
 if (category === 'delivery') {
   const deliveryType = fields.querySelector('select[name="Jenis penghantaran"]');
-  const unitPicker = fields.querySelector('select[name="Unit dituju"]').closest('fieldset');
+  const unitPicker = fields.querySelector('fieldset');
   const scope = selectField('Bilangan rumah', ['Satu rumah', 'Banyak rumah']);
   const scopeSelect = scope.querySelector('select');
   const pg = selectField('Destinasi', ['Kawasan PG']);
@@ -293,7 +326,7 @@ if (category === 'service') {
   companySelect.addEventListener('change', updateCompanyField);
   updateCompanyField();
   fields.append(company, otherCompany);
-  const destination = selectField('Destinasi', ['Satu unit', 'Beberapa unit', 'Kawasan bersama', 'Pejabat Pengurusan']);
+  const destination = selectField('Destinasi', ['Unit rumah', 'Kawasan bersama', 'Pejabat Pengurusan']);
   const modeSelect = destination.querySelector('select');
   const destinations = document.createElement('div');
   const renderDestinations = () => {
@@ -303,46 +336,24 @@ if (category === 'service') {
       destinations.append(textField('Lokasi kerja', ''));
       return;
     }
-    const multiple = modeSelect.value === 'Beberapa unit';
-    const list = document.createElement('div');
-    list.className = 'utility-destinations';
-    function validateUnits() {
-      const seen = new Set();
-      for (const unit of list.querySelectorAll('select[name="Unit dituju"]')) {
-        const duplicate = unit.value && seen.has(unit.value);
-        unit.setCustomValidity(duplicate ? 'Unit ini sudah dipilih.' : '');
-        if (unit.value) seen.add(unit.value);
-      }
-    }
-    function addUnit(removable) {
-      const row = document.createElement('div');
-      row.append(makeUnitPicker('Unit dituju'));
-      if (removable) {
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.textContent = 'Buang unit';
-        remove.onclick = () => { row.remove(); validateUnits(); };
-        row.append(remove);
-      }
-      list.append(row);
-    }
-    list.addEventListener('change', validateUnits);
-    addUnit(false);
-    destinations.append(list);
-    if (multiple) {
-      addUnit(false);
-      const add = document.createElement('button');
-      add.type = 'button';
-      add.textContent = '+ Tambah unit';
-      add.onclick = () => addUnit(true);
-      destinations.append(add);
-    }
+    destinations.append(makeUnitPicker('Unit dituju', true));
   };
   modeSelect.onchange = renderDestinations;
   fields.append(destination, destinations);
   renderDestinations();
 }
 const plate=textField('Nombor kenderaan','');fields.append(plate);const walk=document.createElement('label');walk.className='ce-inline';const check=document.createElement('input');check.type='checkbox';check.name='Tanpa kenderaan';check.value='Ya';walk.append(check,document.createTextNode('Tiada kenderaan / Berjalan kaki'));check.onchange=()=>{const input=plate.querySelector('input');input.disabled=check.checked;input.required=!check.checked;plate.hidden=check.checked;};if(category!=='ride')fields.append(walk);if(q('[data-chosen]'))q('[data-chosen]').textContent=catName();};const dropdown=q('[data-category]');if(dropdown){cats.forEach(c=>{const o=document.createElement('option');o.value=c[0];o.textContent=c[1];dropdown.append(o);});dropdown.value=category;dropdown.onchange=()=>{category=dropdown.value;renderFields();};}if(q('[data-choices]')){cats.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='cursor-interaction';b.setAttribute('aria-label',c[1]);b.setAttribute('aria-pressed',String(c[0]===category));const icon=document.createElement('i');icon.dataset.lucide=c[2];icon.setAttribute('aria-hidden','true');const text=document.createElement('span');text.textContent=c[3];b.append(icon,text);b.onclick=()=>{category=c[0];q('[data-choices]').querySelectorAll('button').forEach(other=>other.setAttribute('aria-pressed',String(other===b)));};q('[data-choices]').append(b);});q('[data-next]').onclick=()=>{renderFields();q('[data-step-one]').hidden=true;form.hidden=false;q('[data-progress]').textContent='Langkah 2 daripada 2 · Butiran';};q('[data-back]').onclick=()=>{q('[data-step-one]').hidden=false;form.hidden=true;q('[data-progress]').textContent='Langkah 1 daripada 2 · Pilih kategori';};}stage.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;stage.querySelectorAll('[data-mode]').forEach(other=>other.setAttribute('aria-pressed',String(other===b)));q('[data-source]').textContent=mode==='guard'?'Direkodkan oleh Pengawal Demo. Tidak perlu hantar WhatsApp.':'Masa pendaftaran direkodkan secara automatik.';});renderFields();form.onsubmit=e=>{e.preventDefault();const submitted = new FormData(form);const data=Object.fromEntries(submitted);const units=submitted.getAll('Unit dituju');if(units.length) data['Unit dituju']=units.join(', ');const output=q('[data-success]');output.replaceChildren();const title=document.createElement('h3');title.textContent='Pendaftaran direkodkan';const demo=document.createElement('p');demo.className='ce-muted';demo.textContent='Simulasi sahaja · Tiada data dihantar';const receipt=document.createElement('div');receipt.className='ce-receipt';receipt.textContent='Kategori: '+catName()+'\n'+Object.entries(data).filter(([k])=>k!=='Kategori').map(([k,v])=>k+': '+v).join('\n')+'\nSumber: '+(mode==='guard'?'Pengawal Demo':'Isi sendiri');output.append(title,demo,receipt);if(mode==='self'){const wa=document.createElement('button');wa.type='button';wa.className='ce-primary ce-full cursor-interaction';wa.textContent='Hantar kepada Keselamatan';const message=document.createElement('div');message.className='ce-note';message.hidden=true;wa.onclick=()=>{message.hidden=false;message.textContent='Pratonton mesej WhatsApp — belum dihantar.\n'+receipt.textContent;message.style.whiteSpace='pre-line';};output.append(wa,message);}else if(q('[data-today]')){const row=document.createElement('div');row.className='ce-row';const title=document.createElement('strong');title.textContent='Baharu · '+(data.Nama||data['Nama pemandu']||data['Nama penghuni']);const detail=document.createElement('span');detail.textContent=catName()+' · '+(data['Unit dituju']||data['Unit rumah']||data['Lokasi dituju']||'');row.append(title,detail);q('[data-today]').prepend(row);}const again=document.createElement('button');again.type='button';again.className='ce-full cursor-interaction';again.style.marginTop='12px';again.textContent=mode==='guard'?'Daftar Orang Seterusnya':'Kembali ke Borang';again.onclick=()=>{output.hidden=true;q('[data-main]').hidden=false;if(mode==='guard'){renderFields();}};output.append(again);q('[data-main]').hidden=true;output.hidden=false;};if(globalThis.Tweak){const settings={radius:20};const shell=q('.ce-shell');const tweak=new Tweak({container:shell,onChange:()=>shell.style.borderRadius=settings.radius+'px'});tweak.addSlider(settings,'radius',{label:'Bucu borang',min:4,max:24,unit:'px'});}});const form = root.querySelector('[data-form]');
+form.addEventListener('formdata', ({ formData }) => {
+  for (const field of form.querySelectorAll('[data-wheel-field]')) {
+    if (field.disabled || field.hidden) continue;
+    const list = field.querySelector('iframe').contentDocument?.querySelector('#chosen');
+    const units = [...(list?.children || [])].map(item => item.firstChild.textContent);
+    for (const unit of units) formData.append(field.dataset.wheelField, unit);
+    if (formData.get('Destinasi') === 'Unit rumah') {
+      formData.set('Destinasi', units.length > 1 ? 'Beberapa unit' : 'Satu unit');
+    }
+  }
+});
 const categorySelect = form.querySelector('[data-category]');
 categorySelect.parentElement.hidden = true;
 const picker = document.createElement('div');
@@ -407,6 +418,13 @@ counterForm.addEventListener('submit', event => {
   event.stopImmediatePropagation();
   if (saving) return;
   const formData = new FormData(counterForm);
+  const missingUnit = [...counterForm.querySelectorAll('[data-wheel-field]')]
+    .find(field => !field.disabled && !field.hidden && !formData.get(field.dataset.wheelField));
+  if (missingUnit) {
+    status.textContent = 'Pilih unit dan tekan + untuk menambahnya.';
+    missingUnit.scrollIntoView({ block: 'nearest' });
+    return;
+  }
   const fields = Object.fromEntries(formData);
   const units = formData.getAll('Unit dituju');
   if (units.length) fields['Unit dituju'] = units.join(', ');
