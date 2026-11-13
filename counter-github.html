@@ -392,7 +392,7 @@ const status = document.createElement('p');
 status.setAttribute('role', 'status');
 const submitButton = counterForm.querySelector('[data-error]').previousElementSibling;
 submitButton.after(status);
-status.textContent = 'Pendaftaran dibuka untuk Pejabat / Rasmi.';
+
 document.querySelectorAll('[data-mode="guard"]').forEach(button => { button.hidden = true; });
 const endpoint = 'https://script.google.com/macros/s/AKfycbznfyDGFQtyfP1KTvmNp9KP3hVKt355ka83FoHBojH4CwagrDmKaQawZym8n2aaaVdKwQ/exec';
 const responseFrame = document.createElement('iframe');
@@ -406,13 +406,12 @@ counterForm.addEventListener('submit', event => {
   event.preventDefault();
   event.stopImmediatePropagation();
   if (saving) return;
-  const fields = Object.fromEntries(new FormData(counterForm));
+  const formData = new FormData(counterForm);
+  const fields = Object.fromEntries(formData);
+  const units = formData.getAll('Unit dituju');
+  if (units.length) fields['Unit dituju'] = units.join(', ');
   const category = fields.Kategori;
   delete fields.Kategori;
-  if (category !== 'office') {
-    status.textContent = 'Pilih Pejabat / Rasmi untuk mendaftar.';
-    return;
-  }
   const signature = JSON.stringify([category, fields]);
   if (pending?.signature !== signature) {
     pending = { signature, entry: { id: crypto.randomUUID(), category, details: fields } };
