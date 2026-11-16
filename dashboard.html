@@ -103,6 +103,8 @@
 
     .top-info { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; flex-wrap:wrap; padding:10px; border:1px solid var(--input-border); border-radius:10px; background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(248,251,255,0.95)); }
     .top-info-main { flex:1; min-width:320px; display:flex; flex-direction:column; gap:6px; }
+    .top-info-categories { flex: 0 0 100%; min-width: 0; display: grid; gap: 6px; }
+    body[data-dashboard-page="parking"] .top-info-categories { display: none; }
     .kpi-title { font-weight:700; color:var(--muted); font-size:12px; letter-spacing:0.02em; }
     .kpi-filter-hint { font-size:11px; color:var(--muted); }
     .kpi-filter-hint.active { color:#0f172a; font-weight:700; }
@@ -458,6 +460,15 @@
     .registration-table th:nth-child(5){width:19%}
     .registration-table th:nth-child(6){width:12%}
     .registration-table th:nth-child(7){width:14%}
+    .registration-date { display: grid; grid-template-columns: minmax(0, 9.5rem) auto; gap: 4px 8px; align-items: center; }
+    .registration-date > label, .registration-date-status { grid-column: 1 / -1; }
+    .registration-date > input { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; font-size: 13px; padding: 6px 8px; }
+    .registration-date-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .registration-date-actions button { font-size: 12px; padding: 6px 9px; min-height: 34px; white-space: nowrap; }
+    .registration-date-status:empty { display: none; }
+    @media (max-width: 420px) {
+      .registration-date { grid-template-columns: minmax(0, 1fr); }
+    }
     @media(max-width:900px){.registration-list-head{align-items:stretch;flex-direction:column}.registration-search{min-width:0;width:100%}}
     #pageUnitArrears > h3.page-heading-box { background: linear-gradient(180deg, rgba(244,63,94,0.12), rgba(244,63,94,0.08)); border: 1px solid rgba(244,63,94,0.14); color: #4c0519; }
     #pageCheckedIn > h3.page-heading-box { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.08)); border: 1px solid rgba(79,70,229,0.14); color: #07102a; }
@@ -646,22 +657,24 @@
                 <span id="adminClaimIndicator" class="small muted">Firebase admin claim: -</span>
                 <button id="refreshAdminClaimBtn" type="button" class="btn-ghost" style="padding:4px 8px; min-height:28px;">Refresh claim</button>
               </div>
-              <div class="kpi-title">Counter Kategori (Tarikh Dipilih)</div>
-              <div id="kpiFilterHint" class="kpi-filter-hint">Klik kotak kategori untuk tapis senarai pendaftaran.</div>
-              <div id="kpiWrap" class="kpi"></div>
             </div>
 
             <!-- Per-page date filters: summary, checked-in and parking each have their own date input -->
             <div id="dateFiltersWrap" style="display:flex;gap:8px;align-items:center">
-              <div id="summaryDateWrap" style="display:flex;align-items:center;gap:8px">
+              <div id="summaryDateWrap" class="registration-date">
                 <label for="filterDateSummary" class="small muted">Tunjuk mengikut ETA</label>
                 <input id="filterDateSummary" type="date" />
               </div>
-              <div id="checkedInDateWrap" style="display:none;align-items:center;gap:8px">
+              <div id="checkedInDateWrap" class="registration-date" style="display:none">
                 <label for="filterDateCheckedIn" class="small muted">Tunjuk Checked In</label>
                 <input id="filterDateCheckedIn" type="date" />
               </div>
               <!-- parking page uses the weekly navigator; no date input here -->
+            </div>
+            <div class="top-info-categories">
+              <div class="kpi-title">Counter Kategori (Tarikh Dipilih)</div>
+              <div id="kpiFilterHint" class="kpi-filter-hint">Klik kotak kategori untuk tapis senarai pendaftaran.</div>
+              <div id="kpiWrap" class="kpi"></div>
             </div>
           </div>
 

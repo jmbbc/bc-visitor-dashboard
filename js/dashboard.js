@@ -12,7 +12,7 @@ import {groupParkingDay} from './parking-day-groups.mjs?v=20261015-merge-1';
 // Each page uses its own selected date and changing one won't affect the others.
 
 import {
-  collection, query, where, getDocs, onSnapshot, orderBy, limit, doc, updateDoc, serverTimestamp,
+  collection, query, where, getDocs, getDocsFromServer, onSnapshot, orderBy, limit, doc, updateDoc, serverTimestamp,
   addDoc, setDoc, Timestamp, getDoc, runTransaction, writeBatch, getCountFromServer
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import {
@@ -1370,6 +1370,8 @@ onAuthStateChanged(window.__AUTH, user => {
     // Fail closed while the token is being checked. A prior admin session must
     // never leave the data-management navigation visible to the next account.
     applyAdminPageAccess(false);
+    registrationDates.clear();
+    selectedRegistrationDates.clear();
     setAdminLoggedIn(false);
     loginBox.style.display = 'none';
     dashboardArea.style.display = 'block';
@@ -1439,6 +1441,8 @@ onAuthStateChanged(window.__AUTH, user => {
     if (ENABLE_AUTO_REFRESH) startAutoRefresh();
   } else if (!DASHBOARD_PREVIEW_MODE) {
     applyAdminPageAccess(false);
+    registrationDates.clear();
+    selectedRegistrationDates.clear();
     setAdminLoggedIn(false);
     loginBox.style.display = 'block';
     dashboardArea.style.display = 'none';
@@ -2292,17 +2296,49 @@ if (summarySearch) summarySearch.addEventListener('input', () => {
 if (purgeOldBtn) purgeOldBtn.addEventListener('click', async ()=> {
   await deleteOldResponsesBeforeDate();
 });
-if (filterDateSummary) filterDateSummary.addEventListener('change', ()=>{
-  const todayKey = isoDateString(new Date());
-  filterDateUserChangedSummary = (filterDateSummary.value !== todayKey);
-  loadListForDateStr(filterDateSummary.value || isoDateString(new Date()));
-});
+const selectedRegistrationDates = new Map();
+const registrationDates = new Map();
+const registrationDateControls = [];
+let registrationDateLoading = false;
 
-if (filterDateCheckedIn) filterDateCheckedIn.addEventListener('change', ()=>{
-  const todayKey = isoDateString(new Date());
-  filterDateUserChangedCheckedIn = (filterDateCheckedIn.value !== todayKey);
-  loadListForDateStr(filterDateCheckedIn.value || isoDateString(new Date()));
-});
+for (const input of [filterDateSummary, filterDateCheckedIn].filter(Boolean)) {
+  const controls = document.createElement('div');
+  controls.className = 'registration-date-actions';
+  const show = document.createElement('button');
+  const status = document.createElement('span');
+  status.className = 'small registration-date-status';
+  status.setAttribute('role', 'status');
+  show.type = 'button';
+  show.className = 'btn';
+  show.textContent = 'Papar Tarikh';
+  controls.append(show);
+  input.after(controls, status);
+  registrationDateControls.push({ show, status });
+  show.onclick = () => showRegistrationDate(input);
+}
+
+async function showRegistrationDate(input) {
+  if (registrationDateLoading || !input.value || DASHBOARD_PREVIEW_MODE) return;
+  const date = input.value;
+  if (input === filterDateSummary) filterDateUserChangedSummary = date !== isoDateString(new Date());
+  else filterDateUserChangedCheckedIn = date !== isoDateString(new Date());
+  registrationDateLoading = true;
+  for (const control of registrationDateControls) {
+    control.show.disabled = true;
+    control.status.textContent = 'Memuatkan…';
+  }
+  try {
+    await loadListForDateStr(date, { manual: true });
+    selectedRegistrationDates.set(input, date);
+    for (const control of registrationDateControls) control.status.textContent = 'Dipaparkan ' + date.split('-').reverse().join('/');
+  } catch (error) {
+    console.error('Gagal memuatkan tarikh', error);
+    for (const control of registrationDateControls) control.status.textContent = 'Gagal memuatkan tarikh.';
+  } finally {
+    registrationDateLoading = false;
+    for (const control of registrationDateControls) control.show.disabled = false;
+  }
+}
 
 // parking search: debounce and re-render using cached data only (no extra reads)
 if (parkingSearchInput) {
@@ -2395,7 +2431,7 @@ if (exportAllCSVBtn) exportAllCSVBtn.addEventListener('click', async ()=> {
 });
 
 /* ---------- core fetch ---------- */
-async function loadListForDateStr(yyyymmdd){
+async function loadListForDateStr(yyyymmdd, { manual = false } = {}){
   console.info('[loadListForDateStr] called', yyyymmdd);
   // Preview pages must remain visual-only: never attach Firestore listeners or consume reads.
   if (DASHBOARD_PREVIEW_MODE) return;
@@ -2435,6 +2471,34 @@ async function loadListForDateStr(yyyymmdd){
       return false;
     });
   };
+
+  if (manual) {
+    const useServer = yyyymmdd >= isoDateString(new Date());
+    let rows = useServer ? undefined : registrationDates.get(yyyymmdd);
+    if (!rows) {
+      const col = collection(window.__FIRESTORE, 'responses');
+      const start = Timestamp.fromDate(from);
+      const end = Timestamp.fromDate(to);
+      const snapshots = await Promise.all([
+        getDocsFromServer(query(col, where('eta', '>=', start), where('eta', '<', end))),
+        getDocsFromServer(query(col, where('createdAt', '>=', start), where('createdAt', '<', end))),
+        getDocsFromServer(query(col, where('etd', '>=', start))),
+      ]);
+      const records = new Map();
+      for (const snapshot of snapshots) snapshot.forEach(doc => records.set(doc.id, { ...doc.data(), id: doc.id }));
+      rows = sortRowsBySubmitted(filterRowsForDay([...records.values()]));
+      registrationDates.set(yyyymmdd, rows);
+      if (registrationDates.size > 8) registrationDates.delete(registrationDates.keys().next().value);
+    }
+    window.__RESPONSES_UNSUB?.();
+    window.__RESPONSES_UNSUB = null;
+    window.__RESPONSES_DATE = null;
+    responseCache.date = yyyymmdd;
+    renderKPIs(rows);
+    renderSummaryWithSearch(rows.slice());
+    renderCheckedInList(rows.filter(row => row.status === 'Checked In'));
+    return;
+  }
 
   const spinner = document.getElementById('spinner');
   if (spinner) spinner.style.display = 'flex';
@@ -2514,6 +2578,7 @@ async function loadListForDateStr(yyyymmdd){
               }
 
               // Strictly filter rows to the requested day to avoid cross-day bleed (e.g., ETA on a different date)
+              if (window.__RESPONSES_DATE !== yyyymmdd || registrationDateLoading) return;
               const filtered = filterRowsForDay(freshRows);
               // update cache + UI
               responseCache.date = yyyymmdd;
@@ -4113,12 +4178,10 @@ function showPage(key){
     // When returning to summary/checkedin, ensure we have the latest snapshot for the current date
     try {
       // When returning to summary/checkedin, ensure we have the latest snapshot for the current date
-      if (key === 'summary') {
-        const ds = (filterDateSummary && filterDateSummary.value) ? filterDateSummary.value : isoDateString(new Date());
-        loadListForDateStr(ds);
-      } else if (key === 'checkedin') {
-        const ds = (filterDateCheckedIn && filterDateCheckedIn.value) ? filterDateCheckedIn.value : isoDateString(new Date());
-        loadListForDateStr(ds);
+      if (!registrationDateLoading) {
+        const input = key === 'summary' ? filterDateSummary : filterDateCheckedIn;
+        const date = selectedRegistrationDates.get(input);
+        loadListForDateStr(date || isoDateString(new Date()), { manual: Boolean(date) }).catch(console.error);
       }
     } catch(e) { /* ignore */ }
   }
