@@ -469,6 +469,57 @@
     @media (max-width: 420px) {
       .registration-date { grid-template-columns: minmax(0, 1fr); }
     }
+    .registration-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0;align-items:start}
+    .registration-tools > *{min-width:0;margin:0}
+    .registration-tools .verification-bar,.registration-tools .registration-list-head{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:8px 10px}
+    .registration-tools .registration-search,.registration-tools .verification-form{min-width:0;width:100%}
+    .registration-tools .verification-form input{min-width:0;width:100%;font-size:12px}
+    .registration-tools .verification-form .btn,.registration-tools .registration-search input{font-size:12px}
+    .registration-tools .registration-list-head h3{font-size:13px}
+    .registration-tools { align-items: stretch; }
+    .registration-tools > :is(.verification-bar, .registration-list-head, .plate-search-panel) {
+      align-content: start; padding: 8px 10px; border: 1px solid #cfe0dd;
+      border-radius: 10px; background: #eef7f5; color: #123d38;
+      font: inherit; font-size: 12px; line-height: 1.4; box-shadow: none;
+    }
+    .registration-tools :is(#verificationTitle, h3, summary) {
+      color: inherit; font: inherit; font-size: 13px; font-weight: 700; margin: 0;
+    }
+    .registration-tools :is(.verification-copy div > span, .registration-list-head p, .plate-search-instructions) {
+      display: block; color: #475569; font-size: 12px; margin: 3px 0 0;
+    }
+    .registration-tools :is(input, .btn) { font-family: inherit; font-size: 12px; }
+    .registration-tools input { border-color: #cbdad7; }
+    .registration-tools .btn { background: #135c50; border-color: #135c50; color: #fff; }
+    .registration-tools .plate-search-panel form { margin-top: 6px; }
+    .registration-tools .plate-search-panel [role="status"] { margin: 4px 0; }
+    .registration-tools .plate-search-panel [role="status"]:empty { display: none; }
+    .registration-tools .plate-search-panel ul:empty { display: none; }
+    .registration-tools .plate-search-panel ul {
+      margin: 0; padding-inline-start: 14px; font-size: 11px;
+      line-height: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; list-style: none; padding-inline-start: 0;
+    }
+    .registration-tools .plate-search-panel li { overflow-wrap: anywhere; }
+    .registration-tools .verification-grid { grid-template-columns: repeat(2,minmax(0,1fr)); overflow-wrap: anywhere; }
+    .registration-tools input { height: 36px; box-sizing: border-box; }
+    @media (min-width:761px) {
+      .registration-tools {
+        grid-template-rows: auto auto auto auto;
+        row-gap: 0;
+      }
+      .registration-tools > :is(.verification-bar, .registration-list-head, .plate-search-panel) {
+        display: grid; grid-row: span 4; grid-template-rows: subgrid; row-gap: 6px;
+      }
+      .registration-tools .verification-copy,
+      .registration-tools .registration-list-head > div:first-child { grid-row: span 2; }
+      .registration-tools .plate-search-panel::details-content { display: contents; }
+      .registration-tools .plate-search-panel:not([open])::details-content { display: none; }
+      .registration-tools .plate-search-panel form { margin-top: 0; }
+      .registration-tools :is(.verification-result, .plate-search-panel [role="status"], .plate-search-panel ul) {
+        grid-column: 1; min-width: 0;
+      }
+    }
+    @media(max-width:760px){.registration-tools{grid-template-columns:minmax(0,1fr)}}
     @media(max-width:900px){.registration-list-head{align-items:stretch;flex-direction:column}.registration-search{min-width:0;width:100%}}
     #pageUnitArrears > h3.page-heading-box { background: linear-gradient(180deg, rgba(244,63,94,0.12), rgba(244,63,94,0.08)); border: 1px solid rgba(244,63,94,0.14); color: #4c0519; }
     #pageCheckedIn > h3.page-heading-box { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.08)); border: 1px solid rgba(79,70,229,0.14); color: #07102a; }
@@ -683,6 +734,7 @@
 
           <!-- Pages -->
           <div id="pageSummary">
+            <div id="registrationTools" class="registration-tools">
             <section class="verification-bar" aria-labelledby="verificationTitle">
               <div class="verification-copy"><span aria-hidden="true">🔐</span><div><strong id="verificationTitle">Semak Kod Pengesahan Sistem</strong><span>Pastikan mesej WhatsApp sepadan dengan rekod sistem.</span></div></div>
               <form id="verificationForm" class="verification-form"><input id="verificationCodeInput" type="text" maxlength="18" autocomplete="off" placeholder="BC-26W38-XXXXXXXX" aria-label="Kod pengesahan sistem"><button class="btn" type="submit">Semak</button></form>
@@ -693,6 +745,7 @@
               <div id="summarySearchWrap" class="registration-search">
                 <input id="summarySearch" type="search" placeholder="Cari nama, unit, telefon, kenderaan atau kategori" aria-label="Cari senarai pendaftaran" />
               </div>
+            </div>
             </div>
             <div id="listAreaSummary"></div>
           </div>
@@ -1159,6 +1212,7 @@
   </script>
   <!-- Static units list used by admin views -->
   <script src="js/units-list.js"></script>
+  <script type="module" src="js/dashboard-plate-search.mjs"></script>
   <script type="module" src="js/dashboard.js?v=20261111-tabs-1"></script>
   <script type="module" src="js/dashboard-payments.mjs?v=20261015-type-1"></script>
   <script type="module" src="js/dashboard-category-review.mjs?v=20260911-3"></script>
