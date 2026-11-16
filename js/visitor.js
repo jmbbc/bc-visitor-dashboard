@@ -6,7 +6,7 @@ let homestayForm=null;
 import {parkingVehicleClass,isParkingExempt} from './parking-vehicle-type.mjs?v=20261015-type-1';
 // js/visitor.js - lengkap: grouped autocomplete + normalization + agreement checkbox
 import {
-  collection, serverTimestamp, Timestamp, doc, setDoc, deleteDoc, runTransaction, getDoc, getDocs, query, orderBy, limit
+  serverTimestamp, Timestamp, doc, setDoc, deleteDoc, runTransaction, getDoc
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import {nextFreeParkingDate,quoteFromUnitState} from './unit-cooldown.mjs?v=20261015-1';
 import {createRegistrationVerification,verificationExpiryDate,isVerificationCode} from './registration-verification.mjs?v=20260919-1';
@@ -2775,19 +2775,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const meta = await ensureUnitImportMeta();
       ts = meta.ts; label = meta.label;
     } catch(e) { console.warn('Gagal dapatkan unitMeta/import', e); }
-
-    if (!ts) {
-      try {
-        const qRef = query(collection(window.__FIRESTORE, 'units'), orderBy('lastUpdatedAt','desc'), limit(1));
-        const snap = await getDocs(qRef);
-        snap.forEach(d => {
-          const data = d.data() || {};
-          if (data.lastUpdatedAt) ts = data.lastUpdatedAt;
-        });
-      } catch (e) {
-        console.warn('Gagal dapatkan tarikh kemas kini units', e);
-      }
-    }
 
     target.textContent = ts ? ((formatDateTimeLocal(ts) || 'Tidak diketahui') + label) : 'Tidak diketahui';
   }
