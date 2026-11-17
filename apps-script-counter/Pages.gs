@@ -1,15 +1,22 @@
 function doPost(e) {
   let reply;
   try {
-    const { requestId, entry } = JSON.parse(e.parameter.payload);
+    const { requestId, entry, action, idToken } = JSON.parse(e.parameter.payload);
     const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-    if (typeof requestId !== 'string' || !uuid.test(requestId) ||
-        typeof entry?.id !== 'string' || !uuid.test(entry.id)) {
-      throw new Error('Invalid request');
+    if (action === 'counter-list') {
+      if (typeof requestId !== 'string' || !uuid.test(requestId)) throw new Error('Invalid request');
+      reply = { type: 'counter-list', requestId, ok: false };
+      reply.rows = listTodayCounterEntries_(idToken);
+      reply.ok = true;
+    } else {
+      if (typeof requestId !== 'string' || !uuid.test(requestId) ||
+          typeof entry?.id !== 'string' || !uuid.test(entry.id)) {
+        throw new Error('Invalid request');
+      }
+      reply = { type: 'counter-save', requestId, id: entry.id, ok: false };
+      const result = savePagesEntry_(entry);
+      reply.ok = result.id === entry.id;
     }
-    reply = { type: 'counter-save', requestId, id: entry.id, ok: false };
-    const result = savePagesEntry_(entry);
-    reply.ok = result.id === entry.id;
   } catch (_) {
     // Return an unconfirmed result without exposing storage errors.
   }

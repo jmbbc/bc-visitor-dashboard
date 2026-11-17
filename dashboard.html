@@ -522,6 +522,16 @@
     @media(max-width:760px){.registration-tools{grid-template-columns:minmax(0,1fr)}}
     @media(max-width:900px){.registration-list-head{align-items:stretch;flex-direction:column}.registration-search{min-width:0;width:100%}}
     #pageUnitArrears > h3.page-heading-box { background: linear-gradient(180deg, rgba(244,63,94,0.12), rgba(244,63,94,0.08)); border: 1px solid rgba(244,63,94,0.14); color: #4c0519; }
+    #counterToday { padding: 8px; }
+    #counterToday summary { font-size: 13px; font-weight: 700; cursor: pointer; }
+    #counterToday [role="status"] { margin: 5px 0; font-size: 11px; color: var(--muted); }
+    #counterToday .table-wrap { margin-top: 6px; border-radius: 7px; }
+    #counterToday .table { font-size: 11px; line-height: 1.35; }
+    #counterToday .table th, #counterToday .table td { padding: 5px 6px; overflow-wrap: anywhere; }
+    #counterToday .table th { background: #eef7f5; color: #365b54; font-size: 10px; }
+    #counterToday .table :is(th, td):first-child { width: 1%; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    #counterToday .table tbody tr:nth-child(even) { background: #f8fbfa; }
+    #counterToday button { margin-top: 6px; padding: 4px 8px; font-size: 11px; }
     #pageCheckedIn > h3.page-heading-box { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.08)); border: 1px solid rgba(79,70,229,0.14); color: #07102a; }
     #pageUnitSummary > h3.page-heading-box { background: linear-gradient(180deg, rgba(16,185,129,0.12), rgba(16,185,129,0.08)); border: 1px solid rgba(16,185,129,0.14); color: #064e3b; }
     .parking-review-panel{margin-bottom:12px;border:1px solid rgba(245,158,11,.28);background:linear-gradient(135deg,#fff 0%,#fffbeb 100%)}
@@ -782,6 +792,17 @@
           <div id="pageCheckedIn" style="display:none">
             <h3 class="page-heading-box" style="margin-top:6px">Pelawat Checked In — Hari Ini</h3>
             <div id="listAreaCheckedIn" style="margin-top:8px"></div>
+            <details id="counterToday" class="card" open style="margin-top:8px">
+              <summary>Daftar Masuk Kaunter</summary>
+              <p role="status"></p>
+              <div class="table-wrap">
+                <table class="table" hidden>
+                  <thead><tr><th scope="col">Masa masuk</th><th scope="col">Nama</th><th scope="col">Kategori</th><th scope="col">Destinasi</th><th scope="col">Nombor kenderaan</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <button type="button" class="btn-ghost">Muat semula rekod kaunter</button>
+            </details>
           </div>
 
           <div id="pageUnitSummary" style="display:none; margin-top:12px;">
@@ -1193,6 +1214,7 @@
     document.head.appendChild(style);
   </script>
   <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/dashboard-counter-today.mjs"></script>
   <!-- Load defaults first, then override with a local config if present -->
   <script src="config.example.js"></script>
   <script>

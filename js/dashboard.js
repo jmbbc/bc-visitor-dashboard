@@ -679,8 +679,8 @@ if (DASHBOARD_PREVIEW_MODE) {
     });
     const spinner = document.getElementById('spinner'); if (spinner) spinner.style.display = 'none';
     const requestedPreviewPage = new URLSearchParams(window.location.search).get('page');
-    const previewPage = requestedPreviewPage === 'parking' ? 'parking' : (requestedPreviewPage === 'summary' ? 'summary' : 'unitsummary');
-    const activePreviewNavId = previewPage === 'parking' ? 'navParking' : (previewPage === 'summary' ? 'navSummary' : 'navUnitSummary');
+    const previewPage = requestedPreviewPage === 'checkedin' ? 'checkedin' : requestedPreviewPage === 'parking' ? 'parking' : (requestedPreviewPage === 'summary' ? 'summary' : 'unitsummary');
+    const activePreviewNavId = previewPage === 'checkedin' ? 'navCheckedIn' : previewPage === 'parking' ? 'navParking' : (previewPage === 'summary' ? 'navSummary' : 'navUnitSummary');
     document.querySelectorAll('.head-nav .nav-item').forEach((button) => { button.disabled = button.id !== activePreviewNavId; });
     if (previewPage === 'parking') {
       document.body.dataset.dashboardPage = 'parking';
@@ -691,6 +691,9 @@ if (DASHBOARD_PREVIEW_MODE) {
       const previewParkingDateLabel = document.getElementById('parkingDateLabel');
       if (previewParkingDateLabel) previewParkingDateLabel.textContent = formatDateOnly(now);
       if (typeof window.__renderParkingWeekCalendar === 'function') window.__renderParkingWeekCalendar(isoDateString(now));
+    } else if (previewPage === 'checkedin') {
+      showPage('checkedin');
+      document.getElementById('counterToday').open = true;
     } else if (previewPage === 'summary') {
       showPage('summary');
       const previewStamp = (value) => new Date(value);
