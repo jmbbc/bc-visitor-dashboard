@@ -42,11 +42,11 @@ function requestCounterRows(idToken) {
       if (reply?.type !== 'counter-list' || reply.requestId !== requestId) return;
       cleanup();
       if (reply.ok && Array.isArray(reply.rows)) resolve(reply.rows);
-      else reject(new Error('Counter access or read failed'));
+      else reject(new Error(reply.code || 'COUNTER_READ'));
     }
     const timer = setTimeout(() => {
       cleanup();
-      reject(new Error('Counter response timed out'));
+      reject(new Error('COUNTER_TIMEOUT'));
     }, 25000);
     window.addEventListener('message', receive);
     document.body.append(frame, form);
@@ -100,8 +100,15 @@ async function showCounterToday({ silent = false } = {}) {
     }
     table.hidden = records.length === 0;
     status.textContent = records.length ? records.length + ' rekod hari ini.' : 'Tiada rekod kaunter hari ini.';
-  } catch {
-    if (auth.currentUser === user) status.textContent = 'Rekod kaunter gagal dimuatkan. Semak akses staf atau cuba lagi.';
+  } catch (error) {
+    const messages = {
+      COUNTER_CONFIG: 'Tetapan akses kaunter belum lengkap dalam Apps Script.',
+      COUNTER_AUTH_SERVICE: 'Apps Script gagal mengesahkan sesi Firebase. Minta admin semak tetapan Firebase dan kebenaran Apps Script.',
+      COUNTER_STAFF: 'Akaun ini tiada akses kepada rekod kaunter. Minta admin semak UID staf.',
+      COUNTER_READ: 'Apps Script tidak dapat memuatkan rekod kaunter. Cuba lagi atau minta admin semak log.',
+      COUNTER_TIMEOUT: 'Apps Script tidak memberi respons dalam 25 saat. Cuba muat semula rekod kaunter.',
+    };
+    if (auth.currentUser === user) status.textContent = messages[error.message] || 'Sesi Firebase gagal disahkan. Log masuk semula dan cuba lagi.';
   } finally {
     refresh.disabled = false;
   }

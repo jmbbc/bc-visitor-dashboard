@@ -3,11 +3,14 @@ function listTodayCounterEntries_(idToken) {
   const apiKey = properties.getProperty('COUNTER_FIREBASE_API_KEY');
   const staff = (properties.getProperty('COUNTER_STAFF_UIDS') || '')
     .split(',').map(uid => uid.trim()).filter(Boolean);
-  if (!apiKey || !staff.length || typeof idToken !== 'string' || idToken.length > 8192) {
+  if (!apiKey || !staff.length) throw new Error('COUNTER_CONFIG');
+  if (typeof idToken !== 'string' || idToken.length > 8192) {
     throw new Error('Akses ditolak.');
   }
 
-  const response = UrlFetchApp.fetch(
+  let response;
+  try {
+    response = UrlFetchApp.fetch(
     'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(apiKey),
     {
       method: 'post',
@@ -15,11 +18,14 @@ function listTodayCounterEntries_(idToken) {
       payload: JSON.stringify({ idToken }),
       muteHttpExceptions: true,
     }
-  );
-  if (response.getResponseCode() !== 200) throw new Error('Akses ditolak.');
+    );
+  } catch (_) {
+    throw new Error('COUNTER_AUTH_SERVICE');
+  }
+  if (response.getResponseCode() !== 200) throw new Error('COUNTER_AUTH_SERVICE');
   const account = JSON.parse(response.getContentText()).users?.[0];
   if (!account || account.disabled || !staff.includes(account.localId)) {
-    throw new Error('Akses ditolak.');
+    throw new Error('COUNTER_STAFF');
   }
 
   const sheet = SpreadsheetApp.openById(properties.getProperty('COUNTER_SPREADSHEET_ID'))

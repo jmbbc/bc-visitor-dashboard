@@ -17,8 +17,12 @@ function doPost(e) {
       const result = savePagesEntry_(entry);
       reply.ok = result.id === entry.id;
     }
-  } catch (_) {
-    // Return an unconfirmed result without exposing storage errors.
+  } catch (error) {
+    if (reply?.type === 'counter-list') {
+      const codes = ['COUNTER_CONFIG', 'COUNTER_AUTH_SERVICE', 'COUNTER_STAFF'];
+      reply.code = codes.includes(error.message) ? error.message : 'COUNTER_READ';
+      console.warn('Counter read failed: ' + reply.code);
+    }
   }
   const message = JSON.stringify(reply || null).replace(/</g, '\\u003c');
   return HtmlService.createHtmlOutput(
