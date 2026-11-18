@@ -193,12 +193,32 @@ body { background:#edf4fc; }
   width: 100%;
   min-width: 0;
 }
+#bc-counter-samples fieldset.ride-purpose { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+#bc-counter-samples .ride-purpose label { position: relative; margin: 0; cursor: pointer; }
+#bc-counter-samples .ride-purpose input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.ride-purpose-card { display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: center; gap: 4px; min-height: 54px; padding: 3px 4px; text-align: center; border: 1px solid #cbd9eb; border-radius: 7px; font-size: inherit; line-height: 1.15; }
+.ride-purpose-picture { width: 48px; height: 36px; border-radius: 4px; background: url('assets/counter-ride-purpose.png') -50.4px -97.6px / 204.8px 136.53px no-repeat; }
+.ride-purpose label:last-child .ride-purpose-picture { background-position: -114.67px -97.6px; }
+.ride-purpose input:checked + .ride-purpose-card { border-color: #1556be; background: #e9f2ff; font-weight: 700; }
+.ride-purpose input:focus-visible + .ride-purpose-card { outline: 2px solid #1556be; outline-offset: 2px; }
+</style>
+<style>
+#bc-counter-samples [data-counter-submit] { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+#bc-counter-samples [data-counter-submit][aria-busy="true"] { cursor:progress; }
+#bc-counter-samples [data-counter-submit][aria-busy="true"]::before {
+  content:""; width:14px; height:14px; flex:none; border:2px solid currentColor;
+  border-right-color:transparent; border-radius:50%; animation:counter-saving-spin .75s linear infinite;
+}
+@keyframes counter-saving-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) {
+  #bc-counter-samples [data-counter-submit][aria-busy="true"]::before { animation:none; }
+}
 </style>
 </head>
 <body>
 <main id="bc-counter-samples">
 <section class="ce" data-variant="Ringkas satu halaman" aria-label="Borang ringkas satu halaman">
- <div class="ce-shell"><header><div class="ce-brand">BANJARIA COURT · PONDOK KESELAMATAN</div><h2>Daftar Masuk Kaunter</h2><p class="ce-muted">Isi selepas mendapat keizinan pengawal.</p><div class="ce-mode" aria-label="Cara pendaftaran"><button type="button" aria-pressed="true" data-mode="self" class="cursor-interaction">Isi sendiri</button><button type="button" aria-pressed="false" data-mode="guard" class="cursor-interaction">Oleh sekuriti</button></div></header><div class="ce-body" data-main><form data-form><label>Kategori<select data-category name="Kategori"></select></label><div data-fields class="ce-fields"></div><div class="ce-note" data-source>Masa pendaftaran direkodkan secara automatik.</div><button class="ce-primary ce-full cursor-interaction">Daftar Masuk</button><p class="ce-error" data-error role="alert"></p></form></div><div data-success class="ce-success" hidden></div></div>
+ <div class="ce-shell"><header><div class="ce-brand">BANJARIA COURT · PONDOK KESELAMATAN</div><h2>Daftar Masuk Kaunter</h2><p class="ce-muted">Isi selepas mendapat keizinan pengawal.</p><div class="ce-mode" aria-label="Cara pendaftaran"><button type="button" aria-pressed="true" data-mode="self" class="cursor-interaction">Isi sendiri</button><button type="button" aria-pressed="false" data-mode="guard" class="cursor-interaction">Oleh sekuriti</button></div></header><div class="ce-body" data-main><form data-form><label>Kategori<select data-category name="Kategori"></select></label><div data-fields class="ce-fields"></div><div class="ce-note" data-source>Masa pendaftaran direkodkan secara automatik.</div><button type="submit" data-counter-submit class="ce-primary ce-full cursor-interaction">Daftar Masuk</button><p class="ce-error" data-error role="alert"></p></form></div><div data-success class="ce-success" hidden></div></div>
 </section>
 </main>
 <script>// js/units-list.js
@@ -417,7 +437,7 @@ updateSelection();})();
 const counterForm = document.querySelector('[data-form]');
 const status = document.createElement('p');
 status.setAttribute('role', 'status');
-const submitButton = counterForm.querySelector('[data-error]').previousElementSibling;
+const submitButton = counterForm.querySelector('[data-counter-submit]');
 submitButton.after(status);
 
 document.querySelectorAll('[data-mode="guard"]').forEach(button => { button.hidden = true; });
@@ -429,6 +449,12 @@ responseFrame.hidden = true;
 document.body.append(responseFrame);
 let pending;
 let saving = false;
+function setSaving(active) {
+  saving = active;
+  submitButton.disabled = active;
+  submitButton.setAttribute('aria-busy', String(active));
+  submitButton.textContent = active ? 'Sedang mendaftar…' : 'Daftar Masuk';
+}
 counterForm.addEventListener('submit', event => {
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -450,15 +476,15 @@ counterForm.addEventListener('submit', event => {
   if (pending?.signature !== signature) {
     pending = { signature, entry: { id: crypto.randomUUID(), category, details: fields } };
   }
-  saving = true;
+  setSaving(true);
   status.textContent = 'Menyimpan pendaftaran…';
   const timeout = setTimeout(() => finish(), 25000);
   function finish(result) {
     clearTimeout(timeout);
     window.removeEventListener('message', receive);
-    saving = false;
+    setSaving(false);
     status.textContent = result?.ok
-      ? 'Pendaftaran berjaya. ID pendaftaran ' + result.id
+      ? 'Pendaftaran berjaya.'
       : 'Simpanan belum disahkan. Tekan Daftar Masuk sekali lagi untuk mencuba semula.';
     status.scrollIntoView({ block: 'nearest' });
   }
