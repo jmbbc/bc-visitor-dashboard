@@ -35,29 +35,41 @@ const byId = id => document.getElementById(id);
 const wheels = [...document.querySelectorAll('.wheel')];
 const rows = window.UNITS_STATIC.map(code => code.split('-'));
 const values = [];
+const preferredValues = [];
 const chosen = [];
 const panel = byId('panel');
 
 function renderWheel(index) {
   const wheel = wheels[index];
   const options = [...new Set(rows.filter(row => values.slice(0,index).every((value,i) => row[i] === value)).map(row => row[index]))];
-  values[index] = options[0];
+  const preferred = preferredValues[index];
+  values[index] = options.includes(preferred) ? preferred : options[0];
+  const numericOptions = options.filter(value => /^\d+$/.test(value));
+  if (!options.includes(preferred) && /^\d+$/.test(preferred) && numericOptions.length) {
+    values[index] = numericOptions.reduce((nearest, value) =>
+      Math.abs(Number(value) - Number(preferred)) < Math.abs(Number(nearest) - Number(preferred))
+        ? value : nearest
+    );
+  }
   wheel.replaceChildren(...options.map(value => {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = value;
     button.setAttribute('aria-pressed', String(value === values[index]));
     button.onclick = () => {
+      preferredValues[index] = value;
       wheel.scrollTop = button.offsetTop - wheel.firstElementChild.offsetTop;
       select(index, button);
     };
     return button;
   }));
-  wheel.scrollTop = 0;
+  const selected = wheel.children[options.indexOf(values[index])];
+  wheel.scrollTop = selected.offsetTop - wheel.firstElementChild.offsetTop;
 }
 function select(index, button) {
   const wheel = wheels[index];
   if (values[index] === button.textContent) return;
+  preferredValues[index] = button.textContent;
   values[index] = button.textContent;
   for (const option of wheel.children) option.setAttribute('aria-pressed', String(option === button));
   for (let next = index + 1; next < wheels.length; next++) renderWheel(next);

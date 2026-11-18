@@ -193,10 +193,11 @@ body { background:#edf4fc; }
   width: 100%;
   min-width: 0;
 }
-#bc-counter-samples fieldset.ride-purpose { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
-#bc-counter-samples .ride-purpose label { position: relative; margin: 0; cursor: pointer; }
+#bc-counter-samples fieldset.ride-purpose { width: 100%; min-width: 0; margin: 0 0 8px; padding: 0; border: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#bc-counter-samples .ride-purpose legend { padding: 0; margin-bottom: 6px; font-size: 13px; font-weight: 600; }
+#bc-counter-samples .ride-purpose label { position: relative; min-width: 0; margin: 0; cursor: pointer; }
 #bc-counter-samples .ride-purpose input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.ride-purpose-card { display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: center; gap: 4px; min-height: 54px; padding: 3px 4px; text-align: center; border: 1px solid #cbd9eb; border-radius: 7px; font-size: inherit; line-height: 1.15; }
+.ride-purpose-card { display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: center; gap: 4px; height: 100%; min-height: 48px; padding: 5px 6px; text-align: center; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); font-size: 12px; line-height: 1.25; overflow-wrap: anywhere; }
 .ride-purpose-picture { width: 48px; height: 36px; border-radius: 4px; background: url('assets/counter-ride-purpose.png') -50.4px -97.6px / 204.8px 136.53px no-repeat; }
 .ride-purpose label:last-child .ride-purpose-picture { background-position: -114.67px -97.6px; }
 .ride-purpose input:checked + .ride-purpose-card { border-color: #1556be; background: #e9f2ff; font-weight: 700; }
@@ -213,6 +214,17 @@ body { background:#edf4fc; }
 @media (prefers-reduced-motion:reduce) {
   #bc-counter-samples [data-counter-submit][aria-busy="true"]::before { animation:none; }
 }
+</style>
+<style>
+#bc-counter-samples fieldset.delivery-type { display: block; width: 100%; min-width: 0; margin: 0 0 8px; padding: 0; border: 0; }
+#bc-counter-samples .delivery-type legend { padding: 0; margin-bottom: 6px; font-size: 13px; font-weight: 600; }
+#bc-counter-samples .delivery-type-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#bc-counter-samples .delivery-type .ce-inline { margin: 0; min-width: 0; min-height: 44px; padding: 6px 8px; gap: 6px; font-size: 12px; line-height: 1.25; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); cursor: pointer; }
+#bc-counter-samples .delivery-type .ce-inline:has(input:checked) { border-color: var(--brand); background: var(--soft); }
+#bc-counter-samples .delivery-type-icon { flex: 0 0 26px; height: 26px; }
+#bc-counter-samples .delivery-type-icon svg { display: block; width: 100%; height: 100%; }
+#bc-counter-samples .delivery-type-label { flex: 1; min-width: 0; text-align: center; font-weight: 700; overflow-wrap: anywhere; }
+#bc-counter-samples .delivery-type .ce-inline input { flex: 0 0 15px; width: 15px; height: 15px; accent-color: var(--brand); }
 </style>
 </head>
 <body>
@@ -290,7 +302,28 @@ window.UNITS_STATIC = [
 </script>
 <script>
 
-(()=>{const root=document.getElementById('bc-counter-samples');const cats=[['ride','E-hailing / Teksi','car-taxi-front','E-hailing'],['delivery','Penghantaran makanan / barang','package','Penghantaran'],['resident','Penghuni tanpa kad akses','house','Penghuni'],['office','Pejabat & Urusan Rasmi','building-2','Pejabat / Rasmi'],['visitor','Pelawat tanpa prapendaftaran','users','Pelawat'],['service','Utiliti','wrench','Utiliti'],['sales','Jualan / Promosi','megaphone','Jualan'],['other','Lain-lain','ellipsis','Lain-lain']];const defaultCategory=['delivery'];const selectField=(name,options)=>{const label=document.createElement('label');label.append(document.createTextNode(name));const select=document.createElement('select');select.name=name;options.forEach(text=>{const o=document.createElement('option');o.textContent=text;select.append(o);});label.append(select);return label;};const textField=(name,value,required=true,type='text')=>{const label=document.createElement('label');label.append(document.createTextNode(name+(required?'':' (pilihan)')));const input=document.createElement('input');Object.assign(input,{name,value,required,type});label.append(input);return label;};root.querySelectorAll('.ce').forEach((stage,index)=>{const q=s=>stage.querySelector(s);let category=defaultCategory[index],mode=index===2?'guard':'self',selectedButton;const form=q('[data-form]'),fields=q('[data-fields]');const catName=()=>cats.find(c=>c[0]===category)[1];const renderFields=()=>{fields.replaceChildren();if(category==='delivery'){fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang']),textField('Unit dituju',''));}else if(category==='ride'){fields.append(selectField('Tujuan',['Ambil penumpang','Hantar penumpang']),textField('Nama pemandu',''),selectField('Perkhidmatan',['Grab','Teksi','Lain-lain']),selectField('Lokasi menunggu',['Lobi Blok A']));}else if(category==='resident'){fields.append(textField('Nama penghuni',''),textField('Unit rumah',''),textField('Nombor telefon','',true,'tel'),selectField('Sebab tiada kad',['Kad tertinggal','Kad hilang','Kad rosak','Belum menerima kad']));}else{fields.append(textField('Nama',''),textField('Nombor telefon','',true,'tel'));if(['delivery','visitor'].includes(category))fields.append(textField('Unit dituju',''));if(category==='sales')fields.append(selectField('Destinasi',['Pejabat Pengurusan']));if (category === 'office') { fields.append(selectField('Jenis urusan', ['Pejabat Pengurusan']), selectField('Lokasi dituju', ['Pejabat Pengurusan'])); } else if (category === 'other') { fields.append(textField('Lokasi dituju', '')); }if(['delivery','office','sales'].includes(category))fields.append(textField('Syarikat / Organisasi','',false));if(category==='delivery')fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang','Lain-lain']));if(['office','service','official','sales','other'].includes(category))fields.append(textField('Tujuan',''));}function makeUnitPicker(unitName, multiple = false) {
+(()=>{const root=document.getElementById('bc-counter-samples');const cats=[['ride','E-hailing / Teksi','car-taxi-front','E-hailing'],['delivery','Penghantaran makanan / barang','package','Penghantaran'],['resident','Penghuni tanpa kad akses','house','Penghuni'],['office','Pejabat & Urusan Rasmi','building-2','Pejabat / Rasmi'],['visitor','Pelawat tanpa prapendaftaran','users','Pelawat'],['service','Utiliti','wrench','Utiliti'],['sales','Jualan / Promosi','megaphone','Jualan'],['other','Lain-lain','ellipsis','Lain-lain']];const defaultCategory=['delivery'];const selectField=(name,options)=>{const label=document.createElement('label');label.append(document.createTextNode(name));const select=document.createElement('select');select.name=name;options.forEach(text=>{const o=document.createElement('option');o.textContent=text;select.append(o);});label.append(select);return label;};const textField=(name,value,required=true,type='text')=>{const label=document.createElement('label');label.append(document.createTextNode(name+(required?'':' (pilihan)')));const input=document.createElement('input');Object.assign(input,{name,value,required,type});label.append(input);return label;};root.querySelectorAll('.ce').forEach((stage,index)=>{const q=s=>stage.querySelector(s);let category=defaultCategory[index],mode=index===2?'guard':'self',selectedButton;const form=q('[data-form]'),fields=q('[data-fields]');const catName=()=>cats.find(c=>c[0]===category)[1];const renderFields=()=>{fields.replaceChildren();if(category==='delivery'){fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang']),textField('Unit dituju',''));}else if(category==='ride'){fields.append(ridePurposeField(),textField('Nama pemandu',''),selectField('Perkhidmatan',['Grab','Teksi','Lain-lain']),selectField('Lokasi menunggu',['Lobi Blok A']));}else if(category==='resident'){fields.append(textField('Nama penghuni',''),textField('Unit rumah',''),textField('Nombor telefon','',true,'tel'),selectField('Sebab tiada kad',['Kad tertinggal','Kad hilang','Kad rosak','Belum menerima kad']));}else{fields.append(textField('Nama',''),textField('Nombor telefon','',true,'tel'));if(['delivery','visitor'].includes(category))fields.append(textField('Unit dituju',''));if(category==='sales')fields.append(selectField('Destinasi',['Pejabat Pengurusan']));if (category === 'office') { fields.append(selectField('Jenis urusan', ['Pejabat Pengurusan']), selectField('Lokasi dituju', ['Pejabat Pengurusan'])); } else if (category === 'other') { fields.append(textField('Lokasi dituju', '')); }if(['delivery','office','sales'].includes(category))fields.append(textField('Syarikat / Organisasi','',false));if(category==='delivery')fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang','Lain-lain']));if(['office','service','official','sales','other'].includes(category))fields.append(textField('Tujuan',''));}function ridePurposeField() {
+  const field = document.createElement('fieldset');
+  field.className = 'ride-purpose';
+  const legend = document.createElement('legend');
+  legend.textContent = 'Tujuan';
+  field.append(legend);
+  ['Ambil penumpang', 'Hantar penumpang'].forEach((value, index) => {
+    const label = document.createElement('label');
+    const radio = document.createElement('input');
+    Object.assign(radio, { type: 'radio', name: 'Tujuan', value, checked: index === 0 });
+    const card = document.createElement('span');
+    card.className = 'ride-purpose-card';
+    const picture = document.createElement('span');
+    picture.className = 'ride-purpose-picture';
+    picture.setAttribute('aria-hidden', 'true');
+    card.append(picture, value);
+    label.append(radio, card);
+    field.append(label);
+  });
+  return field;
+}
+function makeUnitPicker(unitName, multiple = false) {
   const fieldset = document.createElement('fieldset');
   const label = document.createElement('legend');
   label.textContent = unitName;
@@ -323,8 +356,35 @@ for (const input of fields.querySelectorAll('input[name="Unit dituju"], input[na
   input.parentElement.replaceWith(makeUnitPicker(input.name));
 }
 if (category === 'delivery') {
-  const deliveryType = fields.querySelector('select[name="Jenis penghantaran"]');
+  const deliverySelect = fields.querySelector('select[name="Jenis penghantaran"]');
   const unitPicker = fields.querySelector('fieldset');
+  const deliveryType = document.createElement('fieldset');
+  deliveryType.className = 'delivery-type';
+  const legend = document.createElement('legend');
+  legend.textContent = 'Jenis penghantaran';
+  const choices = document.createElement('div');
+  choices.className = 'delivery-type-options';
+  for (const option of deliverySelect.options) {
+    const label = document.createElement('label');
+    label.className = 'ce-inline';
+    const radio = document.createElement('input');
+    Object.assign(radio, {
+      type: 'radio', name: deliverySelect.name, value: option.value, checked: option.selected,
+    });
+    const icon = document.createElement('span');
+    icon.className = 'delivery-type-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = option.value === 'Makanan'
+      ? '<svg viewBox="0 0 32 32"><path fill="#58a9ed" d="M19 10h11l-2 17h-7z"/><path fill="none" stroke="#1556be" stroke-width="2" stroke-linecap="round" d="m24 12 2-8 4-1"/><path fill="#ffbd64" d="M2 20a9 8 0 0 1 18 0z"/><rect x="2" y="21" width="18" height="3" rx="1.5" fill="#55884b"/><path fill="#b86b37" d="M2 25h18a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/></svg>'
+      : '<svg viewBox="0 0 32 32"><path fill="#f4b565" d="m3 9 13-5 13 5-13 5z"/><path fill="#d98943" d="M3 9l13 5v15L3 23z"/><path fill="#eaa355" d="m16 14 13-5v14l-13 6z"/><path fill="#ffe3a9" d="m10 6 13 5v7l-4 2v-7L6 8z"/></svg>';
+    const text = document.createElement('span');
+    text.className = 'delivery-type-label';
+    text.textContent = option.textContent;
+    label.append(radio, icon, text);
+    choices.append(label);
+  }
+  deliveryType.append(legend, choices);
+  deliverySelect.parentElement.replaceWith(deliveryType);
   const scope = selectField('Bilangan rumah', ['Satu rumah', 'Banyak rumah']);
   const scopeSelect = scope.querySelector('select');
   const pg = selectField('Destinasi', ['Kawasan PG']);
@@ -333,7 +393,7 @@ if (category === 'delivery') {
   unitPicker.after(pg);
 
   function updateDeliveryDestination() {
-    const isParcel = deliveryType.value === 'Bungkusan / Barang';
+    const isParcel = deliveryType.querySelector('input:checked')?.value === 'Bungkusan / Barang';
     const usePG = isParcel && scopeSelect.value === 'Banyak rumah';
     scope.hidden = !isParcel;
     scopeSelect.disabled = !isParcel;
@@ -459,6 +519,10 @@ counterForm.addEventListener('submit', event => {
   event.preventDefault();
   event.stopImmediatePropagation();
   if (saving) return;
+  if (location.hostname === '127.0.0.1' && new URLSearchParams(location.search).has('preview')) {
+    status.textContent = 'Pratonton sahaja.';
+    return;
+  }
   const formData = new FormData(counterForm);
   const missingUnit = [...counterForm.querySelectorAll('[data-wheel-field]')]
     .find(field => !field.disabled && !field.hidden && !formData.get(field.dataset.wheelField));
