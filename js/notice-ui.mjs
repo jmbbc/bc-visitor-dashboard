@@ -13,19 +13,34 @@ export function noticeImageUrl(value) {
   return 'https://drive.google.com/uc?' + params;
 }
 
+const categoryBanners = new Map([
+  ['Acara', ['acara-gotong-royong', 'acara-jamuan']],
+  ['Makluman', ['makluman-papan-notis', 'makluman-kenderaan']],
+  ['Penyelenggaraan', ['penyelenggaraan-paip', 'penyelenggaraan-lampu']],
+]);
+export function noticeBannerUrl(notice) {
+  const custom = noticeImageUrl(notice.imageUrl);
+  if (custom) return custom;
+  const banners = categoryBanners.get(notice.category);
+  if (!banners) return '';
+  const key = String(notice.id || notice.title || '');
+  const index = [...key].reduce((sum, char) => sum + char.codePointAt(0), 0) % banners.length;
+  return 'assets/notice-banners/' + banners[index] + '.png';
+}
+
 export function noticeCard(n, detail = false, {summaryOnly=false} = {}) {
   const card=el('article',null,`notice-card ${n.pinned?'pinned':''}`);
   card.append(el('p',`${n.pinned?'PENTING · ':''}${n.category}`,'notice-tag'),el(detail?'h1':'h3',n.title));
   if(n.startsAt) card.append(el('p',dateLabel(n.startsAt),'notice-meta'));
   if(n.location) card.append(el('p',n.location,'notice-meta'));
-  const imageUrl = summaryOnly ? '' : noticeImageUrl(n.imageUrl);
+  const imageUrl = summaryOnly ? '' : noticeBannerUrl(n);
   if (imageUrl) {
     const img = el('img');
     img.alt = n.title;
     img.loading = 'lazy';
     img.onerror = () => {
       const link = el('a', 'Buka Gambar', 'notice-link');
-      link.href = n.imageUrl;
+      link.href = noticeImageUrl(n.imageUrl) ? n.imageUrl : imageUrl;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       img.replaceWith(link);

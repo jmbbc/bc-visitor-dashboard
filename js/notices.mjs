@@ -1,7 +1,7 @@
 import {previewNotice} from './notice-preview.mjs';
 import {loadNotices,loadNotice} from './notice-store.mjs';
 import {matchesNotice,upcoming} from './notice-policy.mjs';
-import {noticeCard,noticeImageUrl,el} from './notice-ui.mjs?v=2';
+import {noticeCard,noticeBannerUrl,noticeImageUrl,el} from './notice-ui.mjs?v=3';
 
 const list=document.getElementById('noticeList');
 const status=document.getElementById('noticeStatus');
@@ -25,12 +25,12 @@ function renderEvent(n){
     featured.append(empty);
     return;
   }
-  const imageUrl=noticeImageUrl(n.imageUrl);
-  const hasNoticeImage=Boolean(imageUrl);
+  const imageUrl=noticeBannerUrl(n);
+  const hasNoticeImage=Boolean(noticeImageUrl(n.imageUrl));
   const card=el('article',null,`event-card${hasNoticeImage?'':' illustrative'}`);
   const image=el('img');
   image.className='event-image';
-  image.src=hasNoticeImage?imageUrl:'assets/community-gardening-event.png';
+  image.src=imageUrl||'assets/community-gardening-event.png';
   image.alt=hasNoticeImage?'Gambar untuk acara komuniti: '+n.title:'Gambar ilustrasi suasana taman komuniti';
   image.loading='lazy';
   image.onerror=()=>{image.hidden=true;};

@@ -1,5 +1,5 @@
 import {previewNotice} from './notice-preview.mjs';
-import {noticeImageUrl} from './notice-ui.mjs?v=2';
+import {noticeBannerUrl} from './notice-ui.mjs?v=3';
 import {loadNotices} from './notice-store.mjs';
 
 const list = document.getElementById('homeNoticeList');
@@ -24,7 +24,7 @@ try {
     if (index === 0) {
       link.className = 'home-notice-feature';
       copy.className = 'home-notice-copy';
-      const imageUrl = preview ? 'assets/community-gardening-event.png' : noticeImageUrl(notice.imageUrl);
+      const imageUrl = preview ? 'assets/community-gardening-event.png' : noticeBannerUrl(notice);
       if (imageUrl) {
         const image = document.createElement('img');
         image.className = 'home-notice-image';
