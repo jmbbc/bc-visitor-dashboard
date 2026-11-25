@@ -1,5 +1,5 @@
 import {previewNotice} from './notice-preview.mjs';
-import {noticeBannerUrl} from './notice-ui.mjs?v=3';
+import {noticeBannerUrl} from './notice-ui.mjs?v=4';
 import {loadNotices} from './notice-store.mjs';
 
 const list = document.getElementById('homeNoticeList');
@@ -29,7 +29,16 @@ try {
         const image = document.createElement('img');
         image.className = 'home-notice-image';
         image.alt = '';
-        image.addEventListener('error', () => image.remove(), {once: true});
+        let fallback = noticeBannerUrl(notice, {categoryOnly: true});
+        if (fallback === imageUrl) fallback = '';
+        image.addEventListener('error', () => {
+          if (!fallback) {
+            image.remove();
+            return;
+          }
+          image.src = fallback;
+          fallback = '';
+        });
         image.src = imageUrl;
         link.append(image);
       }

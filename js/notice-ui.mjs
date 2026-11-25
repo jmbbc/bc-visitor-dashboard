@@ -18,9 +18,9 @@ const categoryBanners = new Map([
   ['Makluman', ['makluman-papan-notis', 'makluman-kenderaan']],
   ['Penyelenggaraan', ['penyelenggaraan-paip', 'penyelenggaraan-lampu']],
 ]);
-export function noticeBannerUrl(notice) {
+export function noticeBannerUrl(notice, {categoryOnly = false} = {}) {
   const custom = noticeImageUrl(notice.imageUrl);
-  if (custom) return custom;
+  if (custom && !categoryOnly) return custom;
   const banners = categoryBanners.get(notice.category);
   if (!banners) return '';
   const key = String(notice.id || notice.title || '');
@@ -38,7 +38,14 @@ export function noticeCard(n, detail = false, {summaryOnly=false} = {}) {
     const img = el('img');
     img.alt = n.title;
     img.loading = 'lazy';
+    let fallback = noticeBannerUrl(n, {categoryOnly: true});
+    if (fallback === imageUrl) fallback = "";
     img.onerror = () => {
+      if (fallback) {
+        img.src = fallback;
+        fallback = "";
+        return;
+      }
       const link = el('a', 'Buka Gambar', 'notice-link');
       link.href = noticeImageUrl(n.imageUrl) ? n.imageUrl : imageUrl;
       link.target = '_blank';
