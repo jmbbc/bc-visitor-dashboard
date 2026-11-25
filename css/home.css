@@ -8,3 +8,12 @@
 .home-notice-quick ul{display:grid;gap:6px;margin:0;padding:0;list-style:none}
 .home-notice-quick .service{min-height:44px;margin:0;padding:8px 12px;gap:8px}
 .home-notice-quick .service strong{font-size:14px;overflow-wrap:anywhere}
+
+.home-notice-feature{display:block;overflow:hidden;border:1px solid #e5dece;border-radius:16px;background:#fff9ed;color:#103a25;text-decoration:none}
+.home-notice-image{display:block;width:100%;height:clamp(96px,28vw,145px);object-fit:cover}
+.home-notice-copy{position:relative;display:grid;gap:5px;padding:12px 14px;background:#fff9ed}
+.home-notice-image+.home-notice-copy{margin-top:-10px;border-radius:50% 50% 0 0 / 10px 10px 0 0}
+.home-notice-copy strong{font-size:16px;line-height:1.3}
+.home-notice-excerpt{font-size:12px;line-height:1.45;color:#244d36}
+.home-notice-action{display:flex;align-items:center;justify-content:flex-end;gap:4px;font-size:12px;font-weight:800}
+.home-notice-action img{width:14px;height:14px}

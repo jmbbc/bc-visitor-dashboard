@@ -1,3 +1,4 @@
+import {previewNotice} from './notice-preview.mjs';
 import {loadNotices,loadNotice} from './notice-store.mjs';
 import {matchesNotice,upcoming} from './notice-policy.mjs';
 import {noticeCard,noticeImageUrl,el} from './notice-ui.mjs?v=2';
@@ -124,7 +125,10 @@ try{
     list.parentElement.removeAttribute('aria-labelledby');
     more.hidden=true;
     status.textContent='';
-    const n=await loadNotice(id);
+    const isPreview = location.hostname === '127.0.0.1' &&
+      new URLSearchParams(location.search).get('preview') === '1' && id === previewNotice.id;
+    const n = isPreview ? previewNotice : await loadNotice(id);
+    if (isPreview) back.href = 'index.html?preview=1#upcoming-title';
     if(n){list.append(noticeCard(n,true));document.title=`${n.title} — Banjaria Court`;}
     else status.textContent='Notis tidak ditemui.';
   }else{
