@@ -1,6 +1,6 @@
 import {loadNotices,loadNotice} from './notice-store.mjs';
-import {matchesNotice,upcoming,validUrl} from './notice-policy.mjs';
-import {noticeCard,el} from './notice-ui.mjs';
+import {matchesNotice,upcoming} from './notice-policy.mjs';
+import {noticeCard,noticeImageUrl,el} from './notice-ui.mjs?v=2';
 
 const list=document.getElementById('noticeList');
 const status=document.getElementById('noticeStatus');
@@ -24,14 +24,15 @@ function renderEvent(n){
     featured.append(empty);
     return;
   }
-  const hasNoticeImage=Boolean(n.imageUrl&&validUrl(n.imageUrl));
+  const imageUrl=noticeImageUrl(n.imageUrl);
+  const hasNoticeImage=Boolean(imageUrl);
   const card=el('article',null,`event-card${hasNoticeImage?'':' illustrative'}`);
   const image=el('img');
   image.className='event-image';
-  image.src=hasNoticeImage?n.imageUrl:'assets/community-gardening-event.png';
+  image.src=hasNoticeImage?imageUrl:'assets/community-gardening-event.png';
   image.alt=hasNoticeImage?'Gambar untuk acara komuniti: '+n.title:'Gambar ilustrasi suasana taman komuniti';
   image.loading='lazy';
-  image.onerror=()=>{if(image.src.endsWith('community-gardening-event.png'))image.hidden=true;};
+  image.onerror=()=>{image.hidden=true;};
   card.append(image);
 
   const content=el('div',null,'event-content');
