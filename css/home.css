@@ -3,3 +3,8 @@
 .home :is(#menu-title,#upcoming-title){display:block;background:rgba(255,255,255,.88);border:1px solid #e4e2d7;border-radius:10px;padding:12px 15px;margin:0 0 12px;color:#093e2b;line-height:1.25}
 
 .home :is(#menu-title,#upcoming-title){font-size:16px;letter-spacing:-.4px}@media(max-width:359px){.home :is(#menu-title,#upcoming-title){font-size:14px}}@media(min-width:700px){.home :is(#menu-title,#upcoming-title){font-size:22px}}
+
+.home-notice-quick{margin-bottom:16px}
+.home-notice-quick ul{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.home-notice-quick .service{min-height:44px;margin:0;padding:8px 12px;gap:8px}
+.home-notice-quick .service strong{font-size:14px;overflow-wrap:anywhere}

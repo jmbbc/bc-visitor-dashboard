@@ -7,7 +7,7 @@
 <title>Portal Komuniti — Banjaria Court</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/home.css?v=20261104-headings-1">
+<link rel="stylesheet" href="css/home.css?v=20261125-notices">
 <link rel="stylesheet" href="css/notices.css?v=20261107-countdown-1">
 <link rel="stylesheet" href="css/portal-visits.css?v=20261020-2">
 <link rel="stylesheet" href="css/ui-motion.css?v=20261104-1">
@@ -27,6 +27,10 @@
 <p>Portal komuniti anda</p>
 </section>
 <nav id="pilihan" aria-labelledby="menu-title">
+<section class="home-notice-quick" aria-labelledby="upcoming-title" hidden>
+<h2 id="upcoming-title">Notis Terkini</h2>
+<ul id="homeNoticeList"></ul>
+</section>
 <h2 id="menu-title">Pilihan anda</h2>
 <a class="service primary" href="visitor.html">
 <img src="assets/home-visitors.svg" alt="">
@@ -70,5 +74,6 @@
 <footer>Pengurusan Banjaria Court</footer>
 </main>
 <script type="module" src="js/portal-visits.mjs?v=20261020-1"></script>
+<script type="module" src="js/home-notices.mjs"></script>
 </body>
 </html>
