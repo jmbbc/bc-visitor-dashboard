@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#fffaf0">
+  <title>Papan Notis — Banjaria Court</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/notices.css">
+</head>
+<body>
+  <main class="notice-page">
+    <header class="notice-header">
+      <a class="back-link" href="index.html" aria-label="Kembali ke halaman utama"><span aria-hidden="true">‹</span> Utama</a>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <img src="assets/jmb-banjaria-logo.png" alt="">
+      <div class="brand-copy"><strong>Banjaria Court</strong><span>Portal Komuniti</span></div>
+    </header>
+
+    <section class="intro" aria-labelledby="pageTitle">
+      <h1 id="pageTitle">Papan Notis</h1>
+      <p>Berita dan makluman komuniti</p>
+      <span class="content-label">KANDUNGAN RASMI</span>
+    </section>
+
+    <section id="noticeFilters" class="notice-filters" aria-label="Cari dan tapis notis">
+      <label class="sr-only" for="noticeSearch">Cari notis</label>
+      <div class="search-wrap"><span class="search-icon" aria-hidden="true"></span><input id="noticeSearch" type="search" placeholder="Cari notis…" autocomplete="off"></div>
+      <div id="noticeCategories" class="category-pills" role="group" aria-label="Tapis kategori">
+        <button type="button" data-category="" aria-pressed="true">Semua</button>
+        <button type="button" data-category="Acara" aria-pressed="false">Acara</button>
+        <button type="button" data-category="Makluman" aria-pressed="false">Makluman</button>
+        <button type="button" data-category="Penyelenggaraan" aria-pressed="false">Penyelenggaraan</button>
+      </div>
+    </section>
+
+    <p id="noticeStatus" class="notice-status" role="status" aria-live="polite">Memuat notis…</p>
+    <section id="featuredEvent" class="featured-event" aria-label="Acara akan datang"></section>
+    <section class="latest-section" aria-labelledby="latestHeading">
+      <div class="section-title"><h2 id="latestHeading">Makluman Terbaru</h2><span class="title-rule" aria-hidden="true"></span></div>
+      <div id="noticeList" class="notice-list"></div>
+      <button id="noticeMore" class="older-button" hidden>Lihat Notis Terdahulu <span aria-hidden="true">›</span></button>
+    </section>
+    <footer class="notice-footer">
+      <span>Pengurusan Banjaria Court</span>
+      <a class="admin-login-link" href="https://script.google.com/macros/s/AKfycbyt8tJAti-2ahVA7OmQyPUUt1Gv8GViyep08lHNYXdj8iC7eCHXoVHfQP6TBrX1ut-I/exec?page=admin">Log Masuk Admin</a>
+    </footer>
+  </main>
+  <script type="module" src="js/notices.mjs"></script>
+</body>
+</html>
