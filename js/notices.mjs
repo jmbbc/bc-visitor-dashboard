@@ -117,7 +117,11 @@ try{
   if(id){
     document.getElementById('noticeFilters').hidden=true;
     featured.hidden=true;
-    latestHeading.hidden=true;
+    const back = el('a', '‹ Kembali ke Papan Notis', 'notice-back');
+    back.href = 'notices.html';
+    latestHeading.parentElement.replaceWith(back);
+    list.parentElement.setAttribute('aria-label', 'Butiran notis');
+    list.parentElement.removeAttribute('aria-labelledby');
     more.hidden=true;
     status.textContent='';
     const n=await loadNotice(id);

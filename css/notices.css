@@ -134,3 +134,4 @@ body{color:var(--ink);background:var(--cream)}
 @media(min-width:700px){.home.with-feed .agm-compact .agm-card-image{height:145px}.home.with-feed .agm-compact .agm-card-image img{top:-55px}.home.with-feed .agm-compact .agm-card-content{padding:8px 16px 14px}.home.with-feed .agm-compact h3{font-size:19px}.home.with-feed .agm-compact .notice-meta,.home.with-feed .agm-compact .notice-body{font-size:13px}}
 
 .home.with-feed .agm-compact .agm-countdown{display:inline-block;margin:0 0 7px;padding:3px 9px;border-radius:999px;background:#dcebcf;color:#17452d;font-size:12px;font-weight:800;line-height:1.4}
+.notice-back{display:inline-flex;align-items:center;min-height:44px;margin:0 0 12px;padding:6px 14px;border:1px solid #bfd3cb;border-radius:8px;background:#fff;color:#145945;font-weight:700;text-decoration:none}.notice-back:hover{text-decoration:underline}
