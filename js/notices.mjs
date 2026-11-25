@@ -8,7 +8,7 @@ const search=document.getElementById('noticeSearch');
 const filters=document.getElementById('noticeCategories');
 const featured=document.getElementById('featuredEvent');
 const more=document.getElementById('noticeMore');
-const latest=document.querySelector('.latest-section');
+const latestHeading=document.getElementById('latestHeading');
 let items=[],shown=10,activeCategory='';
 
 const publishedDate=n=>n.publishedAt||n.updatedAt||n.startsAt||'';
@@ -116,7 +116,8 @@ try{
   if(id){
     document.getElementById('noticeFilters').hidden=true;
     featured.hidden=true;
-    latest.hidden=true;
+    latestHeading.hidden=true;
+    more.hidden=true;
     status.textContent='';
     const n=await loadNotice(id);
     if(n){list.append(noticeCard(n,true));document.title=`${n.title} — Banjaria Court`;}
