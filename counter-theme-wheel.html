@@ -14,7 +14,7 @@
 .wheel button[aria-pressed=true]{background:transparent;color:#123c78;font-weight:750}
 output{background:#e9f2ff;border-radius:9px;padding:8px;margin:10px 0}
 .columns{grid-template-columns:repeat(3,minmax(0,1fr)) 48px}.columns::before{right:48px}.columns>.add-unit{display:grid;place-items:center;padding-top:32px;background:white}.add-unit button{width:44px;font-size:23px;padding:0}#chosen:empty{display:none}
-body{background:transparent;padding:0}main{border:0;padding:0;max-width:none}.panel{margin:0;padding:0;border:0}#chosen{margin:0}#feedback:empty{margin:0}</style>
+body{background:transparent;padding:0}main{border:0;padding:0;max-width:none}.panel{margin:0;padding:0;border:0}#chosen{margin:0}#feedback:empty{margin:0}#unit-confirm-hint{margin:4px 0 6px;text-align:center;font-size:12px;line-height:1.4;color:#465e79}#unit-confirm-hint strong{color:#1556be}.single-unit .columns{grid-template-columns:repeat(3,minmax(0,1fr))}.single-unit .columns::before{right:0}.single-unit .add-unit{display:none}</style>
 <main>
 
 
@@ -23,8 +23,9 @@ body{background:transparent;padding:0}main{border:0;padding:0;max-width:none}.pa
 <div>Blok<div class="wheel" tabindex="0" role="group" aria-label="Blok"></div></div>
 <div>Tingkat<div class="wheel" tabindex="0" role="group" aria-label="Tingkat"></div></div>
 <div>Unit<div class="wheel" tabindex="0" role="group" aria-label="Unit"></div></div>
-<div class="add-unit"><button id="confirm" class="primary" type="button" aria-label="Tambah unit dipilih">+</button></div></div>
+<div class="add-unit"><button id="confirm" class="primary" type="button" aria-label="Sahkan unit pilihan" aria-describedby="unit-confirm-hint">+</button></div></div>
 <output id="preview" aria-live="polite"></output>
+<p id="unit-confirm-hint">Tekan <strong>+</strong> untuk sahkan unit pilihan.</p>
 <ul id="chosen" aria-label="Unit dipilih"></ul>
 </section>
 <p id="feedback" role="status"></p>
@@ -38,6 +39,17 @@ const values = [];
 const preferredValues = [];
 const chosen = [];
 const panel = byId('panel');
+const single = new URLSearchParams(location.search).has('single');
+if (single) {
+  panel.classList.add('single-unit');
+  byId('unit-confirm-hint').textContent = 'Pilih blok, tingkat atau unit untuk mengesahkan pilihan.';
+}
+function saveSingleChoice() {
+  if (!single) return;
+  const code = values.join('-');
+  byId('preview').dataset.selectedUnit = code;
+  byId('unit-confirm-hint').textContent = 'Unit dipilih secara automatik.';
+}
 
 function renderWheel(index) {
   const wheel = wheels[index];
@@ -60,6 +72,7 @@ function renderWheel(index) {
       preferredValues[index] = value;
       wheel.scrollTop = button.offsetTop - wheel.firstElementChild.offsetTop;
       select(index, button);
+      saveSingleChoice();
     };
     return button;
   }));
@@ -74,6 +87,7 @@ function select(index, button) {
   for (const option of wheel.children) option.setAttribute('aria-pressed', String(option === button));
   for (let next = index + 1; next < wheels.length; next++) renderWheel(next);
   byId('preview').textContent = values.join('-');
+  saveSingleChoice();
   byId('feedback').textContent = '';
 }
 wheels.forEach((wheel,index) => {
@@ -113,7 +127,7 @@ byId('confirm').onclick = () => {
     byId('feedback').textContent = 'Unit ini sudah dipilih.';
     return;
   }
-  if (new URLSearchParams(location.search).has('single')) chosen.length = 0;
+  if (single) return;
   chosen.push(code);
   byId('feedback').textContent = '';
   renderChosen();

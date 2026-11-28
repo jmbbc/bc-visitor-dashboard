@@ -328,7 +328,7 @@ function makeUnitPicker(unitName, multiple = false) {
   const label = document.createElement('legend');
   label.textContent = unitName;
   const picker = document.createElement('iframe');
-  picker.src = multiple ? 'counter-theme-wheel.html' : 'counter-theme-wheel.html?single';
+  picker.src = multiple ? 'counter-theme-wheel.html?v=2' : 'counter-theme-wheel.html?single&v=2';
   picker.title = unitName;
   picker.style.cssText = 'width:100%;height:218px;border:0';
   picker.addEventListener('load', () => {
@@ -348,6 +348,7 @@ function makeUnitPicker(unitName, multiple = false) {
     resize();
   });
   fieldset.dataset.wheelField = unitName;
+  fieldset.dataset.multipleUnits = String(multiple);
   fieldset.append(label, picker);
   return fieldset;
 }
@@ -442,8 +443,12 @@ const plate=textField('Nombor kenderaan','');fields.append(plate);const walk=doc
 form.addEventListener('formdata', ({ formData }) => {
   for (const field of form.querySelectorAll('[data-wheel-field]')) {
     if (field.disabled || field.hidden) continue;
-    const list = field.querySelector('iframe').contentDocument?.querySelector('#chosen');
-    const units = [...(list?.children || [])].map(item => item.firstChild.textContent);
+    const picker = field.querySelector('iframe').contentDocument;
+    const selected = picker?.getElementById('preview')?.dataset.selectedUnit;
+    const chosen = picker?.getElementById('chosen');
+    const units = field.dataset.multipleUnits === 'true'
+      ? Array.from(chosen?.children || [], item => item.firstChild.textContent)
+      : selected ? [selected] : [];
     for (const unit of units) formData.append(field.dataset.wheelField, unit);
     if (formData.get('Destinasi') === 'Unit rumah') {
       formData.set('Destinasi', units.length > 1 ? 'Beberapa unit' : 'Satu unit');
@@ -527,7 +532,9 @@ counterForm.addEventListener('submit', event => {
   const missingUnit = [...counterForm.querySelectorAll('[data-wheel-field]')]
     .find(field => !field.disabled && !field.hidden && !formData.get(field.dataset.wheelField));
   if (missingUnit) {
-    status.textContent = 'Pilih unit dan tekan + untuk menambahnya.';
+    status.textContent = missingUnit.dataset.multipleUnits === 'true'
+      ? 'Pilih unit dan tekan + untuk menambahnya.'
+      : 'Pilih unit sebelum mendaftar.';
     missingUnit.scrollIntoView({ block: 'nearest' });
     return;
   }
