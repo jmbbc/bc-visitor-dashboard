@@ -514,6 +514,39 @@ responseFrame.hidden = true;
 document.body.append(responseFrame);
 let pending;
 let saving = false;
+let confirmationAudio;
+function prepareConfirmationSound() {
+  try {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if (!Audio) return;
+    confirmationAudio ??= new Audio();
+    if (confirmationAudio.state === 'suspended') confirmationAudio.resume().catch(() => {});
+  } catch {
+    // The visual confirmation is available if audio is blocked.
+  }
+}
+function playConfirmationSound() {
+  if (confirmationAudio?.state !== 'running') return;
+  try {
+    const start = confirmationAudio.currentTime;
+    [523.25, 659.25, 783.99].forEach((frequency, index) => {
+      const at = start + index * 0.09;
+      const tone = confirmationAudio.createOscillator();
+      const volume = confirmationAudio.createGain();
+      tone.frequency.value = frequency;
+      const duration = index === 2 ? 0.27 : 0.16;
+      const peak = index === 2 ? 0.09 : 0.085;
+      volume.gain.setValueAtTime(0, at);
+      volume.gain.linearRampToValueAtTime(peak, at + 0.012);
+      volume.gain.exponentialRampToValueAtTime(0.001, at + duration);
+      tone.connect(volume).connect(confirmationAudio.destination);
+      tone.start(at);
+      tone.stop(at + duration);
+    });
+  } catch {
+    // Audio is optional.
+  }
+}
 function setSaving(active) {
   saving = active;
   submitButton.disabled = active;
@@ -578,6 +611,7 @@ counterForm.addEventListener('submit', event => {
   if (pending?.signature !== signature) {
     pending = { signature, entry: { id: crypto.randomUUID(), category, details: fields } };
   }
+  prepareConfirmationSound();
   setSaving(true);
   status.textContent = 'Menyimpan pendaftaran…';
   const timeout = setTimeout(() => finish(), 25000);
@@ -585,6 +619,7 @@ counterForm.addEventListener('submit', event => {
     clearTimeout(timeout);
     window.removeEventListener('message', receive);
     setSaving(false);
+    if (result?.ok) playConfirmationSound();
     status.textContent = result?.ok
       ? 'Pendaftaran berjaya.'
       : 'Simpanan belum disahkan. Tekan Daftar Masuk sekali lagi untuk mencuba semula.';
