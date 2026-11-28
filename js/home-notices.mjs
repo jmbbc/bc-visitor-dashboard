@@ -1,6 +1,6 @@
 import {previewNotice} from './notice-preview.mjs';
 import {noticeBannerUrl} from './notice-ui.mjs?v=4';
-import {loadNotices} from './notice-store.mjs';
+import {loadNotices} from './notice-store.mjs?v=pages-1';
 
 const list = document.getElementById('homeNoticeList');
 

@@ -1,5 +1,5 @@
 import {previewNotice} from './notice-preview.mjs';
-import {loadNotices,loadNotice} from './notice-store.mjs';
+import {loadNotices,loadNotice} from './notice-store.mjs?v=pages-1';
 import {matchesNotice,upcoming} from './notice-policy.mjs';
 import {noticeCard,noticeBannerUrl,noticeImageUrl,el} from './notice-ui.mjs?v=4';
 

@@ -24,13 +24,25 @@ function requestNotices(params = {}) {
   });
 }
 
+async function loadPublicSnapshot() {
+  const response = await fetch(new URL('../public-notices.json', import.meta.url));
+  if (!response.ok) throw new Error('Public notice snapshot unavailable.');
+  const rows = await response.json();
+  if (!Array.isArray(rows)) throw new Error('Invalid public notice snapshot.');
+  return rows;
+}
+
 export async function loadNotices(admin = false) {
   if (admin) throw new Error('Urus semua notis melalui halaman admin Apps Script.');
-  const rows = await requestNotices();
+  const rows = await loadPublicSnapshot().catch(() => requestNotices());
   return rows.sort((a,b) => Date.parse(b.publishedAt || b.updatedAt || '') - Date.parse(a.publishedAt || a.updatedAt || ''));
 }
 
 export async function loadNotice(id) {
   if (!id) return null;
-  return requestNotices({id});
+  try {
+    return (await loadPublicSnapshot()).find(notice => notice.id === id) || null;
+  } catch {
+    return requestNotices({id});
+  }
 }
