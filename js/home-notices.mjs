@@ -9,58 +9,34 @@ function startCarousel(slides) {
   if (slides.length < 2) return;
 
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  const controls = document.createElement('div');
-  controls.className = 'home-notice-controls';
-  const position = document.createElement('span');
-  const makeButton = (label, onClick) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    button.addEventListener('click', onClick);
-    return button;
-  };
   let current = 0;
-  let paused = reducedMotion.matches;
-  let hovering = false;
   let timer;
 
   function schedule() {
     clearTimeout(timer);
-    if (!paused && !hovering && !document.hidden && !section.contains(document.activeElement)) {
+    if (!reducedMotion.matches && !document.hidden && !section.contains(document.activeElement)) {
       timer = setTimeout(() => show(current + 1), 3000);
     }
   }
+
   function show(index) {
-    current = (index + slides.length) % slides.length;
+    current = index % slides.length;
     slides.forEach((slide, i) => { slide.hidden = i !== current; });
-    position.textContent = (current + 1) + ' / ' + slides.length;
     schedule();
   }
 
-  const pause = makeButton(paused ? 'Mainkan' : 'Jeda', () => {
-    paused = !paused;
-    pause.textContent = paused ? 'Mainkan' : 'Jeda';
-    schedule();
-  });
-  controls.append(
-    makeButton('Sebelumnya', () => show(current - 1)),
-    position,
-    makeButton('Seterusnya', () => show(current + 1)),
-    pause,
-  );
-  section.append(controls);
-  section.addEventListener('mouseenter', () => { hovering = true; schedule(); });
-  section.addEventListener('mouseleave', () => { hovering = false; schedule(); });
   section.addEventListener('focusin', schedule);
   section.addEventListener('focusout', () => setTimeout(schedule, 0));
   document.addEventListener('visibilitychange', schedule);
-  reducedMotion.addEventListener('change', event => {
-    if (event.matches) {
-      paused = true;
-      pause.textContent = 'Mainkan';
-      schedule();
+  reducedMotion.addEventListener('change', () => {
+    if (reducedMotion.matches) {
+      clearTimeout(timer);
+      slides.forEach(slide => { slide.hidden = false; });
+    } else {
+      show(current);
     }
   });
+  if (reducedMotion.matches) return;
   show(0);
 }
 
