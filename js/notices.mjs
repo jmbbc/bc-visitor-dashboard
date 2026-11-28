@@ -1,7 +1,7 @@
 import {previewNotice} from './notice-preview.mjs';
 import {loadNotices,loadNotice} from './notice-store.mjs?v=pages-1';
 import {matchesNotice,upcoming} from './notice-policy.mjs';
-import {noticeCard,noticeBannerUrl,noticeImageUrl,el} from './notice-ui.mjs?v=4';
+import {noticeCard,noticeBannerUrl,noticeImageUrl,el} from './notice-ui.mjs?v=5';
 
 const list=document.getElementById('noticeList');
 const status=document.getElementById('noticeStatus');

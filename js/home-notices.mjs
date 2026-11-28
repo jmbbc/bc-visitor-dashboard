@@ -1,5 +1,5 @@
 import {previewNotice} from './notice-preview.mjs';
-import {noticeBannerUrl} from './notice-ui.mjs?v=4';
+import {noticeBannerUrl,noticeImageUrl} from './notice-ui.mjs?v=5';
 import {loadNotices} from './notice-store.mjs?v=pages-1';
 
 const list = document.getElementById('homeNoticeList');
@@ -109,7 +109,19 @@ try {
   const preview = location.hostname === '127.0.0.1' && new URLSearchParams(location.search).get('preview') === '1';
   const rows = preview ? [previewNotice] : await loadNotices();
   const notices = rows.filter(notice => notice.id && notice.title).slice(0, 3);
-  for (const notice of notices) {
+  const positions = new Map();
+  const defaults = notices.map(notice => {
+    const position = positions.get(notice.category) ?? 0;
+    positions.set(notice.category, position + 1);
+    return noticeBannerUrl(notice, {categoryOnly: true, position});
+  });
+  const imageKey = value => {
+    const url = new URL(value, location.href);
+    return url.origin + url.pathname + (url.hostname === 'drive.google.com' ? url.searchParams.get('id') : '');
+  };
+  const reserved = new Set(defaults.filter(Boolean).map(imageKey));
+  const usedCustom = new Set();
+  for (const [index, notice] of notices.entries()) {
     const row = document.createElement('li');
     const link = document.createElement('a');
     link.href = 'notices.html?id=' + encodeURIComponent(notice.id) + (preview ? '&preview=1' : '');
@@ -123,12 +135,17 @@ try {
     arrow.alt = '';
     link.className = 'home-notice-feature';
     copy.className = 'home-notice-copy';
-    const imageUrl = preview ? 'assets/community-gardening-event.png' : noticeBannerUrl(notice);
+    const custom = noticeImageUrl(notice.imageUrl);
+    const key = custom ? imageKey(custom) : '';
+    const useCustom = key && !usedCustom.has(key) &&
+      (!reserved.has(key) || (defaults[index] && imageKey(defaults[index]) === key));
+    if (useCustom) usedCustom.add(key);
+    const imageUrl = preview ? 'assets/community-gardening-event.png' : useCustom ? custom : defaults[index];
     if (imageUrl) {
       const image = document.createElement('img');
       image.className = 'home-notice-image';
       image.alt = '';
-      let fallback = noticeBannerUrl(notice, {categoryOnly: true});
+      let fallback = defaults[index];
       if (fallback === imageUrl) fallback = '';
       image.addEventListener('error', () => {
         if (!fallback) {

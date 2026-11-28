@@ -14,18 +14,18 @@ export function noticeImageUrl(value) {
 }
 
 const categoryBanners = new Map([
-  ['Acara', ['acara-gotong-royong', 'acara-jamuan']],
-  ['Makluman', ['makluman-papan-notis', 'makluman-kenderaan']],
-  ['Penyelenggaraan', ['penyelenggaraan-paip', 'penyelenggaraan-lampu']],
+  ['Acara', ['acara-gotong-royong.png', 'acara-jamuan.png', 'acara-sukan.jpg', 'acara-bengkel.jpg']],
+  ['Makluman', ['makluman-papan-notis.png', 'makluman-kenderaan.png', 'makluman-kaunter.jpg', 'makluman-kemudahan.jpg']],
+  ['Penyelenggaraan', ['penyelenggaraan-paip.png', 'penyelenggaraan-lampu.png', 'penyelenggaraan-lif.jpg', 'penyelenggaraan-landskap.jpg']],
 ]);
-export function noticeBannerUrl(notice, {categoryOnly = false} = {}) {
+export function noticeBannerUrl(notice, {categoryOnly = false, position} = {}) {
   const custom = noticeImageUrl(notice.imageUrl);
   if (custom && !categoryOnly) return custom;
   const banners = categoryBanners.get(notice.category);
   if (!banners) return '';
   const key = String(notice.id || notice.title || '');
-  const index = [...key].reduce((sum, char) => sum + char.codePointAt(0), 0) % banners.length;
-  return 'assets/notice-banners/' + banners[index] + '.png';
+  const index = (position ?? [...key].reduce((sum, char) => sum + char.codePointAt(0), 0)) % banners.length;
+  return 'assets/notice-banners/' + banners[index];
 }
 
 export function noticeCard(n, detail = false, {summaryOnly=false} = {}) {
