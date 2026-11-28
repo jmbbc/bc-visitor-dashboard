@@ -1,5 +1,5 @@
 import {previewNotice} from './notice-preview.mjs';
-import {noticeBannerUrl,noticeImageUrl} from './notice-ui.mjs?v=6';
+import {noticeBannerUrl,noticeImageUrl} from './notice-ui.mjs?v=7';
 import {loadNotices} from './notice-store.mjs?v=pages-1';
 
 const list = document.getElementById('homeNoticeList');
@@ -113,10 +113,16 @@ try {
   const rows = preview ? [previewNotice] : await loadNotices();
   const notices = rows.filter(notice => notice.id && notice.title);
   const positions = new Map();
-  const defaults = notices.map(notice => {
+  const defaults = notices.map((notice, index) => {
     const position = positions.get(notice.category) ?? 0;
     positions.set(notice.category, position + 1);
-    return noticeBannerUrl(notice, {categoryOnly: true, position});
+    const banner = noticeBannerUrl(notice, {categoryOnly: true, position});
+    if (index === notices.length - 1 && index > 0 &&
+        notice.category === notices[0].category &&
+        banner === noticeBannerUrl(notice, {categoryOnly: true, position: 0})) {
+      return noticeBannerUrl(notice, {categoryOnly: true, position: position + 1});
+    }
+    return banner;
   });
   const imageKey = value => {
     const url = new URL(value, location.href);
