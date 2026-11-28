@@ -62,10 +62,13 @@ function renderCounterRow(values, details = {}) {
     if (value && (index === 2 || index === 3)) {
       const badge = document.createElement('span');
       badge.className = 'reg-unit';
-      badge.textContent = value;
+      const deliveryType = details?.['Jenis penghantaran'];
+      badge.textContent = index === 2 && value === 'Penghantaran' && deliveryType
+        ? 'Penghantaran: ' + deliveryType
+        : value;
       cell.append(badge);
     } else {
-      cell.textContent = value || '—';
+      cell.textContent = index === 4 && value ? String(value).toUpperCase() : value || '—';
       if (index === 1) cell.classList.add('reg-primary');
     }
   });
