@@ -17,3 +17,8 @@
 .home-notice-excerpt{font-size:12px;line-height:1.45;color:#244d36}
 .home-notice-action{display:flex;align-items:center;justify-content:flex-end;gap:4px;font-size:12px;font-weight:800}
 .home-notice-action img{width:14px;height:14px}
+
+.home-notice-controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;margin-top:8px;color:#103a25;font-size:12px}
+.home-notice-controls button,.home-notice-controls span{border:1px solid #e5dece;border-radius:7px;background:#fff9ed;padding:5px 9px;font:inherit;color:inherit}
+.home-notice-controls button{min-height:38px;font-weight:800;cursor:pointer}
+.home-notice-controls button:focus-visible{outline:3px solid #ed8d17;outline-offset:2px}
