@@ -1,5 +1,5 @@
 import {previewNotice} from './notice-preview.mjs';
-import {noticeBannerUrl,noticeImageUrl} from './notice-ui.mjs?v=5';
+import {noticeBannerUrl,noticeImageUrl} from './notice-ui.mjs?v=6';
 import {loadNotices} from './notice-store.mjs?v=pages-1';
 
 const list = document.getElementById('homeNoticeList');
@@ -16,7 +16,9 @@ function startCarousel(slides) {
   pagination.setAttribute('role', 'group');
   pagination.setAttribute('aria-label', 'Pilih notis');
   pagination.hidden = reducedMotion.matches;
-  const dots = slides.map((_, index) => {
+  const counter = slides.length > 8 ? document.createElement('span') : null;
+  if (counter) pagination.append(counter);
+  const dots = counter ? [] : slides.map((_, index) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.setAttribute('aria-label', 'Notis ' + (index + 1) + ' daripada ' + slides.length);
@@ -53,8 +55,9 @@ function startCarousel(slides) {
     current = (index + slides.length) % slides.length;
     slides.forEach((slide, i) => {
       slide.hidden = i !== current;
-      dots[i].setAttribute('aria-current', String(i === current));
+      dots[i]?.setAttribute('aria-current', String(i === current));
     });
+    if (counter) counter.textContent = 'Notis ' + (current + 1) + ' daripada ' + slides.length;
     schedule();
   }
 
@@ -108,7 +111,7 @@ function startCarousel(slides) {
 try {
   const preview = location.hostname === '127.0.0.1' && new URLSearchParams(location.search).get('preview') === '1';
   const rows = preview ? [previewNotice] : await loadNotices();
-  const notices = rows.filter(notice => notice.id && notice.title).slice(0, 3);
+  const notices = rows.filter(notice => notice.id && notice.title);
   const positions = new Map();
   const defaults = notices.map(notice => {
     const position = positions.get(notice.category) ?? 0;
@@ -155,6 +158,7 @@ try {
         image.src = fallback;
         fallback = '';
       });
+      if (index > 0) image.loading = 'lazy';
       image.src = imageUrl;
       link.append(image);
     }

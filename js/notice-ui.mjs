@@ -24,7 +24,8 @@ export function noticeBannerUrl(notice, {categoryOnly = false, position} = {}) {
   const banners = categoryBanners.get(notice.category);
   if (!banners) return '';
   const key = String(notice.id || notice.title || '');
-  const index = (position ?? [...key].reduce((sum, char) => sum + char.codePointAt(0), 0)) % banners.length;
+  const index = position ?? [...key].reduce((sum, char) => sum + char.codePointAt(0), 0) % banners.length;
+  if (!banners[index]) return '';
   return 'assets/notice-banners/' + banners[index];
 }
 
