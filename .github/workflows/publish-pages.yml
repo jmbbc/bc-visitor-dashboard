@@ -9,6 +9,7 @@ on:
     - cron: '7,22,37,52 * * * *'
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -36,5 +37,16 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+      - name: Wait for Pages artifact to be indexed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in {1..12}; do
+            count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=github-pages" --jq '.total_count') || count=0
+            if [ "$count" -gt 0 ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::GitHub did not index the Pages artifact within 60 seconds."
+          exit 1
       - id: deployment
         uses: actions/deploy-pages@v4
