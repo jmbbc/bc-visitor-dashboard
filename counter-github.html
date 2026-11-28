@@ -302,7 +302,7 @@ window.UNITS_STATIC = [
 </script>
 <script>
 
-(()=>{const root=document.getElementById('bc-counter-samples');const cats=[['ride','E-hailing / Teksi','car-taxi-front','E-hailing'],['delivery','Penghantaran makanan / barang','package','Penghantaran'],['resident','Penghuni tanpa kad akses','house','Penghuni'],['office','Pejabat & Urusan Rasmi','building-2','Pejabat / Rasmi'],['visitor','Pelawat tanpa prapendaftaran','users','Pelawat'],['service','Utiliti','wrench','Utiliti'],['sales','Jualan / Promosi','megaphone','Jualan'],['other','Lain-lain','ellipsis','Lain-lain']];const defaultCategory=['delivery'];const selectField=(name,options)=>{const label=document.createElement('label');label.append(document.createTextNode(name));const select=document.createElement('select');select.name=name;options.forEach(text=>{const o=document.createElement('option');o.textContent=text;select.append(o);});label.append(select);return label;};const textField=(name,value,required=true,type='text')=>{const label=document.createElement('label');label.append(document.createTextNode(name+(required?'':' (pilihan)')));const input=document.createElement('input');Object.assign(input,{name,value,required,type});label.append(input);return label;};root.querySelectorAll('.ce').forEach((stage,index)=>{const q=s=>stage.querySelector(s);let category=defaultCategory[index],mode=index===2?'guard':'self',selectedButton;const form=q('[data-form]'),fields=q('[data-fields]');const catName=()=>cats.find(c=>c[0]===category)[1];const renderFields=()=>{fields.replaceChildren();if(category==='delivery'){fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang']),textField('Unit dituju',''));}else if(category==='ride'){fields.append(ridePurposeField(),textField('Nama pemandu',''),selectField('Perkhidmatan',['Grab','Teksi','Lain-lain']),selectField('Lokasi menunggu',['Lobi Blok A']));}else if(category==='resident'){fields.append(textField('Nama penghuni',''),textField('Unit rumah',''),textField('Nombor telefon','',true,'tel'),selectField('Sebab tiada kad',['Kad tertinggal','Kad hilang','Kad rosak','Belum menerima kad']));}else{fields.append(textField('Nama',''),textField('Nombor telefon','',true,'tel'));if(['delivery','visitor'].includes(category))fields.append(textField('Unit dituju',''));if(category==='sales')fields.append(selectField('Destinasi',['Pejabat Pengurusan']));if (category === 'office') { fields.append(selectField('Jenis urusan', ['Pejabat Pengurusan']), selectField('Lokasi dituju', ['Pejabat Pengurusan'])); } else if (category === 'other') { fields.append(textField('Lokasi dituju', '')); }if(['delivery','office','sales'].includes(category))fields.append(textField('Syarikat / Organisasi','',false));if(category==='delivery')fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang','Lain-lain']));if(['office','service','official','sales','other'].includes(category))fields.append(textField('Tujuan',''));}function ridePurposeField() {
+(()=>{const root=document.getElementById('bc-counter-samples');const cats=[['ride','E-hailing / Teksi','car-taxi-front','E-hailing'],['delivery','Penghantaran makanan / barang','package','Penghantaran'],['resident','Penghuni tanpa kad akses','house','Penghuni'],['office','Pejabat & Urusan Rasmi','building-2','Pejabat / Rasmi'],['visitor','Pelawat tanpa prapendaftaran','users','Pelawat'],['service','Utiliti','wrench','Utiliti'],['sales','Jualan / Promosi','megaphone','Jualan'],['other','Lain-lain','ellipsis','Lain-lain']];const defaultCategory=['delivery'];const selectField=(name,options)=>{const label=document.createElement('label');label.append(document.createTextNode(name));const select=document.createElement('select');select.name=name;options.forEach(text=>{const o=document.createElement('option');o.textContent=text;select.append(o);});label.append(select);return label;};const textField=(name,value,required=true,type='text')=>{const label=document.createElement('label');label.append(document.createTextNode(name+(required?'':' (pilihan)')));const input=document.createElement('input');Object.assign(input,{name,value,required,type});label.append(input);return label;};root.querySelectorAll('.ce').forEach((stage,index)=>{const q=s=>stage.querySelector(s);let category=defaultCategory[index],mode=index===2?'guard':'self',selectedButton;const form=q('[data-form]'),fields=q('[data-fields]');const catName=()=>cats.find(c=>c[0]===category)[1];const renderFields=()=>{fields.replaceChildren();if(category==='delivery'){fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang']),textField('Unit dituju',''));}else if(category==='ride'){fields.append(ridePurposeField(),textField('Nama pemandu',''),selectField('Perkhidmatan',['Grab','Teksi','Lain-lain']),selectField('Lokasi menunggu',['Lobi Blok A']));}else if(category==='resident'){fields.append(textField('Nama penghuni',''),textField('Unit rumah',''),textField('Nombor telefon','',true,'tel'),selectField('Sebab tiada kad',['Kad tertinggal','Kad hilang','Kad rosak','Belum menerima kad']));}else{fields.append(textField('Nama',''),textField('Nombor telefon','',true,'tel'));if(['delivery','visitor'].includes(category))fields.append(textField('Unit dituju',''));if(category==='sales')fields.append(selectField('Destinasi',['Pejabat Pengurusan']));if (category === 'office') { fields.append(selectField('Jenis urusan', ['Pejabat Pengurusan']), selectField('Lokasi dituju', ['Pejabat Pengurusan'])); } else if (category === 'other') { fields.append(textField('Lokasi dituju', '')); }if(['delivery','office','sales'].includes(category))fields.append(textField('Syarikat / Organisasi','',false));if(category==='delivery')fields.append(selectField('Jenis penghantaran',['Makanan','Bungkusan / Barang','Lain-lain']));if(['office','visitor','service','official','sales','other'].includes(category))fields.append(textField('Tujuan',''));}function ridePurposeField() {
   const field = document.createElement('fieldset');
   field.className = 'ride-purpose';
   const legend = document.createElement('legend');
@@ -520,14 +520,35 @@ function setSaving(active) {
   submitButton.setAttribute('aria-busy', String(active));
   submitButton.textContent = active ? 'Sedang mendaftar…' : 'Daftar Masuk';
 }
+function counterFieldError(details) {
+  const placeholder = /^(?:n[\s./-]*a|test(?:ing)?|ujian|dummy|sample|contoh|asdf|qwerty|xxx+|abc|saja|entah|random|tidak tahu|tak tahu)$/i;
+  for (const label of ['Nama', 'Nama pemandu', 'Nama penghuni', 'Tujuan',
+    'Lokasi dituju', 'Lokasi kerja', 'Syarikat / Organisasi', 'Nama syarikat / organisasi']) {
+    if (!Object.hasOwn(details, label)) continue;
+    const value = details[label].trim();
+    if (!value && label === 'Syarikat / Organisasi') continue;
+    if (placeholder.test(value) || !/\p{L}/u.test(value) || /^(.)\1{2,}$/u.test(value)) {
+      return 'Isi ' + label + ' dengan maklumat sebenar.';
+    }
+  }
+  if (Object.hasOwn(details, 'Nombor telefon')) {
+    const phone = details['Nombor telefon'].trim().replace(/[\s()-]/g, '');
+    if (!/^\+?\d{7,15}$/.test(phone) || /^(\d)\1+$/.test(phone.replace(/^\+/, ''))) {
+      return 'Masukkan nombor telefon yang sah.';
+    }
+  }
+  if (Object.hasOwn(details, 'Nombor kenderaan')) {
+    const plate = details['Nombor kenderaan'].trim().replace(/[\s-]/g, '');
+    if (!/^[A-Z0-9]{2,15}$/i.test(plate) || !/[A-Z]/i.test(plate) || !/\d/.test(plate)) {
+      return 'Masukkan nombor pendaftaran kenderaan yang sah, contohnya VAB 2187.';
+    }
+  }
+  return '';
+}
 counterForm.addEventListener('submit', event => {
   event.preventDefault();
   event.stopImmediatePropagation();
   if (saving) return;
-  if (location.hostname === '127.0.0.1' && new URLSearchParams(location.search).has('preview')) {
-    status.textContent = 'Pratonton sahaja.';
-    return;
-  }
   const formData = new FormData(counterForm);
   const missingUnit = [...counterForm.querySelectorAll('[data-wheel-field]')]
     .find(field => !field.disabled && !field.hidden && !formData.get(field.dataset.wheelField));
@@ -543,6 +564,16 @@ counterForm.addEventListener('submit', event => {
   if (units.length) fields['Unit dituju'] = units.join(', ');
   const category = fields.Kategori;
   delete fields.Kategori;
+  const fieldError = counterFieldError(fields);
+  if (fieldError) {
+    status.textContent = fieldError;
+    status.scrollIntoView({block: 'nearest'});
+    return;
+  }
+  if (location.hostname === '127.0.0.1' && new URLSearchParams(location.search).has('preview')) {
+    status.textContent = 'Pratonton sahaja.';
+    return;
+  }
   const signature = JSON.stringify([category, fields]);
   if (pending?.signature !== signature) {
     pending = { signature, entry: { id: crypto.randomUUID(), category, details: fields } };

@@ -30,6 +30,32 @@ function doPost(e) {
   ).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+function counterFieldError(details) {
+  const placeholder = /^(?:n[\s./-]*a|test(?:ing)?|ujian|dummy|sample|contoh|asdf|qwerty|xxx+|abc|saja|entah|random|tidak tahu|tak tahu)$/i;
+  for (const label of ['Nama', 'Nama pemandu', 'Nama penghuni', 'Tujuan',
+    'Lokasi dituju', 'Lokasi kerja', 'Syarikat / Organisasi', 'Nama syarikat / organisasi']) {
+    if (!Object.hasOwn(details, label)) continue;
+    const value = details[label].trim();
+    if (!value && label === 'Syarikat / Organisasi') continue;
+    if (placeholder.test(value) || !/\p{L}/u.test(value) || /^(.)\1{2,}$/u.test(value)) {
+      return 'Isi ' + label + ' dengan maklumat sebenar.';
+    }
+  }
+  if (Object.hasOwn(details, 'Nombor telefon')) {
+    const phone = details['Nombor telefon'].trim().replace(/[\s()-]/g, '');
+    if (!/^\+?\d{7,15}$/.test(phone) || /^(\d)\1+$/.test(phone.replace(/^\+/, ''))) {
+      return 'Masukkan nombor telefon yang sah.';
+    }
+  }
+  if (Object.hasOwn(details, 'Nombor kenderaan')) {
+    const plate = details['Nombor kenderaan'].trim().replace(/[\s-]/g, '');
+    if (!/^[A-Z0-9]{2,15}$/i.test(plate) || !/[A-Z]/i.test(plate) || !/\d/.test(plate)) {
+      return 'Masukkan nombor pendaftaran kenderaan yang sah, contohnya VAB 2187.';
+    }
+  }
+  return '';
+}
+
 function savePagesEntry_(entry) {
   const d = entry.details;
   if (!d || typeof d !== 'object' || Array.isArray(d) ||
@@ -43,20 +69,32 @@ function savePagesEntry_(entry) {
     delivery: ['Jenis penghantaran'],
     resident: ['Nama penghuni', 'Nombor telefon', 'Sebab tiada kad'],
     office: ['Nama', 'Nombor telefon', 'Tujuan'],
-    visitor: ['Nama', 'Nombor telefon'],
+    visitor: ['Nama', 'Nombor telefon', 'Tujuan'],
     service: ['Nama', 'Nombor telefon', 'Tujuan', 'Syarikat / Organisasi'],
     sales: ['Nama', 'Nombor telefon', 'Tujuan'],
     other: ['Nama', 'Nombor telefon', 'Tujuan', 'Lokasi dituju'],
   };
   const category = entry.category;
   const need = (...fields) => fields.every(field => d[field]?.trim());
-  const unit = value => /^[A-Z0-9]+-\d+-\d+$/i.test(value || '');
+  const unit = value => /^(?:A|B[123])-(?:G|\d+)-\d+$/i.test(value || '');
   const utilityUnits = (d['Unit dituju'] || '').split(',').map(value => value.trim());
 
   if (typeof category !== 'string' || !Object.hasOwn(required, category) ||
       !need(...required[category]) ||
       (!need('Nombor kenderaan') && (category === 'ride' || d['Tanpa kenderaan'] !== 'Ya'))) {
     throw new Error('Medan wajib tidak lengkap.');
+  }
+
+  const fieldError = counterFieldError(d);
+  if (fieldError) throw new Error(fieldError);
+  if (category === 'ride' &&
+      (!['Ambil penumpang', 'Hantar penumpang'].includes(d.Tujuan) ||
+       !['Grab', 'Teksi', 'Lain-lain'].includes(d.Perkhidmatan))) {
+    throw new Error('Pilih tujuan dan perkhidmatan e-hailing yang tersedia.');
+  }
+  if (category === 'resident' &&
+      !['Kad tertinggal', 'Kad hilang', 'Kad rosak', 'Belum menerima kad'].includes(d['Sebab tiada kad'])) {
+    throw new Error('Pilih sebab tiada kad akses yang tersedia.');
   }
 
   const validDestination = {
