@@ -11,24 +11,89 @@ function startCarousel(slides) {
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let current = 0;
   let timer;
+  const pagination = document.createElement('div');
+  pagination.className = 'home-notice-dots';
+  pagination.setAttribute('role', 'group');
+  pagination.setAttribute('aria-label', 'Pilih notis');
+  pagination.hidden = reducedMotion.matches;
+  const dots = slides.map((_, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('aria-label', 'Notis ' + (index + 1) + ' daripada ' + slides.length);
+    button.addEventListener('click', () => show(index));
+    pagination.append(button);
+    return button;
+  });
+  const track = document.createElement('div');
+  track.className = 'home-notice-track';
+  list.before(track);
+  track.append(list);
+  const arrows = [-1, 1].map(direction => {
+    const previous = direction < 0;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'home-notice-arrow ' + (previous ? 'previous' : 'next');
+    button.setAttribute('aria-label', previous ? 'Notis sebelumnya' : 'Notis seterusnya');
+    button.textContent = previous ? '‹' : '›';
+    button.hidden = reducedMotion.matches;
+    button.addEventListener('click', () => show(current + direction));
+    track.append(button);
+    return button;
+  });
+  section.append(pagination);
 
   function schedule() {
     clearTimeout(timer);
-    if (!reducedMotion.matches && !document.hidden && !section.contains(document.activeElement)) {
+    if (!touchStart && !reducedMotion.matches && !document.hidden && !section.contains(document.activeElement)) {
       timer = setTimeout(() => show(current + 1), 3000);
     }
   }
 
   function show(index) {
-    current = index % slides.length;
-    slides.forEach((slide, i) => { slide.hidden = i !== current; });
+    current = (index + slides.length) % slides.length;
+    slides.forEach((slide, i) => {
+      slide.hidden = i !== current;
+      dots[i].setAttribute('aria-current', String(i === current));
+    });
     schedule();
   }
 
+  let touchStart;
+  let lastSwipe = -Infinity;
+  list.addEventListener('touchstart', event => {
+    if (reducedMotion.matches || event.touches.length !== 1) {
+      touchStart = undefined;
+      return;
+    }
+    touchStart = event.touches[0];
+    clearTimeout(timer);
+  }, {passive: true});
+  list.addEventListener('touchend', event => {
+    const end = event.changedTouches[0];
+    if (!touchStart || !end) return;
+    const dx = end.clientX - touchStart.clientX;
+    const dy = end.clientY - touchStart.clientY;
+    touchStart = undefined;
+    if (Math.abs(dx) >= 45 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      lastSwipe = performance.now();
+      show(current + (dx < 0 ? 1 : -1));
+    } else {
+      schedule();
+    }
+  }, {passive: true});
+  list.addEventListener('touchcancel', () => {
+    touchStart = undefined;
+    schedule();
+  }, {passive: true});
+  list.addEventListener('click', event => {
+    if (event.detail && performance.now() - lastSwipe < 400) event.preventDefault();
+  }, true);
   section.addEventListener('focusin', schedule);
   section.addEventListener('focusout', () => setTimeout(schedule, 0));
   document.addEventListener('visibilitychange', schedule);
   reducedMotion.addEventListener('change', () => {
+    pagination.hidden = reducedMotion.matches;
+    arrows.forEach(button => { button.hidden = reducedMotion.matches; });
     if (reducedMotion.matches) {
       clearTimeout(timer);
       slides.forEach(slide => { slide.hidden = false; });
