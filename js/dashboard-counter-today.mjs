@@ -55,6 +55,37 @@ function requestCounterRows(idToken) {
   });
 }
 
+function renderCounterRow(values, details = {}) {
+  const row = rows.insertRow();
+  values.forEach((value, index) => {
+    const cell = row.insertCell();
+    if (value && (index === 2 || index === 3)) {
+      const badge = document.createElement('span');
+      badge.className = 'reg-unit';
+      badge.textContent = value;
+      cell.append(badge);
+    } else {
+      cell.textContent = value || '—';
+      if (index === 1) cell.classList.add('reg-primary');
+    }
+  });
+  const cell = row.insertCell();
+  const entries = Object.entries(details ?? {});
+  if (!entries.length) {
+    cell.textContent = '—';
+    return;
+  }
+
+  const list = document.createElement('ul');
+  list.className = 'counter-details';
+  for (const [label, value] of entries) {
+    const item = document.createElement('li');
+    item.textContent = label + ': ' + value;
+    list.append(item);
+  }
+  cell.append(list);
+}
+
 async function showCounterToday({ silent = false } = {}) {
   if (document.body.dataset.dashboardPage !== 'checkedin' || !panel.open || refresh.disabled) return;
   if (!silent) {
@@ -67,10 +98,12 @@ async function showCounterToday({ silent = false } = {}) {
       ['10:12', '—', 'Penghantaran', 'Kawasan PG', 'BQN 9072'],
       ['09:48', 'Aina', 'E-hailing / Teksi', 'Lobi Blok A', 'WXY 5521'],
     ];
-    for (const values of examples) {
-      const row = rows.insertRow();
-      for (const value of values) row.insertCell().textContent = value;
-    }
+    const details = [
+      {'Syarikat / Organisasi': 'TNB', Tujuan: 'Pemeriksaan meter'},
+      {'Jenis penghantaran': 'Bungkusan / Barang', 'Bilangan rumah': 'Banyak rumah'},
+      {Tujuan: 'Ambil penumpang', Perkhidmatan: 'Grab'},
+    ];
+    examples.forEach((values, index) => renderCounterRow(values, details[index]));
     table.hidden = false;
     status.textContent = 'Pratonton · 3 rekod contoh';
     return;
@@ -90,13 +123,10 @@ async function showCounterToday({ silent = false } = {}) {
     if (auth.currentUser !== user || !panel.open) return;
     rows.replaceChildren();
     for (const record of records) {
-      const row = rows.insertRow();
-      const values = [
-        time.format(new Date(record.enteredAt)), categories[record.category] || 'Lain-lain',
-      ];
-      for (const value of [values[0], record.name, values[1], record.destination, record.vehicle]) {
-        row.insertCell().textContent = value || '—';
-      }
+      renderCounterRow([
+        time.format(new Date(record.enteredAt)), record.name,
+        categories[record.category] || 'Lain-lain', record.destination, record.vehicle,
+      ], record.details);
     }
     table.hidden = records.length === 0;
     status.textContent = records.length ? records.length + ' rekod hari ini.' : 'Tiada rekod kaunter hari ini.';

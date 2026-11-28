@@ -525,12 +525,23 @@
     #counterToday { padding: 8px; }
     #counterToday summary { font-size: 13px; font-weight: 700; cursor: pointer; }
     #counterToday [role="status"] { margin: 5px 0; font-size: 11px; color: var(--muted); }
-    #counterToday .table-wrap { margin-top: 6px; border-radius: 7px; }
-    #counterToday .table { font-size: 11px; line-height: 1.35; }
-    #counterToday .table th, #counterToday .table td { padding: 5px 6px; overflow-wrap: anywhere; }
-    #counterToday .table th { background: #eef7f5; color: #365b54; font-size: 10px; }
+    #counterToday .table-wrap { margin-top: 6px; border: 1px solid #b8cbc7; border-radius: 10px; }
+    #counterToday .table { min-width: 620px; font-size: 11px; line-height: 1.35; }
+    #counterToday .table th, #counterToday .table td {
+      padding: 8px 7px; overflow-wrap: anywhere; border-right: 1px solid #d0ddda;
+    }
+    #counterToday .table th:last-child, #counterToday .table td:last-child { border-right: 0; }
+    #counterToday .table th {
+      background: #eef7f5; color: #47635f; font-size: 9px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: .045em; text-align: center;
+      border-bottom: 2px solid #a9c1bc;
+    }
+    #counterToday .table td { vertical-align: top; border-bottom: 1px solid #c8d7d4; }
+    #counterToday .table tr:last-child td { border-bottom: 0; }
+    #counterToday .table tbody tr:hover { background: #f8fcfb; }
     #counterToday .table :is(th, td):first-child { width: 1%; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    #counterToday .table tbody tr:nth-child(even) { background: #f8fbfa; }
+    #counterToday .counter-details { padding-inline-start: 15px; margin: 0; }
+    #counterToday .counter-details li + li { margin-top: 3px; }
     #counterToday button { margin-top: 6px; padding: 4px 8px; font-size: 11px; }
     #pageCheckedIn > h3.page-heading-box { background: linear-gradient(180deg, rgba(79,70,229,0.12), rgba(79,70,229,0.08)); border: 1px solid rgba(79,70,229,0.14); color: #07102a; }
     #pageUnitSummary > h3.page-heading-box { background: linear-gradient(180deg, rgba(16,185,129,0.12), rgba(16,185,129,0.08)); border: 1px solid rgba(16,185,129,0.14); color: #064e3b; }
@@ -797,7 +808,7 @@
               <p role="status"></p>
               <div class="table-wrap">
                 <table class="table" hidden>
-                  <thead><tr><th scope="col">Masa masuk</th><th scope="col">Nama</th><th scope="col">Kategori</th><th scope="col">Destinasi</th><th scope="col">Nombor kenderaan</th></tr></thead>
+                  <thead><tr><th scope="col">Masa masuk</th><th scope="col">Nama</th><th scope="col">Kategori</th><th scope="col">Destinasi</th><th scope="col">Nombor kenderaan</th><th scope="col">Butiran</th></tr></thead>
                   <tbody></tbody>
                 </table>
               </div>
@@ -1214,7 +1225,7 @@
     document.head.appendChild(style);
   </script>
   <script type="module" src="js/firebase-init.js"></script>
-  <script type="module" src="js/dashboard-counter-today.mjs"></script>
+  <script type="module" src="js/dashboard-counter-today.mjs?v=4"></script>
   <!-- Load defaults first, then override with a local config if present -->
   <script src="config.example.js"></script>
   <script>

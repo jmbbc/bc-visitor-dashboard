@@ -44,6 +44,12 @@ function listTodayCounterEntries_(idToken) {
     try { details = JSON.parse(json) || {}; } catch (_) { details = {}; }
     return {
       id,
+      details: Object.fromEntries([
+        'Tujuan', 'Perkhidmatan', 'Jenis penghantaran', 'Bilangan rumah',
+        'Sebab tiada kad', 'Jenis urusan', 'Syarikat / Organisasi',
+        'Nama syarikat / organisasi', 'Lokasi kerja', 'Nombor telefon',
+      ].filter(label => typeof details[label] === 'string' && details[label].trim())
+        .map(label => [label, details[label].trim()])),
       enteredAt: time.toISOString(),
       category,
       name: details.Nama || details['Nama pemandu'] || details['Nama penghuni'] || '',
